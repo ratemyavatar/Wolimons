@@ -719,8 +719,12 @@
         value: VALUES.get(id),
         copies,
         serials: row.serialNumber ? [Number(row.serialNumber)] : [],
+        /* The collectibles endpoint only returns limited items, so `limited`
+         * is a given. Limited U is NOT inferable from the row - a serial
+         * number is not the same thing - so both flags are overwritten below
+         * with what api/v1/items/restrictions reports. */
         limited: true,
-        limitedUnique: Boolean(row.serialNumber),
+        limitedUnique: false,
         /* Both only matter to the badge rules: assetTypeId backs
          * Accessorized, and `available` (copies in existence) backs the
          * rarity and percentage-of-copies badges. serialCount is the
@@ -765,6 +769,21 @@
         state.items.forEach(item => {
           const url = map && map.get ? map.get(item.id) : null;
           if (url) item.thumbnail = url;
+        });
+        renderInventory();
+      })
+      .catch(() => {});
+
+    /* Which ribbon each item gets is the API's call, not ours. One batched
+     * request covers the whole inventory. */
+    API.getItemRestrictions(state.items.map(item => item.id))
+      .then(flags => {
+        if (!flags || !flags.size) return;
+        state.items.forEach(item => {
+          const entry = flags.get(item.id);
+          if (!entry) return;
+          item.limited = entry.isLimited;
+          item.limitedUnique = entry.isLimitedUnique;
         });
         renderInventory();
       })

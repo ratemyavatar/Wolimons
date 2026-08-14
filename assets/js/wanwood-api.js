@@ -128,10 +128,20 @@
 
   function normalizeDetail(raw) {
     const id = Number(raw.id ?? raw.assetId ?? raw.AssetId ?? raw.TargetId);
+
+    /* Whatever the payload happens to carry. Wanwood reports the two
+     * booleans; the Roblox-shaped array is accepted for completeness. Both
+     * are provisional - getItemDetails overwrites them with the answer from
+     * api/v1/items/restrictions, which is the authoritative source. */
     const restrictions = Array.isArray(raw.itemRestrictions) ? raw.itemRestrictions.slice() : [];
-    if (raw.isLimitedUnique === true && !restrictions.includes('LimitedUnique')) {
+    const isLimitedUnique = raw.isLimitedUnique === true
+      || restrictions.includes('LimitedUnique');
+    const isLimited = isLimitedUnique
+      || raw.isLimited === true
+      || restrictions.includes('Limited');
+    if (isLimitedUnique && !restrictions.includes('LimitedUnique')) {
       restrictions.push('LimitedUnique');
-    } else if (raw.isLimited === true && !restrictions.length) {
+    } else if (isLimited && !restrictions.length) {
       restrictions.push('Limited');
     }
 
@@ -144,6 +154,9 @@
       description: String(raw.description ?? raw.Description ?? '').trim(),
       creatorName: String(raw.Creator?.Name ?? raw.creator?.name ?? '').trim(),
       assetType: toNumber(raw.assetType ?? raw.AssetTypeId),
+      /* Three views of the same fact, kept in sync by applyRestrictions. */
+      isLimited,
+      isLimitedUnique,
       itemRestrictions: restrictions,
       isForSale: Boolean(raw.isForSale ?? raw.IsForSale),
       price: toNumber(raw.price ?? raw.priceRobux),
@@ -174,23 +187,65 @@
 
   /*
    * GET /apisite/api/v1/items/restrictions?assetIds=1,2,3
-   * One request for the whole page. Returns isLimited / isLimitedUnique,
-   * which is what drives the Limited / Limited-U ribbons.
+   *
+   * -> [ { assetId, isLimited, isLimitedUnique } ]
+   *
+   * This is the ONLY authoritative answer to "is this Limited or Limited U".
+   * It reads asset.is_limited / asset.is_limited_unique directly, so nothing
+   * in this codebase may infer the distinction some other way (a serial
+   * number, for instance, is not a reliable stand-in). Every surface that
+   * draws a ribbon routes through here.
+   *
+   * The endpoint caps at 200 ids per call, so longer lists are chunked.
+   * Answers are cached for the life of the page - an item does not change
+   * between Limited and Limited U.
    */
-  async function fetchRestrictions(ids) {
-    const map = new Map();
-    try {
-      const query = new URLSearchParams({ assetIds: ids.join(',') });
-      const result = await fetchJson(`${API_BASE}/apisite/api/v1/items/restrictions?${query}`);
-      const rows = Array.isArray(result) ? result : (result.data || []);
-      rows.forEach(row => {
-        const id = Number(row.assetId ?? row.id);
-        if (Number.isSafeInteger(id)) map.set(id, row);
-      });
-    } catch (error) {
-      /* Ribbons are cosmetic - never fail the page over them. */
+  const RESTRICTION_CHUNK = 200;
+  const restrictionCache = new Map();
+
+  async function getItemRestrictions(ids) {
+    const unique = [...new Set(ids.map(Number).filter(Number.isSafeInteger))];
+    const missing = unique.filter(id => !restrictionCache.has(id));
+
+    for (let index = 0; index < missing.length; index += RESTRICTION_CHUNK) {
+      const chunk = missing.slice(index, index + RESTRICTION_CHUNK);
+      try {
+        const query = new URLSearchParams({ assetIds: chunk.join(',') });
+        const result = await fetchJson(
+          `${API_BASE}/apisite/api/v1/items/restrictions?${query}`);
+        const rows = Array.isArray(result) ? result : (result.data || []);
+        rows.forEach(row => {
+          const id = Number(row.assetId ?? row.id);
+          if (!Number.isSafeInteger(id)) return;
+          restrictionCache.set(id, {
+            isLimited: Boolean(row.isLimited) || Boolean(row.isLimitedUnique),
+            isLimitedUnique: Boolean(row.isLimitedUnique),
+          });
+        });
+      } catch (error) {
+        /* Ribbons are cosmetic - never fail a page over them. Leaving the
+         * id uncached lets a later call retry it. */
+      }
     }
+
+    const map = new Map();
+    unique.forEach(id => {
+      const flags = restrictionCache.get(id);
+      if (flags) map.set(id, flags);
+    });
     return map;
+  }
+
+  /* Stamp the flags onto a detail record, in both shapes: the booleans the
+   * backend actually reports, and the Roblox-style itemRestrictions array. */
+  function applyRestrictions(detail, flags) {
+    if (!detail || !flags) return detail;
+    detail.isLimited = flags.isLimited;
+    detail.isLimitedUnique = flags.isLimitedUnique;
+    detail.itemRestrictions = flags.isLimitedUnique
+      ? ['LimitedUnique']
+      : (flags.isLimited ? ['Limited'] : []);
+    return detail;
   }
 
   /*
@@ -525,21 +580,22 @@
         resolved = null;
       }
 
+      /* The Limited / Limited U distinction comes from the API, never from
+       * a guess, so ask for it on BOTH paths. productinfo omits the flags
+       * entirely and the details batch has been seen to drop them, which is
+       * how Limited U items used to render a plain Limited ribbon. */
+      const restrictions = await getItemRestrictions(missing);
+
       if (resolved) {
-        resolved.forEach(item => detailCache.set(item.id, item));
+        resolved.forEach(item => {
+          applyRestrictions(item, restrictions.get(item.id));
+          detailCache.set(item.id, item);
+        });
       } else {
-        const restrictions = await fetchRestrictions(missing);
         const built = await mapLimit(missing, CONCURRENCY, async id => {
           try {
-            const info = await fetchProductInfo(id);
-            const detail = normalizeDetail({ ...info, id });
-            const flags = restrictions.get(id);
-            if (flags) {
-              detail.itemRestrictions = flags.isLimitedUnique
-                ? ['LimitedUnique']
-                : (flags.isLimited ? ['Limited'] : []);
-            }
-            return detail;
+            const detail = normalizeDetail({ ...(await fetchProductInfo(id)), id });
+            return applyRestrictions(detail, restrictions.get(id));
           } catch (error) {
             return null;
           }
@@ -812,6 +868,7 @@
     getAssetOwners,
     getUsersByIds,
     getItemDetails,
+    getItemRestrictions,
     fetchRap,
     fetchResaleData,
     fetchThumbnails,

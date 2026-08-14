@@ -33,12 +33,12 @@
 
   const state = {
     page: 1,
-    total: 0,
     keyword: '',
     sort: 'newest',
     assetType: null,
     /* Sets of the selected data-filter-value strings, one per group. */
     filters: { demand: new Set(), trend: new Set(), category: new Set() },
+    /* Every collectible on Wanwood, fetched once. See loadCatalog(). */
     items: [],
     request: 0,
   };
@@ -77,26 +77,23 @@
   })();
 
   /*
-   * The catalog only ever asks Wanwood for "newest". Value is ours, not
-   * Wanwood's, and RAP/name are cheap to order client-side, so every other
-   * sort is applied locally in visibleItems().
+   * The whole catalog is fetched once, then sorted, filtered and paginated in
+   * the browser.
+   *
+   * That sounds wasteful and isn't: Wanwood has around 39 collectibles in
+   * total, so "everything" is one or two requests. Doing it per-page was the
+   * bug behind the sort buttons - a page-at-a-time fetch can only sort the
+   * thirty items already on screen, so "Highest Value" reordered the current
+   * page instead of finding the highest-valued items in the game. Value and
+   * demand aren't Wanwood's fields anyway, so it could never sort by them.
    */
-  function apiSortType() {
-    return '3';
-  }
-
   function searchCatalog() {
-    return API.searchItems({
-      category: 'Collectibles',
-      subcategory: state.assetType ? TYPE_NAMES[state.assetType] : 'Collectibles',
-      sortType: apiSortType(),
-      keyword: state.keyword,
-      limit: PAGE_SIZE,
-      cursor: (state.page - 1) * PAGE_SIZE,
-    });
+    /* Walks the cursor until Wanwood runs out, so nothing is missed if the
+     * catalog ever grows past one page. */
+    return API.listAllCollectibles();
   }
 
-  function normalizeItem(item) {
+  function normalizeItem(item, index) {
     let available = item.unitsAvailableForConsumption;
     if (available === null || available === undefined) {
       const stock = Number(item.serialCount);
@@ -110,6 +107,9 @@
       id: item.id,
       name: item.name.trim(),
       assetType: Number(item.assetType),
+      /* Where Wanwood put it when asked for newest-first. Kept so the Newest
+       * sort has something to sort by - there is no date on these rows. */
+      order: index,
       /* Value, demand, trend and categories are community-assigned, never
        * fetched - Wanwood reports none of them. Unset reads 0 / null / []. */
       value: VALUES.get(item.id),
@@ -134,25 +134,23 @@
     status.textContent = 'Loading the Wanwood catalog…';
 
     try {
-      const search = await searchCatalog();
+      const ids = await searchCatalog();
       if (request !== state.request) return;
 
-      if (!search.ids.length) {
-        state.total = 0;
+      if (!ids.length) {
         state.items = [];
         render();
         return;
       }
 
-      const details = await API.getItemDetails(search.ids, { includePrice: false });
+      const details = await API.getItemDetails(ids, { includePrice: false });
       if (request !== state.request) return;
 
       const byId = new Map(details.map(item => [item.id, item]));
-      const ordered = search.ids
+      const ordered = ids
         .map(id => byId.get(id))
         .filter(item => item && item.name);
 
-      state.total = Number.isFinite(search.total) ? search.total : ordered.length;
       state.items = ordered.map(normalizeItem);
       render();
     } catch (error) {
@@ -179,8 +177,15 @@
     const rapMin = rangeValue('filter-rap-min');
     const rapMax = rangeValue('filter-rap-max');
     const { demand, trend, category } = state.filters;
+    const keyword = state.keyword.toLowerCase();
     const items = state.items.filter(item => {
+      /* Item type is checked here and only here. It used to be sent to
+       * Wanwood as a subcategory *and* re-checked locally, and the two
+       * disagreed - Wanwood's subcategory names don't line up with the
+       * assetType numbers on the buttons, so picking a type could empty the
+       * grid even though matching items existed. */
       if (state.assetType && item.assetType !== state.assetType) return false;
+      if (keyword && !item.name.toLowerCase().includes(keyword)) return false;
       /* "None" is the Unassigned button: it matches items left unset. */
       if (demand.size && !demand.has(item.demand ?? 'None')) return false;
       if (trend.size && !trend.has(item.trend ?? 'None')) return false;
@@ -193,16 +198,42 @@
       return true;
     });
 
+    /*
+     * Every sort runs over the whole catalog, not the visible page.
+     *
+     * Unvalued items sort as 0 and unpriced ones as no-RAP, which would bunch
+     * them at one end and look like a bug. They're pushed to the back of both
+     * directions instead, so "Lowest Value" shows the cheapest *valued* item
+     * rather than thirty blanks.
+     */
+    const missingLast = (a, b, key, direction) => {
+      const left = a[key];
+      const right = b[key];
+      const leftMissing = left === null || left === undefined || left === 0;
+      const rightMissing = right === null || right === undefined || right === 0;
+      if (leftMissing && rightMissing) return a.order - b.order;
+      if (leftMissing) return 1;
+      if (rightMissing) return -1;
+      return direction * (left - right);
+    };
+
     const comparators = {
-      value_descending: (a, b) => b.value - a.value,
-      value_ascending: (a, b) => a.value - b.value,
-      rap_descending: (a, b) => (b.rap ?? -Infinity) - (a.rap ?? -Infinity),
-      rap_ascending: (a, b) => (a.rap ?? Infinity) - (b.rap ?? Infinity),
+      newest: (a, b) => a.order - b.order,
+      value_descending: (a, b) => missingLast(a, b, 'value', -1),
+      value_ascending: (a, b) => missingLast(a, b, 'value', 1),
+      rap_descending: (a, b) => missingLast(a, b, 'rap', -1),
+      rap_ascending: (a, b) => missingLast(a, b, 'rap', 1),
       name_ascending: (a, b) => a.name.localeCompare(b.name),
       name_descending: (a, b) => b.name.localeCompare(a.name),
     };
-    if (comparators[state.sort]) items.sort(comparators[state.sort]);
-    return items;
+    const compare = comparators[state.sort] || comparators.newest;
+    return items.sort(compare);
+  }
+
+  /* The slice of the filtered list that belongs on the current page. */
+  function pageItems(items) {
+    const start = (state.page - 1) * PAGE_SIZE;
+    return items.slice(start, start + PAGE_SIZE);
   }
 
   function text(tag, className, value) {
@@ -277,8 +308,13 @@
     return card;
   }
 
-  function renderPagination(container) {
-    const totalPages = Math.max(1, Math.ceil(state.total / PAGE_SIZE));
+  function renderPagination(container, totalPages) {
+    /*
+     * Clear first. This function appends a widget, and render() runs on every
+     * filter click - so without this the Prev/1/2/Next strip stacked up, a
+     * fresh copy each time you touched a filter.
+     */
+    container.replaceChildren();
     const wrapper = document.createElement('div');
     wrapper.className = 'simple-pagination dark-theme';
     const list = document.createElement('ul');
@@ -294,7 +330,9 @@
         if (!disabled) link.addEventListener('click', event => {
           event.preventDefault();
           state.page = page;
-          loadCatalog();
+          /* Everything is already in memory, so turning a page is a re-render,
+           * not another trip to Wanwood. */
+          render();
           window.scrollTo({ top: 0, behavior: 'smooth' });
         });
         item.append(link);
@@ -323,20 +361,41 @@
 
   function render() {
     const items = visibleItems();
-    grid.replaceChildren(...items.map(createCard));
-    status.textContent = `LIVE · ${items.length}/${state.total}`;
-    renderPagination(topPagination);
-    renderPagination(bottomPagination);
+    const totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
+
+    /* A filter that shrinks the list can strand us past the last page. */
+    if (state.page > totalPages) state.page = totalPages;
+
+    const visible = pageItems(items);
+    if (visible.length) {
+      grid.replaceChildren(...visible.map(createCard));
+    } else {
+      const message = document.createElement('div');
+      message.className = 'text-center text-muted py-5 w-100';
+      message.textContent = state.items.length
+        ? 'No items match these filters.'
+        : 'No items found.';
+      grid.replaceChildren(message);
+    }
+
+    status.textContent = `LIVE · ${items.length}/${state.items.length}`;
+    renderPagination(topPagination, totalPages);
+    renderPagination(bottomPagination, totalPages);
   }
 
+  /*
+   * From here on every control just re-renders. The catalog is already in
+   * memory, so searching and sorting are instant and work offline-ish - and,
+   * more to the point, they act on all 39 items instead of the visible page.
+   */
   let searchTimer;
   searchInput.addEventListener('input', () => {
     clearTimeout(searchTimer);
     searchTimer = setTimeout(() => {
       state.keyword = searchInput.value.trim();
       state.page = 1;
-      loadCatalog();
-    }, 300);
+      render();
+    }, 200);
   });
 
   document.querySelectorAll('[data-dropdown="sort_type"]').forEach(option => {
@@ -346,7 +405,7 @@
       state.page = 1;
       sortLabel.textContent = option.textContent;
       option.closest('.dropdown-menu')?.classList.remove('show');
-      loadCatalog();
+      render();
     });
   });
 
@@ -367,7 +426,7 @@
         candidate.classList.toggle('active', active);
         candidate.setAttribute('aria-pressed', String(active));
       });
-      loadCatalog();
+      render();
     });
   });
 
@@ -386,16 +445,49 @@
       else selected.delete(value);
       button.classList.toggle('active', active);
       button.setAttribute('aria-pressed', String(active));
+      state.page = 1;
       render();
     });
   });
 
+  /* Its own timer - sharing one with the search box meant typing in a range
+   * box cancelled a pending search, and vice versa. */
+  let rangeTimer;
   rangeInputs.forEach(input => {
     input?.addEventListener('input', () => {
-      clearTimeout(searchTimer);
-      searchTimer = setTimeout(render, 200);
+      clearTimeout(rangeTimer);
+      rangeTimer = setTimeout(() => {
+        state.page = 1;
+        render();
+      }, 200);
     });
   });
+
+  /*
+   * Values arrive from the backend after the grid has already been drawn, so
+   * re-read them onto the items we're holding and redraw. Without this the
+   * catalog would show every item at value 0 until the next reload, and the
+   * Value sort and Valued filter would have nothing to work with.
+   */
+  if (window.WolimonsValues && typeof window.WolimonsValues.subscribe === 'function') {
+    let first = true;
+    window.WolimonsValues.subscribe(() => {
+      /* subscribe() fires immediately; at that point there is nothing to
+       * update and loadCatalog() has not run yet. */
+      if (first) {
+        first = false;
+        return;
+      }
+      if (!state.items.length) return;
+      state.items.forEach(item => {
+        item.value = VALUES.get(item.id);
+        item.demand = VALUES.demand(item.id);
+        item.trend = VALUES.trend(item.id);
+        item.categories = VALUES.categories(item.id);
+      });
+      render();
+    });
+  }
 
   document.querySelectorAll('.catalog_controls [data-toggle="collapse"]').forEach(control => {
     control.addEventListener('click', () => {

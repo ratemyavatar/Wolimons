@@ -55,6 +55,25 @@
     'Nun',
   ];
 
+  /*
+   * Site owners - who the admin panel opens for.
+   *
+   * Same idea as the list above, and the same limits: it is a list of names
+   * kept by hand, matched case-insensitively against the linked Wanwood
+   * username. Add a name to grant access; nobody else gets in.
+   *
+   * IMPORTANT - what this is and is not:
+   * this is a UI gate, not a security boundary. Wolimons is a static site
+   * with no server of its own, so "being an owner" is decided in the
+   * visitor's own browser and anyone who wants to can edit around it. It
+   * keeps the panel out of the way of ordinary visitors; it cannot protect
+   * anything, and nothing sensitive should ever be put behind it. Real
+   * permissions need a backend that checks them, and there isn't one.
+   */
+  const OWNERS = [
+    'Nun',
+  ];
+
   let apiBase = DEFAULT_API_BASE;
   try {
     const override = window.localStorage.getItem('wolimons_api_base');
@@ -67,6 +86,10 @@
     CERTIFIED_WANWOODIANS.map(name => String(name).trim().toLowerCase()).filter(Boolean),
   );
 
+  const owners = new Set(
+    OWNERS.map(name => String(name).trim().toLowerCase()).filter(Boolean),
+  );
+
   window.WOLIMONS_CONFIG = {
     apiBase: String(apiBase).replace(/\/+$/, ''),
     siteBase: SITE_BASE.replace(/\/+$/, ''),
@@ -74,6 +97,11 @@
     /* True only for a name on the list above. */
     isCertifiedWanwoodian(name) {
       return certified.has(String(name || '').trim().toLowerCase());
+    },
+    owners: OWNERS,
+    /* True only for a name on the owners list. See the warning above it. */
+    isOwner(name) {
+      return owners.has(String(name || '').trim().toLowerCase());
     },
   };
 })();

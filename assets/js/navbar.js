@@ -187,8 +187,38 @@
     }
   }
 
-  window.WolimonsAccount?.subscribe(() => { renderAccountMenu(); });
+  /* ------------------------------------------------------------------ */
+  /* Admin entry in the More menu                                        */
+  /* ------------------------------------------------------------------ */
+
+  /*
+   * The Admin link is only put in the More menu when the linked account is
+   * on the owners list in config.js. Hiding it is a courtesy, not a lock -
+   * see the note above that list: this is a static site, so the answer is
+   * decided in the visitor's own browser and /admin re-checks it anyway.
+   */
+  const ADMIN_ICON = 'M12 1 3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z'
+    + 'm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z';
+
+  const moreMenu = document.querySelector('[aria-labelledby="navbarMoreFeaturesDropdown"]');
+
+  function renderAdminEntry() {
+    if (!moreMenu) return;
+    moreMenu.querySelector('#navbar_more_admin')?.remove();
+
+    const linked = window.WolimonsAccount?.get();
+    if (!linked || !window.WOLIMONS_CONFIG?.isOwner(linked.name)) return;
+
+    /* First in the menu, so it is not buried under the feature links. */
+    moreMenu.prepend(accountItem('navbar_more_admin', '/admin', 'Admin', ADMIN_ICON));
+  }
+
+  window.WolimonsAccount?.subscribe(() => {
+    renderAccountMenu();
+    renderAdminEntry();
+  });
   renderAccountMenu();
+  renderAdminEntry();
 
   /* ------------------------------------------------------------------ */
   /* Search modal                                                        */

@@ -1,182 +1,30 @@
 /*
- * Trade ads - /trades
+ * Trade ads board - /trades
  *
- * ---------------------------------------------------------------------------
- * WHERE THE ADS LIVE
- * ---------------------------------------------------------------------------
- * They live in this browser, in localStorage, and nowhere else.
- *
- * Wanwood has no trade ad service. There is no endpoint to post an ad to and
- * none to read other players' ads from - the backend simply does not have the
- * feature, so there is nothing for Wolimons to call. Rather than invent a
- * server that does not exist, or fill the board with made-up ads, the page is
- * honest about it: you can write ads, they persist on this device, and the
- * board shows exactly what you wrote. Nobody else's ads appear here, because
- * there is no way for them to arrive.
- *
- * If Wanwood ever grows the endpoints, `loadAds` and `saveAds` are the only
- * two functions that need to change.
- *
- * ---------------------------------------------------------------------------
- * WHAT IS REAL
- * ---------------------------------------------------------------------------
- * Everything an ad is built from is real. Items come from the live catalog
- * search, thumbnails and RAP come from the API, the creator is the linked
- * Wanwood account, and Value is the hand-curated figure from values.js -
- * still 0 until someone sets it. No prices anywhere.
+ * The board: filters, the ad list, paging and the inline composer. Where the
+ * ads live, how they are stored and how a card is drawn are in
+ * tradeads-core.js, which the single-ad page (/tradead) shares - see the
+ * comment at the top of that file for the storage story.
  */
 (() => {
   'use strict';
 
   const API = window.WanwoodAPI;
   const ACCOUNT = window.WolimonsAccount;
+  const CORE = window.WolimonsTradeAds;
 
-  const STORAGE_KEY = 'wolimons_trade_ads_v1';
   const PAGE_SIZE = 10;
   const SEARCH_LIMIT = 24;
   const SEARCH_DEBOUNCE_MS = 300;
-  const MAX_ADS = 200;
 
-  /* The ten request tags, in the snapshot's order. A request slot holds
-   * either an item or one of these. */
-  const TAGS = [
-    { slug: 'any', label: 'Any' },
-    { slug: 'demand', label: 'Demand' },
-    { slug: 'rares', label: 'Rares' },
-    { slug: 'rap', label: 'RAP' },
-    { slug: 'wishlist', label: 'Wishlist' },
-    { slug: 'robux', label: 'Robux' },
-    { slug: 'upgrade', label: 'Upgrade' },
-    { slug: 'downgrade', label: 'Downgrade' },
-    { slug: 'adds', label: 'Adds' },
-    { slug: 'projecteds', label: 'Projecteds' },
-  ];
-  const TAG_BY_SLUG = new Map(TAGS.map(tag => [tag.slug, tag]));
-  const tagArt = slug => `/img/tradetags/tradetag${slug}-420.png`;
-
-  /* ------------------------------------------------------------------ */
-  /* Small helpers                                                       */
-  /* ------------------------------------------------------------------ */
-
-  const formatNumber = value => Number(value).toLocaleString('en-US');
-
-  const slugify = value => String(value || 'unnamed')
-    .replace(/'/g, '')
-    .replace(/[^a-zA-Z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '') || 'unnamed';
-
-  /* values.js read defensively, the same way item-cards.js reads it: a stale
-   * or missing copy must not take the board down. Value is 0 until set. */
-  const VALUES = {
-    get(id) {
-      const table = window.WolimonsValues;
-      return table && typeof table.get === 'function' ? Number(table.get(id)) || 0 : 0;
-    },
-  };
-
-  function el(tag, className, text) {
-    const node = document.createElement(tag);
-    if (className) node.className = className;
-    if (text !== undefined && text !== null) node.textContent = String(text);
-    return node;
-  }
-
-  /* "6 seconds ago" / "3 hours ago" - the snapshot's timestamp wording. */
-  function relativeTime(timestamp) {
-    const seconds = Math.max(0, Math.round((Date.now() - Number(timestamp)) / 1000));
-    const steps = [
-      [60, 'second'],
-      [60, 'minute'],
-      [24, 'hour'],
-      [7, 'day'],
-      [4.348, 'week'],
-      [12, 'month'],
-    ];
-    let amount = seconds;
-    let unit = 'second';
-    for (let i = 0; i < steps.length; i += 1) {
-      const [size, name] = steps[i];
-      if (amount < size) { unit = name; break; }
-      amount = Math.floor(amount / size);
-      unit = steps[i + 1] ? steps[i + 1][1] : 'year';
-    }
-    const rounded = Math.max(1, Math.floor(amount));
-    return `${rounded} ${unit}${rounded === 1 ? '' : 's'} ago`;
-  }
-
-  /* ------------------------------------------------------------------ */
-  /* Storage                                                             */
-  /* ------------------------------------------------------------------ */
-
-  /*
-   * An ad on disk:
-   *   { id, creatorId, creatorName, createdAt,
-   *     offer:   [ slot|null x4 ],
-   *     request: [ slot|null x4 ] }
-   *
-   * A slot is either { kind:'item', id, name } or { kind:'tag', slug }.
-   * Only ids and names are stored - thumbnails, RAP and Value are looked up
-   * fresh on every render so the board never serves stale numbers.
-   */
-  function loadAds() {
-    let raw = null;
-    try {
-      raw = window.localStorage.getItem(STORAGE_KEY);
-    } catch (error) {
-      return [];
-    }
-    if (!raw) return [];
-    let parsed = null;
-    try {
-      parsed = JSON.parse(raw);
-    } catch (error) {
-      return [];
-    }
-    if (!Array.isArray(parsed)) return [];
-    return parsed.map(normalizeAd).filter(Boolean);
-  }
-
-  function saveAds(ads) {
-    try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(ads.slice(0, MAX_ADS)));
-      return true;
-    } catch (error) {
-      return false;
-    }
-  }
-
-  function normalizeSlot(raw) {
-    if (!raw || typeof raw !== 'object') return null;
-    if (raw.kind === 'tag') {
-      return TAG_BY_SLUG.has(raw.slug) ? { kind: 'tag', slug: raw.slug } : null;
-    }
-    const id = Number(raw.id);
-    if (!Number.isSafeInteger(id) || id <= 0) return null;
-    return { kind: 'item', id, name: typeof raw.name === 'string' ? raw.name : '' };
-  }
-
-  function normalizeSide(raw) {
-    const list = Array.isArray(raw) ? raw : [];
-    return [0, 1, 2, 3].map(index => normalizeSlot(list[index]));
-  }
-
-  function normalizeAd(raw) {
-    if (!raw || typeof raw !== 'object') return null;
-    const creatorId = Number(raw.creatorId);
-    const creatorName = typeof raw.creatorName === 'string' ? raw.creatorName.trim() : '';
-    if (!Number.isSafeInteger(creatorId) || creatorId <= 0 || !creatorName) return null;
-    const offer = normalizeSide(raw.offer);
-    const request = normalizeSide(raw.request);
-    if (!offer.some(Boolean)) return null;
-    return {
-      id: String(raw.id || `${creatorId}-${raw.createdAt || Date.now()}`),
-      creatorId,
-      creatorName,
-      createdAt: Number(raw.createdAt) || Date.now(),
-      offer,
-      request,
-    };
-  }
+  /* Everything below is the core's - the board and the single-ad page must
+   * agree on the tag list, the storage format and how a card is drawn. */
+  const {
+    TAGS, TAG_BY_SLUG, tagArt, VALUES, el, formatNumber,
+    relativeTime, loadAds, saveAds, normalizeAd,
+    items, creators, resolveItems, resolveCreators, itemIdsIn,
+    sideTotals, sideNode,
+  } = CORE;
 
   /* ------------------------------------------------------------------ */
   /* Page state                                                          */
@@ -185,12 +33,16 @@
   const state = {
     ads: [],
     page: 0,
-    filters: { offerName: '', requestName: '', tags: new Set() },
+    filters: {
+      offerName: '',
+      requestName: '',
+      tags: new Set(),
+      /* null means "no bound set", which is not the same as 0. */
+      offer: { min: null, max: null },
+      request: { min: null, max: null },
+    },
     composer: { offer: [null, null, null, null], request: [null, null, null, null] },
     picker: { side: null, slot: null, sequence: 0 },
-    /* id -> { name, thumbnail, rap } for every item the board mentions. */
-    items: new Map(),
-    creators: new Map(),
   };
 
   const dom = {};
@@ -203,7 +55,16 @@
     dom.offerFilter = document.getElementById('filter_offer_side_item_name_search_textbox');
     dom.requestFilter = document.getElementById('filter_request_side_item_name_search_textbox');
     dom.tagFilterRow = document.getElementById('request_tag_filter_row');
-    dom.enabledTagFilters = document.getElementById('enabled_request_tag_filters');
+    dom.tagFilterModal = document.getElementById('request_tag_filter_modal');
+    dom.valueFilterModals = {
+      offer: document.getElementById('offer_value_filter_modal'),
+      request: document.getElementById('request_value_filter_modal'),
+    };
+    dom.valueFilterButtons = {
+      offer: document.getElementById('trade_ads_offer_value_filter_button'),
+      request: document.getElementById('trade_ads_request_value_filter_button'),
+    };
+    dom.tagFilterButton = document.getElementById('trade_ads_request_tags_filter_button');
     dom.lockedNotice = document.getElementById('create_ad_locked');
     dom.createPanel = document.getElementById('create_ad_panel');
     dom.createIdentity = document.getElementById('create_ad_identity');
@@ -231,153 +92,12 @@
   }
 
   /* ------------------------------------------------------------------ */
-  /* Item lookups                                                        */
-  /* ------------------------------------------------------------------ */
-
-  /* Fill state.items for every item id the given ads reference. One details
-   * call covers the lot; a failure leaves the ids unresolved rather than
-   * fabricating names or numbers. */
-  async function resolveItems(ids) {
-    const wanted = [...new Set(ids.map(Number).filter(id =>
-      Number.isSafeInteger(id) && id > 0 && !state.items.has(id)))];
-    if (!wanted.length) return;
-    let details = [];
-    try {
-      details = await API.getItemDetails(wanted, { includePrice: false });
-    } catch (error) {
-      return;
-    }
-    details.forEach(item => {
-      const id = Number(item.id ?? item.assetId);
-      if (!Number.isSafeInteger(id)) return;
-      state.items.set(id, {
-        id,
-        name: (item.name || '').trim(),
-        thumbnail: item.thumbnail || API.thumbnailUrl(id),
-        rap: Number.isFinite(item.rap) ? item.rap : null,
-      });
-    });
-  }
-
-  async function resolveCreators(ids) {
-    const wanted = [...new Set(ids.map(Number).filter(id =>
-      Number.isSafeInteger(id) && id > 0 && !state.creators.has(id)))];
-    if (!wanted.length) return;
-    let map = new Map();
-    try {
-      map = await API.fetchUserHeadshots(wanted, 150);
-    } catch (error) {
-      return;
-    }
-    wanted.forEach(id => state.creators.set(id, map.get(id) || ''));
-  }
-
-  /* ------------------------------------------------------------------ */
-  /* Totals                                                              */
-  /* ------------------------------------------------------------------ */
-
-  /*
-   * A side's Value and RAP are the sums over its item slots. Tag slots have
-   * no numbers and contribute nothing. A side with no items at all shows "-",
-   * which is what the snapshot does for a tags-only request side.
-   *
-   * Value is the curated figure and is 0 until set, so a side of unvalued
-   * items legitimately totals 0 - that is not a missing number, it is the
-   * honest answer.
-   */
-  function sideTotals(side) {
-    const items = side.filter(slot => slot && slot.kind === 'item');
-    if (!items.length) return { value: null, rap: null };
-    let value = 0;
-    let rap = 0;
-    let sawRap = false;
-    items.forEach(slot => {
-      value += VALUES.get(slot.id);
-      const known = state.items.get(slot.id);
-      if (known && Number.isFinite(known.rap)) {
-        rap += known.rap;
-        sawRap = true;
-      }
-    });
-    return { value, rap: sawRap ? rap : null };
-  }
-
-  /* ------------------------------------------------------------------ */
   /* Rendering a card                                                    */
+  /*                                                                     */
+  /* The two sides come from the core - the single-ad page draws exactly */
+  /* the same card. Only the header bar differs: the board's carries the */
+  /* Details / Send Trade / Delete controls.                             */
   /* ------------------------------------------------------------------ */
-
-  function slotImage(slot, index, side) {
-    const wrap = el('div', 'position-relative');
-    wrap.appendChild(el('div', `system_item_tag_container_${index + 1}`));
-
-    if (!slot) {
-      const blank = el('div', `ad_item_img ad_item_img_${index + 1} ad_item_slot_empty`);
-      blank.setAttribute('aria-label', 'Empty slot');
-      wrap.appendChild(blank);
-      return wrap;
-    }
-
-    if (slot.kind === 'tag') {
-      const tag = TAG_BY_SLUG.get(slot.slug);
-      const img = el('img', `ad_item_img ad_item_img_${index + 1}`);
-      img.width = 118;
-      img.height = 118;
-      img.decoding = 'async';
-      img.loading = 'lazy';
-      img.src = tagArt(slot.slug);
-      img.alt = tag ? tag.label : slot.slug;
-      img.title = tag ? tag.label : slot.slug;
-      wrap.appendChild(img);
-      return wrap;
-    }
-
-    const known = state.items.get(slot.id);
-    const name = (known && known.name) || slot.name || `Item ${slot.id}`;
-    const value = VALUES.get(slot.id);
-    const rap = known && Number.isFinite(known.rap) ? known.rap : null;
-
-    const link = el('a');
-    link.href = `/item/?id=${slot.id}&name=${slugify(name)}`;
-    const img = el('img', `ad_item_img hover_pointer ad_item_img_${index + 1}`);
-    img.width = 118;
-    img.height = 118;
-    img.decoding = 'async';
-    img.loading = 'lazy';
-    img.src = (known && known.thumbnail) || API.thumbnailUrl(slot.id);
-    img.alt = `${side} slot thumbnail`;
-    /* Value and RAP only - never a price. */
-    img.title = `${name}\nValue ${value ? formatNumber(value) : '-'}`
-      + `\nRAP ${rap === null ? '-' : formatNumber(rap)}`;
-    link.appendChild(img);
-    wrap.appendChild(link);
-    return wrap;
-  }
-
-  function sideNode(ad, which) {
-    const slots = which === 'offer' ? ad.offer : ad.request;
-    const side = el('div', which === 'offer' ? 'ad_side_left' : 'ad_side_right');
-    side.appendChild(el('div', 'ad_side_header', which === 'offer' ? 'Offering' : 'Requesting'));
-
-    const grid = el('div', 'd-flex flex-wrap flex-lg-nowrap justify-content-center');
-    const rowA = el('div', 'd-flex');
-    const rowB = el('div', 'd-flex');
-    rowA.appendChild(slotImage(slots[0], 0, which));
-    rowA.appendChild(slotImage(slots[1], 1, which));
-    rowB.appendChild(slotImage(slots[2], 2, which));
-    rowB.appendChild(slotImage(slots[3], 3, which));
-    grid.appendChild(rowA);
-    grid.appendChild(rowB);
-    side.appendChild(grid);
-
-    const totals = sideTotals(slots);
-    const details = el('div', 'ad_side_details');
-    details.appendChild(el('div', 'stat_title', 'Value'));
-    details.appendChild(el('div', 'stat_value', totals.value === null ? '-' : formatNumber(totals.value)));
-    details.appendChild(el('div', 'stat_title', 'RAP'));
-    details.appendChild(el('div', 'stat_rap', totals.rap === null ? '-' : formatNumber(totals.rap)));
-    side.appendChild(details);
-    return side;
-  }
 
   function adCard(ad) {
     const card = el('div', 'shadow_md_15 mix_item');
@@ -397,7 +117,7 @@
     pfp.decoding = 'async';
     pfp.loading = 'lazy';
     pfp.alt = 'Player thumbnail';
-    const headshot = state.creators.get(ad.creatorId);
+    const headshot = creators.get(ad.creatorId);
     if (headshot) pfp.src = headshot;
     pfpLink.appendChild(pfp);
     pfpWrap.appendChild(pfpLink);
@@ -419,10 +139,11 @@
     who.appendChild(names);
 
     const actions = el('div', 'py-1 my-auto ml-auto');
-    const profile = el('a', 'trade_ad_page_link_button my-auto btn btn-flat-light-blue-sm shadow-none', 'Details');
-    profile.href = `/player/?id=${ad.creatorId}`;
-    profile.setAttribute('role', 'button');
-    actions.appendChild(profile);
+    /* Details opens this ad on its own page. */
+    const details = el('a', 'trade_ad_page_link_button my-auto btn btn-flat-light-blue-sm shadow-none', 'Details');
+    details.href = `/tradead/?id=${encodeURIComponent(ad.id)}`;
+    details.setAttribute('role', 'button');
+    actions.appendChild(details);
 
     /* "Send Trade" goes to the creator's Wanwood profile - trading happens on
      * Wanwood itself, Wolimons only advertises. */
@@ -464,9 +185,21 @@
 
   function slotMatchesName(slot, needle) {
     if (!slot || slot.kind !== 'item') return false;
-    const known = state.items.get(slot.id);
+    const known = items.get(slot.id);
     const name = ((known && known.name) || slot.name || '').toLowerCase();
     return name.includes(needle);
+  }
+
+  /* A side passes a value filter when its total sits inside the bounds. A
+   * tags-only side has no total at all, so any bound excludes it - there is
+   * no number to compare, and guessing one would be inventing data. */
+  function withinValueRange(side, bounds) {
+    if (bounds.min === null && bounds.max === null) return true;
+    const total = sideTotals(side).value;
+    if (total === null) return false;
+    if (bounds.min !== null && total < bounds.min) return false;
+    if (bounds.max !== null && total > bounds.max) return false;
+    return true;
   }
 
   function visibleAds() {
@@ -477,6 +210,8 @@
     return state.ads.filter(ad => {
       if (offerNeedle && !ad.offer.some(slot => slotMatchesName(slot, offerNeedle))) return false;
       if (requestNeedle && !ad.request.some(slot => slotMatchesName(slot, requestNeedle))) return false;
+      if (!withinValueRange(ad.offer, state.filters.offer)) return false;
+      if (!withinValueRange(ad.request, state.filters.request)) return false;
       if (tags.size) {
         const present = new Set(ad.request
           .filter(slot => slot && slot.kind === 'tag')
@@ -563,7 +298,7 @@
       return;
     }
 
-    const known = state.items.get(slot.id);
+    const known = items.get(slot.id);
     const name = (known && known.name) || slot.name || `Item ${slot.id}`;
     node.style.backgroundImage = `url(${(known && known.thumbnail) || API.thumbnailUrl(slot.id)})`;
     node.style.backgroundSize = 'cover';
@@ -694,14 +429,18 @@
     if (dom.pickerSearch) dom.pickerSearch.focus();
   }
 
-  /* Bootstrap's JS is not loaded on this site, so the modal is shown by hand
+  /* Bootstrap's JS is not loaded on this site, so modals are shown by hand
    * the same way the rest of the pages do it. */
-  function showPicker(open) {
-    if (!dom.pickerModal) return;
-    dom.pickerModal.classList.toggle('show', open);
-    dom.pickerModal.style.display = open ? 'block' : 'none';
-    dom.pickerModal.setAttribute('aria-hidden', open ? 'false' : 'true');
+  function showModal(modal, open) {
+    if (!modal) return;
+    modal.classList.toggle('show', open);
+    modal.style.display = open ? 'block' : 'none';
+    modal.setAttribute('aria-hidden', open ? 'false' : 'true');
     document.body.classList.toggle('modal-open', open);
+  }
+
+  function showPicker(open) {
+    showModal(dom.pickerModal, open);
   }
 
   function pickerRow(item) {
@@ -757,7 +496,7 @@
         items.forEach(item => {
           const id = Number(item.id ?? item.assetId);
           if (!Number.isSafeInteger(id)) return;
-          state.items.set(id, {
+          items.set(id, {
             id,
             name: (item.name || '').trim(),
             thumbnail: item.thumbnail || API.thumbnailUrl(id),
@@ -794,44 +533,61 @@
   /* Filter chips                                                        */
   /* ------------------------------------------------------------------ */
 
-  function renderTagFilterChips() {
-    if (!dom.enabledTagFilters) return;
-    dom.enabledTagFilters.textContent = '';
-    state.filters.tags.forEach(slug => {
-      const tag = TAG_BY_SLUG.get(slug);
-      const container = el('div', 'filter_display_tag_container m-1');
-      const img = el('img', 'filter_display_tag');
-      img.src = tagArt(slug);
-      img.width = 48;
-      img.height = 48;
-      img.alt = tag ? tag.label : slug;
-      img.title = tag ? tag.label : slug;
-      container.appendChild(img);
+  /*
+   * The snapshot's chips are already in the page - one hidden pair per tag,
+   * plus a min/max pair per side - and turning a filter on just unhides the
+   * matching pair. That is why the markup ships fourteen .filter-remove-button
+   * elements: they belong to chips, not to a list built at runtime.
+   */
+  function renderFilterChips() {
+    TAGS.forEach(({ slug }) => {
+      const on = state.filters.tags.has(slug);
+      const image = document.getElementById(`filter_display_request_tag_${slug}`);
+      const remove = document.getElementById(`filter_display_request_tag_${slug}_remove_button`);
+      if (image) image.classList.toggle('d-none', !on);
+      /* .filter-remove-button is display:none in the stylesheet, so the
+       * button has to be shown explicitly alongside its tag. */
+      if (remove) remove.style.display = on ? 'block' : '';
+    });
 
-      const remove = el('div', 'filter-remove-button', '\u00d7');
-      remove.style.display = 'block';
-      remove.setAttribute('role', 'button');
-      remove.setAttribute('aria-label', `Remove ${tag ? tag.label : slug} filter`);
-      remove.addEventListener('click', () => {
-        state.filters.tags.delete(slug);
-        syncTagFilterButtons();
-        renderTagFilterChips();
-        state.page = 0;
-        renderBoard();
+    ['offer', 'request'].forEach(side => {
+      ['min', 'max'].forEach(bound => {
+        const amount = state.filters[side][bound];
+        const container = document.getElementById(`enabled_filter_${side}_value_${bound}_container`);
+        const text = document.getElementById(`enabled_filter_${side}_value_${bound}`);
+        if (container) container.classList.toggle('d-none', amount === null);
+        if (text) text.textContent = amount === null ? '' : formatNumber(amount);
       });
-      container.appendChild(remove);
-      dom.enabledTagFilters.appendChild(container);
     });
   }
 
+  /* A tag in the picker grid reads as chosen by the same dimming the rest of
+   * the site uses for an inactive thumbnail. */
   function syncTagFilterButtons() {
     if (!dom.tagFilterRow) return;
     dom.tagFilterRow.querySelectorAll('[data-tag]').forEach(button => {
       const on = state.filters.tags.has(button.dataset.tag);
-      button.classList.toggle('btn-flat-light-blue', on);
-      button.classList.toggle('btn-flat-dark-gray', !on);
+      button.style.opacity = on ? '1' : '0.45';
       button.setAttribute('aria-pressed', on ? 'true' : 'false');
     });
+  }
+
+  function applyTagFilter(slug, on) {
+    if (on) state.filters.tags.add(slug);
+    else state.filters.tags.delete(slug);
+    syncTagFilterButtons();
+    renderFilterChips();
+    state.page = 0;
+    renderBoard();
+  }
+
+  function applyValueFilter(side, bound, amount) {
+    state.filters[side][bound] = amount;
+    const input = document.getElementById(`filter_${side}_value_${bound}`);
+    if (input && amount === null) input.value = '';
+    renderFilterChips();
+    state.page = 0;
+    renderBoard();
   }
 
   /* ------------------------------------------------------------------ */
@@ -872,19 +628,61 @@
     if (dom.offerFilter) dom.offerFilter.addEventListener('input', applyFilters);
     if (dom.requestFilter) dom.requestFilter.addEventListener('input', applyFilters);
 
+    /* Tag picking happens inside the tag modal, on the grid of tag art. */
     if (dom.tagFilterRow) {
-      dom.tagFilterRow.addEventListener('click', event => {
-        const button = event.target.closest('[data-tag]');
+      const pick = target => {
+        const button = target.closest('[data-tag]');
         if (!button) return;
-        const slug = button.dataset.tag;
-        if (state.filters.tags.has(slug)) state.filters.tags.delete(slug);
-        else state.filters.tags.add(slug);
-        syncTagFilterButtons();
-        renderTagFilterChips();
-        state.page = 0;
-        renderBoard();
+        applyTagFilter(button.dataset.tag, !state.filters.tags.has(button.dataset.tag));
+      };
+      dom.tagFilterRow.addEventListener('click', event => pick(event.target));
+      dom.tagFilterRow.addEventListener('keydown', event => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        pick(event.target);
       });
     }
+
+    /* The three icon buttons open their modal; the chips' red x buttons and
+     * the modals' own clear buttons take a filter back off. */
+    dom.valueFilterButtons.offer?.addEventListener('click',
+      () => showModal(dom.valueFilterModals.offer, true));
+    dom.valueFilterButtons.request?.addEventListener('click',
+      () => showModal(dom.valueFilterModals.request, true));
+    dom.tagFilterButton?.addEventListener('click',
+      () => showModal(dom.tagFilterModal, true));
+
+    ['offer', 'request'].forEach(side => {
+      ['min', 'max'].forEach(bound => {
+        const input = document.getElementById(`filter_${side}_value_${bound}`);
+        input?.addEventListener('input', debounce(() => {
+          const amount = Number(input.value);
+          applyValueFilter(side, bound,
+            input.value.trim() === '' || !Number.isFinite(amount) ? null : amount);
+        }, SEARCH_DEBOUNCE_MS));
+
+        document.getElementById(`clear_filter_${side}_value_${bound}_button`)
+          ?.addEventListener('click', () => applyValueFilter(side, bound, null));
+        document.getElementById(`filter_display_${side}_${bound}_value_remove_button`)
+          ?.addEventListener('click', () => applyValueFilter(side, bound, null));
+      });
+    });
+
+    TAGS.forEach(({ slug }) => {
+      document.getElementById(`filter_display_request_tag_${slug}_remove_button`)
+        ?.addEventListener('click', () => applyTagFilter(slug, false));
+    });
+
+    [dom.tagFilterModal, dom.valueFilterModals.offer, dom.valueFilterModals.request]
+      .forEach(modal => {
+        if (!modal) return;
+        modal.addEventListener('click', event => {
+          if (event.target === modal) showModal(modal, false);
+        });
+        modal.querySelectorAll('[data-dismiss="modal"]').forEach(button => {
+          button.addEventListener('click', () => showModal(modal, false));
+        });
+      });
 
     if (dom.composerTagRow) {
       dom.composerTagRow.addEventListener('click', event => {
@@ -927,7 +725,11 @@
       });
     }
     document.addEventListener('keydown', event => {
-      if (event.key === 'Escape') showPicker(false);
+      if (event.key !== 'Escape') return;
+      showPicker(false);
+      showModal(dom.tagFilterModal, false);
+      showModal(dom.valueFilterModals.offer, false);
+      showModal(dom.valueFilterModals.request, false);
     });
 
     if (dom.postButton) dom.postButton.addEventListener('click', postAd);
@@ -964,14 +766,8 @@
     state.ads = loadAds();
     renderBoard();
 
-    const itemIds = [];
-    const creatorIds = [];
-    state.ads.forEach(ad => {
-      creatorIds.push(ad.creatorId);
-      ad.offer.concat(ad.request).forEach(slot => {
-        if (slot && slot.kind === 'item') itemIds.push(slot.id);
-      });
-    });
+    const itemIds = itemIdsIn(state.ads);
+    const creatorIds = state.ads.map(ad => ad.creatorId);
     state.composer.offer.concat(state.composer.request).forEach(slot => {
       if (slot && slot.kind === 'item') itemIds.push(slot.id);
     });
@@ -992,7 +788,7 @@
     wire();
     renderAccountGate();
     syncTagFilterButtons();
-    renderTagFilterChips();
+    renderFilterChips();
     renderComposer();
     reload();
   }

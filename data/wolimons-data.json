@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "updatedAt": 0,
+  "roles": {
+    "nun": {
+      "name": "Nun",
+      "role": "owner",
+      "grantedBy": "Nun",
+      "grantedAt": 0
+    }
+  },
+  "values": {}
+}

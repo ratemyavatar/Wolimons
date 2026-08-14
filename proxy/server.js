@@ -18,6 +18,7 @@
  */
 
 const http = require('http');
+const api = require('./api');
 
 const UPSTREAM = process.env.UPSTREAM_ORIGIN || 'https://wanwoo.xyz';
 const PORT = Number(process.env.PORT) || 3000;
@@ -61,7 +62,7 @@ function corsOrigin(requestOrigin) {
 function applyCors(res, requestOrigin) {
   res.setHeader('Access-Control-Allow-Origin', corsOrigin(requestOrigin));
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   res.setHeader('Access-Control-Max-Age', '86400');
   res.setHeader('Vary', 'Origin');
 }
@@ -159,6 +160,11 @@ const server = http.createServer(async (req, res) => {
     res.end(JSON.stringify({ error: 'Method not allowed' }));
     return;
   }
+
+  /* Wolimons' own endpoints. These are ours, not Wanwood's, so they are
+   * answered here and never forwarded - and never cached, because a value
+   * that was just saved has to read back immediately. */
+  if (await api.handle(req, res, url, readBody)) return;
 
   const target = `${UPSTREAM}${url.pathname}${url.search}`;
   const cacheKey = `${req.method} ${target}`;

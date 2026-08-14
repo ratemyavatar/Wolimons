@@ -117,6 +117,55 @@ paths look plausible but do **not** exist:
 
 The site now detects an HTML body and treats it as a failed endpoint.
 
+## The site's own endpoints
+
+Everything under `/api/` is answered by this service instead of being forwarded
+to Wanwood. It's where the values, the rare flags and the staff list live —
+things Wanwood has no idea about, because we made them up.
+
+| Method | Path | Who | Does |
+| --- | --- | --- | --- |
+| GET | `/api/values` | anyone | every item's value, demand, trend and categories |
+| GET | `/api/roles` | anyone | the staff list |
+| GET | `/api/me?name=X` | anyone | what that person is allowed to do |
+| GET | `/api/status` | anyone | whether the server is configured to save |
+| POST | `/api/login` | — | trade the admin key for a session token |
+| POST | `/api/roles/set` | owners | rank someone, or remove their rank |
+| POST | `/api/values/set` | value team | set a value, demand, trend, or the rare flag |
+
+`POST /api/login` takes `{"key": "...", "name": "YourName"}` and gives back a
+token that lasts 12 hours. Send it as `Authorization: Bearer <token>` on the
+two write endpoints. The key itself is never stored in the browser.
+
+Two separate things are being checked on a write, and it's worth being clear
+about why. The **key** proves you're allowed to talk to the admin panel at all.
+The **name** decides what you can do once you're in — owners can rank people,
+the value team can set values. So the key is the door and the rank is the job.
+
+### Where the data lives
+
+There's no database. `data/wolimons-data.json` in this repo *is* the database:
+the server reads it at boot, keeps it in memory, and commits it back through
+the GitHub API whenever something changes. Every change is therefore a commit,
+with a message saying who did what — the edit history comes free.
+
+This suits the shape of the problem. Values change a few times a day at most,
+by a handful of trusted people, and the file is a few kilobytes. Paying for a
+database to hold that would be silly.
+
+Two things follow from it, both deliberate:
+
+- **No token, no saving.** The panel still shows everything, it just won't let
+  you change it. That's the local-development default.
+- **If GitHub can't be read at boot, saving is refused** until it can be. The
+  server falls back to the copy checked into the repo so the site still works,
+  but it won't commit on top of a file it never actually read — that would
+  quietly wipe every value.
+
+Writes are queued one at a time, and if GitHub says the file moved underneath
+us the server re-reads it and retries once. Two people valuing items at the
+same moment won't clobber each other.
+
 ## Configuration
 
 | Env var | Default | Meaning |
@@ -125,6 +174,18 @@ The site now detects an HTML body and treats it as a failed endpoint.
 | `PORT` | `3000` | set automatically by Render |
 | `CACHE_TTL_MS` | `60000` | how long to cache successful GETs |
 | `ALLOWED_ORIGINS` | *(unset = allow all)* | comma-separated list of sites allowed to call the proxy |
+| `ADMIN_KEY` | *(unset = panel locked)* | the admin panel password |
+| `GITHUB_TOKEN` | *(unset = read-only)* | repo-write token, so changes can be saved |
+| `GITHUB_REPO` | `ratemyavatar/Wolimons` | which repo holds the data file |
+| `GITHUB_BRANCH` | `main` | which branch to commit to |
+| `DATA_PATH` | `data/wolimons-data.json` | the data file itself |
+
+Set `ADMIN_KEY` and `GITHUB_TOKEN` in the Render dashboard under **Environment**.
+Never commit them — anything in `render.yaml` is public.
+
+The token needs **Contents: read and write** on this one repo. A fine-grained
+personal access token scoped to just `Wolimons` is the right choice; a classic
+`repo`-scoped token also works but hands out far more access than is needed.
 
 Locking down `ALLOWED_ORIGINS` is worth doing once you know your site's URL, so
 other people can't use your free Render instance as their own proxy.

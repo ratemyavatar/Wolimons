@@ -34,7 +34,7 @@
 (() => {
   'use strict';
 
-  const DEFAULT_API_BASE = 'https://wanwoo.xyz';
+  const DEFAULT_API_BASE = 'https://wolimons.onrender.com';
 
   // The real Wanwood site. Used for outbound links the user clicks
   // (item pages etc.) - these should never point at the proxy.

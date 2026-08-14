@@ -36,7 +36,8 @@ Check it's alive by visiting `<your-url>/healthz` — you should see:
 
 ## Point the site at it
 
-Edit `assets/js/config.js` and set your URL:
+The deployed instance is <https://wolimons.onrender.com> and is already
+configured. To swap in a different one, edit `assets/js/config.js`:
 
 ```js
 const DEFAULT_API_BASE = 'https://wolimons-proxy.onrender.com';

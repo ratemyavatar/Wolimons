@@ -34,7 +34,8 @@ Item and player data comes from Wanwood. Wanwood blocks direct requests from
 browsers (no CORS headers, plus bot filtering), so requests go through a small
 proxy.
 
-Set your proxy URL in [`assets/js/config.js`](assets/js/config.js):
+The live proxy is <https://wolimons.onrender.com>, already set in
+[`assets/js/config.js`](assets/js/config.js). To use a different one, change:
 
 ```js
 const DEFAULT_API_BASE = 'https://your-proxy.onrender.com';
@@ -60,7 +61,7 @@ index.html            homepage
 catalog/              item catalog
 tradecalculator/      trade calculator
 badges/               badges
-assets/js/config.js   API base URL - edit this to point at your proxy
+assets/js/config.js   API base URL (points at the Render proxy)
 assets/js/            page scripts
 css/                  stylesheets
 img/                  images

@@ -4,33 +4,11 @@
  * ---------------------------------------------------------------------------
  * WHERE THE RANKING COMES FROM
  * ---------------------------------------------------------------------------
- * Wanwood has no leaderboard endpoint and no user-search endpoint, so the
- * roster has to be derived. The board builds it from the *items* side rather
- * than the users side:
- *
- *     GET /apisite/catalog/v1/search/items?category=Collectibles&...
- *         -> every collectible on the site (a few dozen, 1-2 requests)
- *
- *     GET /apisite/inventory/v2/assets/{assetId}/owners?limit=100&cursor=N
- *         -> { data: [ { serialNumber, owner: { id, name } | null } ] }
- *            one row per copy, and each row already carries the owner's
- *            *name* - so nothing needs a follow-up user lookup
- *
- *     GET /apisite/economy/v1/assets/{assetId}/resale-data
- *         -> recentAveragePrice, fetched once per asset and reused for every
- *            holder of it
- *
- * Anyone who owns a collectible shows up in some asset's owners list, so the
- * union of those lists *is* the set of rankable players - no id guessing.
- *
- * The cost is bounded by the catalog, not by the size of the user base:
- * roughly two requests per collectible (one owners page plus one resale-data
- * call), independent of how many accounts exist. The previous version walked
- * the user id space one account at a time and issued well over a hundred
- * requests, which starved the rest of the site of proxy capacity.
- *
- * Rows whose `owner` is null - private inventories, terminated accounts - are
- * skipped, so a hidden inventory keeps its owner off the board entirely.
+ * The roster itself - who exists, and what each of them holds - is built by
+ * assets/js/player-roster.js, which /players shares. See the long comment at
+ * the top of that file for how the scan works and why it walks the catalog's
+ * owner lists instead of the user id space. Everything here is the *ranking*:
+ * ordering that roster, numbering it, and drawing the board.
  *
  * ---------------------------------------------------------------------------
  * VALUE vs RAP
@@ -41,7 +19,7 @@
  * and reads 0 for everyone on a fresh checkout.
  *
  * A board where every row ties at 0 would be useless, so ordering is by RAP
- * while values are unset. Fill in values.js and the board re-sorts itself by
+ * while values are unset. Fill in the values and the board re-sorts itself by
  * Value automatically - see rankKey() below.
  */
 (() => {
@@ -49,23 +27,12 @@
 
   const API = window.WanwoodAPI;
   const VALUES = window.WolimonsValues;
-  const CONFIG = window.WOLIMONS_CONFIG || {};
-
-  /* Assets whose owners are being walked at once. Kept low on purpose: the
-   * whole point of this rewrite is to leave proxy capacity for the other
-   * pages, and the catalog is small enough that this still finishes quickly. */
-  const ASSET_CONCURRENCY = 4;
-  /* Owners rows per request - the backend's maximum. */
-  const OWNERS_PAGE_SIZE = 100;
+  /* The scan, shared with /players so the two pages cost one roster between
+   * them rather than one each. */
+  const ROSTER = window.WolimonsRoster;
 
   const PAGE_SIZE = 25;
   const AVATAR_SIZE = 150;
-
-  /* Building the board still costs a request or two per collectible, so the
-   * finished result is parked in sessionStorage. Navigating away and back is
-   * then instant, and the numbers still refresh often enough to stay honest. */
-  const CACHE_KEY = 'wolimons_leaderboard_v1';
-  const CACHE_TTL_MS = 10 * 60 * 1000;
 
   const cards = document.getElementById('lb_cards');
   const statusBox = document.getElementById('lb_status');
@@ -348,100 +315,6 @@
   }
 
   /*
-   * Build the roster from the catalog.
-   *
-   * For each collectible: page through its owners and fetch its RAP once.
-   * Every owner row contributes one copy of that asset to its holder, so a
-   * player's RAP is the sum of the RAP of each copy they hold and their Value
-   * is the same sum over the hand-set values in values.js. That mirrors how
-   * the backend computes a player's own totalRap (a straight SUM over
-   * user_asset rows), so the two agree.
-   */
-  async function buildRoster() {
-    const assetIds = await API.listAllCollectibles();
-    if (!assetIds.length) return [];
-
-    /* userId -> player row, accumulated across every asset. */
-    const players = new Map();
-    let done = 0;
-
-    await API.mapLimit(assetIds, ASSET_CONCURRENCY, async assetId => {
-      /* Owners and RAP in parallel - fetchRap memoises per asset, so this is
-       * one resale-data call no matter how many holders come back. */
-      const [owners, rap] = await Promise.all([
-        API.getAssetOwners(assetId, { pageLimit: OWNERS_PAGE_SIZE }),
-        API.fetchRap(assetId),
-      ]);
-
-      const assetRap = Number(rap) || 0;
-      const assetValue = Number(VALUES && VALUES.get ? VALUES.get(assetId) : 0) || 0;
-
-      owners.forEach(owner => {
-        let player = players.get(owner.userId);
-        if (!player) {
-          player = {
-            id: owner.userId,
-            name: owner.name || '',
-            rap: 0,
-            value: 0,
-            items: 0,
-            avatar: '',
-          };
-          players.set(owner.userId, player);
-        }
-        /* The owners feed carries names, but a row can arrive without one. */
-        if (!player.name && owner.name) player.name = owner.name;
-        player.rap += assetRap;
-        player.value += assetValue;
-        player.items += 1;
-      });
-
-      done += 1;
-
-      /* Show the board filling in rather than a long blank wait. */
-      if (players.size) {
-        ranked = [...players.values()].sort(byRank);
-        ranked.forEach((player, index) => { player.rank = index + 1; });
-        applyFilter({ keepPage: true });
-        setStatus(
-          `Building the leaderboard\u2026 ${done}/${assetIds.length} items, `
-          + `${players.size} players so far.`);
-      }
-    });
-
-    const roster = [...players.values()];
-
-    /* Names normally come free with the owners rows, so this is usually a
-     * no-op. Anyone still missing one gets filled in by a single batched
-     * multi-get; that endpoint is a POST and this backend gates every POST
-     * behind a CSRF token, so if it is refused we fall back to per-id GETs
-     * for the handful of players involved. */
-    let unnamed = roster.filter(player => !player.name);
-    if (unnamed.length) {
-      const names = await API.getUsersByIds(unnamed.map(player => player.id));
-      unnamed.forEach(player => {
-        player.name = names.get(player.id) || '';
-      });
-      unnamed = roster.filter(player => !player.name);
-    }
-    if (unnamed.length) {
-      const fetched = await API.mapLimit(unnamed, 4, player => API.getUserById(player.id));
-      unnamed.forEach((player, index) => {
-        const user = fetched[index];
-        player.name = (user && user.name) || `User ${player.id}`;
-      });
-    }
-
-    return roster;
-  }
-
-  async function attachAvatars(players) {
-    if (!players.length) return;
-    const map = await API.fetchUserThumbnails(players.map(p => p.id), AVATAR_SIZE);
-    players.forEach(player => { player.avatar = map.get(player.id) || ''; });
-  }
-
-  /*
    * The verified flag, for the page being looked at and nothing more.
    *
    * Only users/v1/users/{id} carries it, one request per player, so fetching
@@ -473,38 +346,6 @@
   }
 
   /* ------------------------------------------------------------------ */
-  /* Cache                                                               */
-  /* ------------------------------------------------------------------ */
-
-  function readCache() {
-    try {
-      const raw = window.sessionStorage.getItem(CACHE_KEY);
-      if (!raw) return null;
-      const saved = JSON.parse(raw);
-      if (!saved || !Array.isArray(saved.players) || !saved.at) return null;
-      if (Date.now() - saved.at > CACHE_TTL_MS) return null;
-      return saved;
-    } catch (error) {
-      return null;
-    }
-  }
-
-  function writeCache(players) {
-    try {
-      /* The verified flags are left out on purpose. They are filled in per
-       * page after the cards are drawn, so most of them are still false when
-       * the board is cached - saving that would hide a tick for the ten
-       * minutes the cache lives. Dropping the field makes the next visit look
-       * them up again. */
-      const saved = players.map(({ verified, ...player }) => player);
-      window.sessionStorage.setItem(CACHE_KEY,
-        JSON.stringify({ at: Date.now(), players: saved }));
-    } catch (error) {
-      /* Private mode or a full quota - the board just rebuilds next time. */
-    }
-  }
-
-  /* ------------------------------------------------------------------ */
   /* Search                                                              */
   /* ------------------------------------------------------------------ */
 
@@ -531,41 +372,50 @@
   /* ------------------------------------------------------------------ */
 
   async function load() {
-    if (!API) {
-      setStatus('The Wanwood API client failed to load.');
-      return;
-    }
-
-    const cached = readCache();
-    if (cached) {
-      publish(cached.players);
+    if (!ROSTER) {
+      setStatus('The player roster script failed to load.');
       return;
     }
 
     setStatus('Building the leaderboard\u2026', { spinner: true });
 
+    /* A player's Value is the sum of the values of their collectibles, so the
+     * value table has to be in hand before the roster is totalled - otherwise
+     * every row would rank on RAP alone until something forced a rebuild.
+     * Waiting costs nothing: values.js is already in flight by the time this
+     * runs. */
+    if (VALUES && VALUES.ready && typeof VALUES.ready.then === 'function') {
+      try {
+        await VALUES.ready;
+      } catch (error) {
+        /* No values is a legitimate state - the board then ranks on RAP. */
+      }
+    }
+
     let players = [];
     try {
-      players = await buildRoster();
+      players = await ROSTER.load({
+        onProgress: (partial, progress) => {
+          /* Show the board filling in rather than a long blank wait. */
+          publish(partial, { keepPage: true });
+          setStatus(
+            `Building the leaderboard\u2026 ${progress.done}/${progress.total} items, `
+            + `${partial.length} players so far.`);
+        },
+      });
     } catch (error) {
       setStatus('Could not reach Wanwood to build the leaderboard. Try again shortly.');
       return;
     }
 
     publish(players);
-
-    /* Avatars come last: the board is readable without them, and this way a
-     * slow thumbnail service never holds up the rankings. */
-    await attachAvatars(ranked);
-    renderPage();
-    writeCache(ranked);
   }
 
   /* Sort, number, and draw - shared by the live scan and the cache. */
-  function publish(players) {
+  function publish(players, { keepPage = false } = {}) {
     ranked = [...players].sort(byRank);
     ranked.forEach((player, index) => { player.rank = index + 1; });
-    applyFilter();
+    applyFilter({ keepPage });
   }
 
   if (document.readyState === 'loading') {

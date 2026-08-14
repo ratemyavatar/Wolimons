@@ -50,6 +50,9 @@
     .replace(/^-+|-+$/g, '') || 'unnamed';
 
   const API = window.WanwoodAPI;
+  /* Per-browser display choices from /preferences. Optional: a page loaded
+   * without the script simply hides nothing. */
+  const PREFS = window.WolimonsPrefs;
 
   /*
    * values.js, read defensively.
@@ -188,6 +191,12 @@
        * assetType numbers on the buttons, so picking a type could empty the
        * grid even though matching items existed. */
       if (state.assetType && item.assetType !== state.assetType) return false;
+      /* Tablets and unobtainables, if this browser has asked to skip them on
+       * /preferences. Explicitly picking that category overrides the
+       * preference - somebody who has just clicked "Tablets" wants to see
+       * tablets, whatever they set last week. */
+      if (PREFS && PREFS.hidesCategories(item.categories)
+          && !item.categories.some(name => category.has(name))) return false;
       if (keyword && !item.name.toLowerCase().includes(keyword)) return false;
       /* "None" is the Unassigned button: it matches items left unset. */
       if (demand.size && !demand.has(item.demand ?? 'None')) return false;
@@ -465,6 +474,26 @@
       control.setAttribute('aria-expanded', String(open));
     });
   });
+
+  /*
+   * A preference changed on /preferences - or in another tab - changes what
+   * belongs in the grid, so redraw. Everything is already in memory, so this
+   * is a re-render rather than another trip to Wanwood. subscribe() fires
+   * immediately, before the catalog has loaded, and that first call is
+   * skipped for the same reason the values one is.
+   */
+  if (PREFS && typeof PREFS.subscribe === 'function') {
+    let firstPrefsCallback = true;
+    PREFS.subscribe(() => {
+      if (firstPrefsCallback) {
+        firstPrefsCallback = false;
+        return;
+      }
+      if (!state.items.length) return;
+      state.page = 1;
+      render();
+    });
+  }
 
   loadCatalog();
 })();

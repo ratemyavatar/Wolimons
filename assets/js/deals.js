@@ -37,6 +37,9 @@
 
   const API = window.WanwoodAPI;
   const VALUES = window.WolimonsValues;
+  /* Per-browser display choices from /preferences. Optional: without the
+   * script, deal links open in this tab. */
+  const PREFS = window.WolimonsPrefs;
 
   /* A finished scan is good for this long. Listings do move, so this is much
    * shorter than the roster's - long enough to survive a page flick, short
@@ -149,6 +152,12 @@
 
     const link = document.createElement('a');
     link.href = `/item/?id=${listing.id}&name=${slugify(listing.name)}`;
+    /* A deal is worth chasing while the rest of the list is still on screen,
+     * so /preferences offers to open these in a new tab. */
+    if (PREFS && PREFS.get('dealsInNewTab')) {
+      link.target = '_blank';
+      link.rel = 'noopener';
+    }
 
     const gradient = text('div', `pt-0 px-0 m-0 rounded-bottom deal_bg_gradient_${tone}`);
     /* The snapshot put a tooltip here; a plain title attribute says the same
@@ -425,6 +434,19 @@
       const cached = readCache();
       listings = withValues(cached ? cached.listings : listings);
       render();
+    });
+  }
+
+  /* The new-tab preference only changes an attribute on links that are
+   * already drawn, so a redraw is all it takes. */
+  if (PREFS && typeof PREFS.subscribe === 'function') {
+    let firstPrefsCallback = true;
+    PREFS.subscribe(() => {
+      if (firstPrefsCallback) {
+        firstPrefsCallback = false;
+        return;
+      }
+      if (listings.length) render();
     });
   }
 

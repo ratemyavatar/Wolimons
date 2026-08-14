@@ -138,6 +138,11 @@
     return {
       id,
       name: String(raw.name ?? raw.Name ?? '').trim(),
+      /* Only productinfo carries these two; the POST batch omits them, so
+       * they are empty rather than absent. The item page uses them, the
+       * cards do not. */
+      description: String(raw.description ?? raw.Description ?? '').trim(),
+      creatorName: String(raw.Creator?.Name ?? raw.creator?.name ?? '').trim(),
       assetType: toNumber(raw.assetType ?? raw.AssetTypeId),
       itemRestrictions: restrictions,
       isForSale: Boolean(raw.isForSale ?? raw.IsForSale),

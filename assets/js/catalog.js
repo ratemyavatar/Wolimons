@@ -1,8 +1,6 @@
 (() => {
   'use strict';
 
-  const CONFIG = window.WOLIMONS_CONFIG || {};
-  const SITE_BASE = CONFIG.siteBase || 'https://wanwoo.xyz';
   const PAGE_SIZE = 30;
   const TYPE_NAMES = {
     8: 'Hat',
@@ -194,7 +192,9 @@
     card.style.backgroundColor = '#30363c';
 
     const link = document.createElement('a');
-    link.href = `${SITE_BASE}/catalog/${item.id}/${slugify(item.name)}`;
+    /* Cards open our own item page, not Wanwood's catalog. The slug is
+     * cosmetic - /dominus/ reads the id out of the query string. */
+    link.href = `/dominus/?id=${item.id}&name=${slugify(item.name)}`;
     const headingWrap = document.createElement('div');
     const heading = document.createElement('h6');
     heading.className = 'item_card_name px-2 text-light my-1 text-truncate';

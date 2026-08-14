@@ -4,23 +4,33 @@
  * ---------------------------------------------------------------------------
  * WHERE THE RANKING COMES FROM
  * ---------------------------------------------------------------------------
- * Wanwood has no leaderboard endpoint, and no user-search endpoint either -
- * the only way to enumerate players is to walk the user id space directly.
- * Verified live:
+ * Wanwood has no leaderboard endpoint and no user-search endpoint, so the
+ * roster has to be derived. The board builds it from the *items* side rather
+ * than the users side:
  *
- *     GET /apisite/api/users/{id}
- *         -> {Id, Username, ...}
- *         -> real-but-empty ids answer with Username "?"
- *         -> ids past the end answer {"errors":[{"message":"NotFound"}]}
+ *     GET /apisite/catalog/v1/search/items?category=Collectibles&...
+ *         -> every collectible on the site (a few dozen, 1-2 requests)
  *
- *     GET /apisite/inventory/v1/users/{id}/assets/collectibles?limit=100
- *         -> {totalRap, data:[...]}   <- the number the board ranks on
+ *     GET /apisite/inventory/v2/assets/{assetId}/owners?limit=100&cursor=N
+ *         -> { data: [ { serialNumber, owner: { id, name } | null } ] }
+ *            one row per copy, and each row already carries the owner's
+ *            *name* - so nothing needs a follow-up user lookup
  *
- * The registered user base is small (ids run out in the mid-60s at the time
- * of writing), so scanning it is cheap and the board stays correct on its own
- * as accounts are added. SCAN_MAX_ID leaves generous headroom above the
- * current end of the range; the scan stops early once it has walked past a
- * long unbroken run of missing ids, so raising it costs nothing.
+ *     GET /apisite/economy/v1/assets/{assetId}/resale-data
+ *         -> recentAveragePrice, fetched once per asset and reused for every
+ *            holder of it
+ *
+ * Anyone who owns a collectible shows up in some asset's owners list, so the
+ * union of those lists *is* the set of rankable players - no id guessing.
+ *
+ * The cost is bounded by the catalog, not by the size of the user base:
+ * roughly two requests per collectible (one owners page plus one resale-data
+ * call), independent of how many accounts exist. The previous version walked
+ * the user id space one account at a time and issued well over a hundred
+ * requests, which starved the rest of the site of proxy capacity.
+ *
+ * Rows whose `owner` is null - private inventories, terminated accounts - are
+ * skipped, so a hidden inventory keeps its owner off the board entirely.
  *
  * ---------------------------------------------------------------------------
  * VALUE vs RAP
@@ -40,20 +50,19 @@
   const API = window.WanwoodAPI;
   const VALUES = window.WolimonsValues;
 
-  /* Highest user id the scan will probe. */
-  const SCAN_MAX_ID = 200;
-  /* Stop once this many consecutive ids in a row turn up nothing. */
-  const SCAN_GIVE_UP_AFTER = 40;
-  /* Ids probed per batch, and batches in flight at once. */
-  const SCAN_BATCH = 20;
-  const SCAN_CONCURRENCY = 6;
+  /* Assets whose owners are being walked at once. Kept low on purpose: the
+   * whole point of this rewrite is to leave proxy capacity for the other
+   * pages, and the catalog is small enough that this still finishes quickly. */
+  const ASSET_CONCURRENCY = 4;
+  /* Owners rows per request - the backend's maximum. */
+  const OWNERS_PAGE_SIZE = 100;
 
   const PAGE_SIZE = 25;
   const AVATAR_SIZE = 150;
 
-  /* Building the board costs ~100 proxied requests, so the finished result is
-   * parked in sessionStorage. Navigating away and back is then instant, and
-   * the numbers still refresh often enough to stay honest. */
+  /* Building the board still costs a request or two per collectible, so the
+   * finished result is parked in sessionStorage. Navigating away and back is
+   * then instant, and the numbers still refresh often enough to stay honest. */
   const CACHE_KEY = 'wolimons_leaderboard_v1';
   const CACHE_TTL_MS = 10 * 60 * 1000;
 
@@ -355,18 +364,8 @@
   }
 
   /* ------------------------------------------------------------------ */
-  /* Scan + ranking                                                      */
+  /* Roster + ranking                                                    */
   /* ------------------------------------------------------------------ */
-
-  /*
-   * Sum the hand-set values of a player's collectibles. Rows carry assetId,
-   * so this is a pure lookup against values.js - nothing is fetched and no
-   * price ever stands in for a value.
-   */
-  function valueOf(rows) {
-    if (!VALUES || !Array.isArray(rows)) return 0;
-    return rows.reduce((sum, row) => sum + VALUES.get(row.assetId), 0);
-  }
 
   /*
    * Ranking key. Value leads, RAP breaks ties - so while values.js is empty
@@ -384,52 +383,91 @@
   }
 
   /*
-   * Walk the user id space in batches, keeping anyone who owns at least one
-   * collectible. Gives up after a long enough unbroken run of dead ids, so
-   * the cost tracks the real size of the user base rather than SCAN_MAX_ID.
+   * Build the roster from the catalog.
+   *
+   * For each collectible: page through its owners and fetch its RAP once.
+   * Every owner row contributes one copy of that asset to its holder, so a
+   * player's RAP is the sum of the RAP of each copy they hold and their Value
+   * is the same sum over the hand-set values in values.js. That mirrors how
+   * the backend computes a player's own totalRap (a straight SUM over
+   * user_asset rows), so the two agree.
    */
-  async function scanPlayers() {
-    const found = [];
-    let missStreak = 0;
+  async function buildRoster() {
+    const assetIds = await API.listAllCollectibles();
+    if (!assetIds.length) return [];
 
-    for (let start = 1; start <= SCAN_MAX_ID; start += SCAN_BATCH) {
-      const ids = [];
-      for (let id = start; id < start + SCAN_BATCH && id <= SCAN_MAX_ID; id += 1) {
-        ids.push(id);
-      }
+    /* userId -> player row, accumulated across every asset. */
+    const players = new Map();
+    let done = 0;
 
-      const batch = await API.mapLimit(ids, SCAN_CONCURRENCY, async id => {
-        const summary = await API.getCollectiblesSummary(id);
-        /* No inventory at all means nothing to rank - skip the name lookup. */
-        if (!summary || !summary.itemCount) return null;
-        const user = await API.getUserById(id);
-        if (!user) return null;
-        return {
-          id,
-          name: user.name,
-          rap: summary.totalRap,
-          value: valueOf(summary.rows),
-          items: summary.itemCount,
-          avatar: '',
-        };
+    await API.mapLimit(assetIds, ASSET_CONCURRENCY, async assetId => {
+      /* Owners and RAP in parallel - fetchRap memoises per asset, so this is
+       * one resale-data call no matter how many holders come back. */
+      const [owners, rap] = await Promise.all([
+        API.getAssetOwners(assetId, { pageLimit: OWNERS_PAGE_SIZE }),
+        API.fetchRap(assetId),
+      ]);
+
+      const assetRap = Number(rap) || 0;
+      const assetValue = Number(VALUES && VALUES.get ? VALUES.get(assetId) : 0) || 0;
+
+      owners.forEach(owner => {
+        let player = players.get(owner.userId);
+        if (!player) {
+          player = {
+            id: owner.userId,
+            name: owner.name || '',
+            rap: 0,
+            value: 0,
+            items: 0,
+            avatar: '',
+          };
+          players.set(owner.userId, player);
+        }
+        /* The owners feed carries names, but a row can arrive without one. */
+        if (!player.name && owner.name) player.name = owner.name;
+        player.rap += assetRap;
+        player.value += assetValue;
+        player.items += 1;
       });
 
-      const hits = batch.filter(Boolean);
-      found.push(...hits);
-
-      missStreak = hits.length ? 0 : missStreak + ids.length;
-      if (missStreak >= SCAN_GIVE_UP_AFTER) break;
+      done += 1;
 
       /* Show the board filling in rather than a long blank wait. */
-      if (found.length) {
-        ranked = [...found].sort(byRank);
+      if (players.size) {
+        ranked = [...players.values()].sort(byRank);
         ranked.forEach((player, index) => { player.rank = index + 1; });
         applyFilter({ keepPage: true });
-        setStatus(`Scanning Wanwood players\u2026 ${found.length} found so far.`);
+        setStatus(
+          `Building the leaderboard\u2026 ${done}/${assetIds.length} items, `
+          + `${players.size} players so far.`);
       }
+    });
+
+    const roster = [...players.values()];
+
+    /* Names normally come free with the owners rows, so this is usually a
+     * no-op. Anyone still missing one gets filled in by a single batched
+     * multi-get; that endpoint is a POST and this backend gates every POST
+     * behind a CSRF token, so if it is refused we fall back to per-id GETs
+     * for the handful of players involved. */
+    let unnamed = roster.filter(player => !player.name);
+    if (unnamed.length) {
+      const names = await API.getUsersByIds(unnamed.map(player => player.id));
+      unnamed.forEach(player => {
+        player.name = names.get(player.id) || '';
+      });
+      unnamed = roster.filter(player => !player.name);
+    }
+    if (unnamed.length) {
+      const fetched = await API.mapLimit(unnamed, 4, player => API.getUserById(player.id));
+      unnamed.forEach((player, index) => {
+        const user = fetched[index];
+        player.name = (user && user.name) || `User ${player.id}`;
+      });
     }
 
-    return found;
+    return roster;
   }
 
   async function attachAvatars(players) {
@@ -502,11 +540,11 @@
       return;
     }
 
-    setStatus('Scanning Wanwood players\u2026', { spinner: true });
+    setStatus('Building the leaderboard\u2026', { spinner: true });
 
     let players = [];
     try {
-      players = await scanPlayers();
+      players = await buildRoster();
     } catch (error) {
       setStatus('Could not reach Wanwood to build the leaderboard. Try again shortly.');
       return;

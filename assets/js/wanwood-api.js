@@ -219,14 +219,65 @@
   }
 
   /*
+   * RAP is one request per asset and every page wants the same few dozen
+   * numbers, so the in-tab memo above is backed by sessionStorage. The
+   * catalog, the item page and the leaderboard then share one set of
+   * resale-data calls instead of each paying for its own.
+   */
+  const RAP_STORE_KEY = 'wolimons_rap_v1';
+  const RAP_TTL_MS = 10 * 60 * 1000;
+
+  function readRapStore() {
+    try {
+      const raw = sessionStorage.getItem(RAP_STORE_KEY);
+      if (!raw) return {};
+      const parsed = JSON.parse(raw);
+      if (!isPlainObject(parsed) || !isPlainObject(parsed.rap)) return {};
+      if (!(Date.now() - Number(parsed.at) < RAP_TTL_MS)) return {};
+      return parsed.rap;
+    } catch (error) {
+      return {};
+    }
+  }
+
+  function writeRapStore(id, value) {
+    try {
+      const rap = readRapStore();
+      rap[id] = value;
+      sessionStorage.setItem(RAP_STORE_KEY, JSON.stringify({ at: Date.now(), rap }));
+    } catch (error) {
+      /* Private mode or a full quota - the in-memory memo still applies. */
+    }
+  }
+
+  /*
    * GET /apisite/economy/v1/assets/{id}/resale-data -> recentAveragePrice.
    */
   function fetchRap(id) {
     const key = Number(id);
     if (!rapCache.has(key)) {
-      rapCache.set(key, fetchJson(`${API_BASE}/apisite/economy/v1/assets/${key}/resale-data`)
-        .then(data => toNumber(data.recentAveragePrice))
-        .catch(() => null));
+      const stored = readRapStore()[key];
+      if (typeof stored === 'number') {
+        rapCache.set(key, Promise.resolve(stored));
+      } else {
+        /* A Cloudflare blip here is not "this item is worth nothing" - and
+         * because the result is memoised, one failure would zero the item out
+         * for every holder on the leaderboard. So retry before giving up. */
+        rapCache.set(key, (async () => {
+          for (let attempt = 0; attempt <= 2; attempt += 1) {
+            try {
+              const data = await fetchJson(`${API_BASE}/apisite/economy/v1/assets/${key}/resale-data`);
+              const rap = toNumber(data.recentAveragePrice);
+              if (rap !== null) writeRapStore(key, rap);
+              return rap;
+            } catch (error) {
+              if (attempt === 2) return null;
+              await new Promise(resolve => setTimeout(resolve, 300 * (attempt + 1)));
+            }
+          }
+          return null;
+        })());
+      }
     }
     return rapCache.get(key);
   }
@@ -462,12 +513,11 @@
 
   /*
    * One page of the same collectibles endpoint, kept for callers that need
-   * the envelope rather than the rows - the leaderboard ranks on `totalRap`,
-   * which getCollectibles() throws away.
+   * the envelope rather than the rows - notably `totalRap`, which
+   * getCollectibles() throws away.
    *
-   * This is deliberately a single request per player: the board scans the
-   * whole user range, so a paginating call here would multiply into hundreds
-   * of round trips through the proxy.
+   * Deliberately a single request: this is for showing one player's headline
+   * numbers, not for paging through a whole inventory.
    *
    * Resolves to null when the player does not exist or has nothing.
    */
@@ -503,11 +553,162 @@
     return null;
   }
 
+  /* ------------------------------------------------------------------ */
+  /* Ownership                                                           */
+  /* ------------------------------------------------------------------ */
+
+  /*
+   * Every collectible on the site, as a flat list of asset ids.
+   *
+   * searchItems() is capped at 100 rows per call by the backend
+   * (catalog/v1/search/items clamps limit to 1..100), so this pages until the
+   * cursor runs out. Wanwood has a few dozen limiteds total, which means one
+   * or two requests in practice.
+   */
+  async function listAllCollectibles({ pageLimit = 100, maxPages = 10 } = {}) {
+    const ids = [];
+    const seen = new Set();
+    let cursor = 0;
+
+    for (let page = 0; page < maxPages; page += 1) {
+      const result = await searchItems({ limit: pageLimit, cursor });
+      result.ids.forEach(id => {
+        if (seen.has(id)) return;
+        seen.add(id);
+        ids.push(id);
+      });
+
+      /* The cursor is a numeric offset. A short page is the last page. */
+      if (!result.nextCursor || result.ids.length < pageLimit) break;
+      const next = toNumber(result.nextCursor);
+      if (next === null || next <= cursor) break;
+      cursor = next;
+    }
+
+    return ids;
+  }
+
+  /*
+   * GET /apisite/inventory/v2/assets/{assetId}/owners
+   *     ?limit=<1..100>&cursor=<offset>&sortOrder=asc|desc
+   *
+   * -> { previousPageCursor, nextPageCursor, data: [ {
+   *        id, serialNumber, created, updated,
+   *        owner: { id, type: "User", name } | null
+   *      } ] }
+   *
+   * One row per *copy*, so a player holding three of an item appears three
+   * times. `owner` is nulled out when that player's inventory is private or
+   * their account is gone - those rows are skipped rather than counted.
+   *
+   * `nextPageCursor` is a plain integer offset (offset + limit) and goes null
+   * on the last page, so the walk is a straight offset loop.
+   */
+  async function getAssetOwners(assetId, { pageLimit = 100, maxPages = 40, retries = 2 } = {}) {
+    const id = Number(assetId);
+    if (!Number.isSafeInteger(id) || id <= 0) return [];
+
+    const owners = [];
+    let cursor = 0;
+
+    for (let page = 0; page < maxPages; page += 1) {
+      const query = new URLSearchParams({
+        limit: String(pageLimit),
+        cursor: String(cursor),
+        sortOrder: 'asc',
+      });
+      const url = `${API_BASE}/apisite/inventory/v2/assets/${id}/owners?${query}`;
+
+      let result = null;
+      /* Cloudflare in front of Wanwood throws the occasional 502. Dropping a
+       * whole asset on one blip would silently understate every holder of it,
+       * so transport failures get a couple of backed-off retries. */
+      for (let attempt = 0; attempt <= retries; attempt += 1) {
+        try {
+          result = await fetchJson(url);
+          break;
+        } catch (error) {
+          if (attempt === retries) return owners;
+          await new Promise(resolve => setTimeout(resolve, 400 * (attempt + 1)));
+        }
+      }
+
+      if (!isPlainObject(result) || Array.isArray(result.errors)) break;
+      const rows = Array.isArray(result.data) ? result.data : [];
+
+      rows.forEach(row => {
+        const owner = isPlainObject(row) ? row.owner : null;
+        if (!isPlainObject(owner)) return;
+        const ownerId = Number(owner.id);
+        if (!Number.isSafeInteger(ownerId) || ownerId <= 0) return;
+        owners.push({
+          userId: ownerId,
+          name: typeof owner.name === 'string' ? owner.name : '',
+          serialNumber: toNumber(row.serialNumber),
+        });
+      });
+
+      if (result.nextPageCursor === null || result.nextPageCursor === undefined) break;
+      const next = toNumber(result.nextPageCursor);
+      if (next === null || next <= cursor) break;
+      cursor = next;
+    }
+
+    return owners;
+  }
+
+  /*
+   * POST /apisite/users/v1/users  {"userIds":[...]}  ->  {data:[{id,name,...}]}
+   *
+   * Accepts up to 200 ids per call. This backend gates every non-GET request
+   * behind a CSRF token, so the call can legitimately fail with a 403 - it is
+   * only ever used to fill in names the owners walk did not already provide,
+   * and callers treat a failure as "no extra names".
+   */
+  async function getUsersByIds(userIds, { chunkSize = 100 } = {}) {
+    const names = new Map();
+    const ids = [...new Set(
+      (userIds || []).map(Number).filter(id => Number.isSafeInteger(id) && id > 0),
+    )];
+    if (!ids.length) return names;
+
+    const chunks = [];
+    for (let index = 0; index < ids.length; index += chunkSize) {
+      chunks.push(ids.slice(index, index + chunkSize));
+    }
+
+    await mapLimit(chunks, 2, async chunk => {
+      try {
+        const result = await fetchJson(`${API_BASE}/apisite/users/v1/users`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userIds: chunk }),
+        });
+        const rows = Array.isArray(result && result.data) ? result.data : [];
+        rows.forEach(row => {
+          if (!isPlainObject(row)) return;
+          const id = Number(row.id);
+          const name = row.name ?? row.username ?? row.Username;
+          if (Number.isSafeInteger(id) && typeof name === 'string' && name) {
+            names.set(id, name);
+          }
+        });
+      } catch (error) {
+        /* CSRF-gated or unreachable - callers fall back to per-id GETs. */
+      }
+    });
+
+    return names;
+  }
+
   window.WanwoodAPI = {
     API_BASE,
     SITE_BASE,
     fetchJson,
     searchItems,
+    listAllCollectibles,
+    getAssetOwners,
+    getUsersByIds,
     getItemDetails,
     fetchRap,
     fetchThumbnails,

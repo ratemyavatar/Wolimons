@@ -469,21 +469,30 @@
 
   /*
    * GET /apisite/thumbnails/v1/users/avatar
+   * GET /apisite/thumbnails/v1/users/avatar-headshot
    *
    * The player-side twin of fetchThumbnails. Batched, and it answers with
    * absolute Wanwood CDN URLs, so the results get rewritten through the
    * proxy the same way item thumbnails are.
    *
+   * Both routes are declared in the backend as
+   * GetUserThumbnails(string userIds) / GetUserHeadshots(string userIds):
+   * `userIds` is the only bound parameter, so size and format are accepted
+   * by the URL but ignored by the server - the render is whatever was
+   * already produced for that avatar. The renders land side by side, e.g.
+   * .../images/thumbnails/<hash>.png and <hash>_headshot.png.
+   *
+   * The controller rejects more than 200 ids in one call; the chunk below
+   * is far under that so one dead id cannot take out a whole board.
+   *
    * Returns a Map of userId -> url. Ids the backend has no render for are
    * simply absent from the map; callers decide what to show instead.
    */
-  async function fetchUserThumbnails(ids, size = 150) {
+  async function fetchUserRenders(ids, route, size) {
     const wanted = [...new Set(ids.map(Number).filter(Number.isSafeInteger))];
     const map = new Map();
     if (!wanted.length) return map;
 
-    /* The endpoint takes a comma list; chunk it so one dead id or an
-     * over-long URL cannot take out the whole board. */
     const CHUNK = 25;
     const chunks = [];
     for (let at = 0; at < wanted.length; at += CHUNK) {
@@ -498,12 +507,17 @@
           format: 'Png',
         });
         const result = await fetchJson(
-          `${API_BASE}/apisite/thumbnails/v1/users/avatar?${query}`);
+          `${API_BASE}/apisite/thumbnails/v1/users/${route}?${query}`);
         const rows = Array.isArray(result.data) ? result.data : [];
         rows.forEach(row => {
           const id = Number(row.targetId ?? row.userId);
           const url = typeof row.imageUrl === 'string' ? row.imageUrl : '';
-          if (Number.isSafeInteger(id) && url) map.set(id, proxied(url));
+          /* A blocked avatar comes back as a real row pointing at the
+           * backend's placeholder; treat it as "no render" so the caller
+           * shows its own fallback instead of a broken-looking image. */
+          if (!Number.isSafeInteger(id) || !url) return;
+          if (url.endsWith('/img/blocked.png')) return;
+          map.set(id, proxied(url));
         });
       } catch (error) {
         /* Leave this chunk out of the map - the caller falls back. */
@@ -511,6 +525,34 @@
     });
 
     return map;
+  }
+
+  /* Full-body avatar renders. */
+  function fetchUserThumbnails(ids, size = 150) {
+    return fetchUserRenders(ids, 'avatar', size);
+  }
+
+  /* Head-and-shoulders renders - what a small circular profile picture
+   * wants, since a full body shrunk to 24px is mostly empty space. */
+  function fetchUserHeadshots(ids, size = 150) {
+    return fetchUserRenders(ids, 'avatar-headshot', size);
+  }
+
+  /*
+   * A headshot with a full-body fallback, for the single-avatar case.
+   *
+   * Not every account has a headshot render even when it has a body one,
+   * so this asks for both and prefers the headshot. Returns null when the
+   * backend has neither.
+   */
+  async function fetchUserAvatar(id, { size = 150, preferHeadshot = true } = {}) {
+    const userId = Number(id);
+    if (!Number.isSafeInteger(userId) || userId <= 0) return null;
+    const [headshots, bodies] = await Promise.all([
+      preferHeadshot ? fetchUserHeadshots([userId], size) : Promise.resolve(new Map()),
+      fetchUserThumbnails([userId], size),
+    ]);
+    return headshots.get(userId) || bodies.get(userId) || null;
   }
 
   /*
@@ -977,6 +1019,8 @@
     fetchResaleData,
     fetchThumbnails,
     fetchUserThumbnails,
+    fetchUserHeadshots,
+    fetchUserAvatar,
     thumbnailUrl,
     proxied,
     getUserById,

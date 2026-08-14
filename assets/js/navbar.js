@@ -166,10 +166,11 @@
     accountMenu.menu.append(signOut);
 
     /* The avatar is a nicety; if the thumbnail call fails the silhouette
-     * that is already in the markup simply stays. */
+     * that is already in the markup simply stays. A headshot is used rather
+     * than the full body render - at 24px a whole avatar is mostly empty
+     * space with an unreadable head in the middle. */
     try {
-      const thumbs = await window.WanwoodAPI?.fetchUserThumbnails([linked.id], 150);
-      const url = thumbs?.get(linked.id);
+      const url = await window.WanwoodAPI?.fetchUserAvatar(linked.id, { size: 150 });
       if (!url || !accountMenu.pfp) return;
       if (!account.get()) return;
       const image = accountMenu.pfp.querySelector('img') || document.createElement('img');

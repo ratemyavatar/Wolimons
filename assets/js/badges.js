@@ -156,8 +156,11 @@
     { id: 'frequent-trader', name: 'Frequent Trader', tier: 'uncommon', section: 'Website Badges', earn: null },
     { id: 'trade-advertiser', name: 'Trade Advertiser', tier: 'common', section: 'Website Badges', earn: null },
 
-    /* The only automatic account badge: strictly what Wanwood reports. */
-    { id: 'verified', name: 'Verified', tier: 'uncommon', section: 'Website Badges', earn: context => context.verified === true },
+    /* The only automatic account badge. The catalog entry reads "Verify your
+     * account on the site", so it tracks Wolimons verification - the profile
+     * description proof handled by /verify - and not Wanwood's own isVerified
+     * flag, which is what the separate Verified Checkmark represents. */
+    { id: 'verified', name: 'Verified', tier: 'uncommon', section: 'Website Badges', earn: context => context.siteVerified === true },
 
     /* Both are manual recognition, handed out to specific people. */
     { id: 'verified-checkmark', name: 'Verified Checkmark', tier: 'rare', section: 'Website Badges', earn: null },
@@ -230,14 +233,15 @@
   /*
    * Turns a profile's raw numbers into the shape the rules above read.
    *
-   *   items     - [{ id, name, value, rap, copies, serials, assetTypeId,
-   *                  available }]  (available = copies in existence, or null)
-   *   verified  - users/v1/users/{id}.isVerified
+   *   items        - [{ id, name, value, rap, copies, serials, assetTypeId,
+   *                     available }]  (available = copies in existence, or null)
+   *   verified     - users/v1/users/{id}.isVerified, Wanwood's own flag
+   *   siteVerified - this player proved ownership through /verify
    *
    * Everything else is derived so no caller has to agree on how a total is
    * computed.
    */
-  function buildContext({ items = [], verified = false } = {}) {
+  function buildContext({ items = [], verified = false, siteVerified = false } = {}) {
     const normalized = items.map(item => ({
       id: Number(item.id) || 0,
       name: String(item.name || ''),
@@ -259,6 +263,7 @@
     return {
       items: normalized,
       verified: verified === true,
+      siteVerified: siteVerified === true,
       assetTypes,
       totalValue: normalized.reduce((sum, item) => sum + (item.value * item.copies), 0),
       totalRap: normalized.reduce((sum, item) => sum + (item.rap * item.copies), 0),

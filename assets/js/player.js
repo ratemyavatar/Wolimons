@@ -163,6 +163,14 @@
     }
   }
 
+  /* Whether the account verified in this browser is the profile on screen.
+   * Verification is per-browser, so this can only ever light up the badge on
+   * your own profile - it never claims anything about someone else. */
+  function isLinkedAccount(userId) {
+    const linked = window.WolimonsAccount?.get();
+    return Boolean(linked && Number(linked.id) === Number(userId));
+  }
+
   /* Re-scores the current inventory and redraws the row. Safe to call more
    * than once - the profile does, because the item supply figures only
    * arrive with resale-data, after the inventory has already rendered. */
@@ -171,6 +179,7 @@
     renderBadges(BADGES.evaluate({
       items: state.items,
       verified: state.verified,
+      siteVerified: state.siteVerified,
     }));
   }
 
@@ -285,6 +294,11 @@
     items: [],
     userId: null,
     verified: false,
+    /* True when this profile is the account linked in this browser, i.e.
+     * the person proved they own it through /verify. That earns the
+     * "Verified" WoliBadge, which is separate from the Verified Checkmark
+     * handed to notable people. */
+    siteVerified: false,
     /* null until the leaderboard cache answers; null means "no trophy",
      * never a guessed rank. */
     rank: null,
@@ -738,6 +752,7 @@
     /* Fed to the badge rules once the inventory is in. Verified is strictly
      * what the API reports - nothing here is granted for existing. */
     state.verified = Boolean(profile && profile.isVerified === true);
+    state.siteVerified = isLinkedAccount(userId);
     renderNameBadges();
 
     if (avatarImage) {
@@ -940,6 +955,16 @@
       toggleBadgeRow();
     });
   }
+
+  /* Verifying or signing out while the profile is open should settle the
+   * badge immediately rather than waiting for a reload. */
+  window.WolimonsAccount?.subscribe(() => {
+    if (state.userId === null) return;
+    const linked = isLinkedAccount(state.userId);
+    if (linked === state.siteVerified) return;
+    state.siteVerified = linked;
+    refreshBadges();
+  });
 
   observeChartResize();
   load();

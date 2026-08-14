@@ -118,6 +118,9 @@
       categories: VALUES.categories(item.id),
       rap: item.rap,
       thumbnail: item.thumbnail,
+      /* Community categories, surfaced as the two tag icons on the card. */
+      rare: VALUES.categories(item.id).includes('rare'),
+      projected: VALUES.categories(item.id).includes('projected'),
       limitedUnique: restrictions.includes('LimitedUnique'),
       limited: restrictions.includes('Limited') || restrictions.includes('LimitedUnique'),
       available: available !== null && Number.isFinite(Number(available)) ? Number(available) : null,
@@ -255,57 +258,22 @@
     parent.append(row);
   }
 
+  /*
+   * The card itself is assets/js/catalog-card.js, shared with /projecteds so
+   * both pages draw the identical thing. This only decides which figures a
+   * catalog card carries: Value, RAP and how many are still on sale. Never a
+   * price - see the note at the top of that file.
+   */
+  const CARDS = window.WolimonsItemCard;
+
   function createCard(item) {
-    const card = document.createElement('div');
-    card.className = 'shadow_md_35 shift_up_md pb-2 mb-3 mix_item';
-    card.dataset.ref = 'item';
-    card.dataset.itemKey = String(item.id);
-    card.style.backgroundColor = '#30363c';
-
-    const link = document.createElement('a');
-    /* Cards open our own item page, not Wanwood's catalog. The slug is
-     * cosmetic - /item/ reads the id out of the query string. */
-    link.href = `/item/?id=${item.id}&name=${slugify(item.name)}`;
-    const headingWrap = document.createElement('div');
-    const heading = document.createElement('h6');
-    heading.className = 'item_card_name px-2 text-light my-1 text-truncate';
-    const name = text('div', 'text-truncate', item.name);
-    name.title = item.name;
-    heading.append(name);
-    headingWrap.append(heading);
-
-    const imageWrap = document.createElement('div');
-    imageWrap.className = 'position-relative std_item_card_img_bkgnd_gradient text-center border-top border-bottom border-dark';
-    if (item.limited) {
-      /* limited.svg / limitedu.svg are wide banners (215x58 and 290x58), so
-       * they need the .limited_ribbon box, not the square .system_item_tag_icon
-       * one - squeezing them into 18x18 is what made them unreadable. */
-      const ribbon = document.createElement('img');
-      ribbon.className = 'limited_ribbon';
-      ribbon.src = item.limitedUnique ? '/img/limitedu.svg' : '/img/limited.svg';
-      ribbon.alt = item.limitedUnique ? 'Limited U' : 'Limited';
-      ribbon.width = item.limitedUnique ? 75 : 56;
-      ribbon.height = 15;
-      ribbon.loading = 'lazy';
-      imageWrap.append(ribbon);
-    }
-    const image = document.createElement('img');
-    image.className = 'd-block-inline my-1';
-    image.src = item.thumbnail || API.thumbnailUrl(item.id);
-    image.width = 100;
-    image.height = 100;
-    image.alt = `${item.name} thumbnail`;
-    image.loading = 'lazy';
-    imageWrap.append(image);
-
-    const stats = document.createElement('div');
-    stats.className = 'px-2 pt-1';
-    appendStat(stats, 'Value', item.value, 'value');
-    appendStat(stats, 'RAP', item.rap, 'rap');
-    appendStat(stats, 'Available', item.available, 'available');
-    link.append(headingWrap, imageWrap, stats);
-    card.append(link);
-    return card;
+    return CARDS.itemCard(item, {
+      stats: [
+        ['Value', item.value, { cell: 'value' }],
+        ['RAP', item.rap, { cell: 'rap' }],
+        ['Available', item.available, { cell: 'available' }],
+      ],
+    });
   }
 
   function renderPagination(container, totalPages) {

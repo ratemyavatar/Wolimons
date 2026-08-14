@@ -112,17 +112,17 @@
 
 .rare_tag_icon { background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20aria-hidden%3D'true'%20style%3D'-ms-transform%3Arotate(360deg)%3B-webkit-transform%3Arotate(360deg)'%20viewBox%3D'0%200%20128%20128'%20transform%3D'rotate(360)'%3E%3Cpath%20d%3D'M63.85%20123.84l60.1-87.8.05-.02v-.03L96.04%204H32.01L4%2035.93v.03l.03.07%2059.42%2087.45.32.44.07-.09-.22-.83.23.84z'%20fill%3D'%2381D4FA'%2F%3E%3ClinearGradient%20id%3D'a'%20x1%3D'4.111'%20x2%3D'123.89'%20y1%3D'64'%20y2%3D'64'%20gradientUnits%3D'userSpaceOnUse'%3E%3Cstop%20stop-color%3D'%2381D4FA'%20offset%3D'.001'%2F%3E%3Cstop%20stop-color%3D'%2329B6F6'%20offset%3D'1'%2F%3E%3C%2FlinearGradient%3E%3Cpath%20fill%3D'url(%23a)'%20d%3D'M63.79%20123.93L4.11%2036.03l27.9-31.96h64.03l27.85%2031.96z'%2F%3E%3Cpath%20fill%3D'none'%20d%3D'M64%204l-.05.07h.1z'%2F%3E%3ClinearGradient%20id%3D'b'%20x1%3D'63.599'%20x2%3D'63.599'%20y1%3D'123.89'%20y2%3D'36.003'%20gradientUnits%3D'userSpaceOnUse'%3E%3Cstop%20stop-color%3D'%2381D4FA'%20offset%3D'0'%2F%3E%3Cstop%20stop-color%3D'%237DD3FA'%20offset%3D'.221'%2F%3E%3Cstop%20stop-color%3D'%2372CFF9'%20offset%3D'.431'%2F%3E%3Cstop%20stop-color%3D'%235EC8F8'%20offset%3D'.638'%2F%3E%3Cstop%20stop-color%3D'%2344BFF7'%20offset%3D'.841'%2F%3E%3Cstop%20stop-color%3D'%2329B6F6'%20offset%3D'1'%2F%3E%3C%2FlinearGradient%3E%3Cpath%20fill%3D'url(%23b)'%20d%3D'M63.78%20123.89L87.55%2036l-47.9.05z'%2F%3E%3Cpath%20fill%3D'%2381D4FA'%20d%3D'M87.55%2036h.39l-.28-.38z'%2F%3E%3ClinearGradient%20id%3D'c'%20x1%3D'93.897'%20x2%3D'93.897'%20y1%3D'123.91'%20y2%3D'36'%20gradientUnits%3D'userSpaceOnUse'%3E%3Cstop%20stop-color%3D'%23039BE5'%20offset%3D'0'%2F%3E%3Cstop%20stop-color%3D'%230398E2'%20offset%3D'.369'%2F%3E%3Cstop%20stop-color%3D'%230390D9'%20offset%3D'.638'%2F%3E%3Cstop%20stop-color%3D'%230282C9'%20offset%3D'.874'%2F%3E%3Cstop%20stop-color%3D'%230277BD'%20offset%3D'1'%2F%3E%3C%2FlinearGradient%3E%3Cpath%20fill%3D'url(%23c)'%20d%3D'M124%2036.02L87.58%2036l-23.79%2087.91L124%2036.03z'%2F%3E%3ClinearGradient%20id%3D'd'%20x1%3D'33.944'%20x2%3D'33.944'%20y1%3D'123.91'%20y2%3D'35.968'%20gradientUnits%3D'userSpaceOnUse'%3E%3Cstop%20stop-color%3D'%2329B6F6'%20offset%3D'0'%2F%3E%3Cstop%20stop-color%3D'%2325B3F4'%20offset%3D'.331'%2F%3E%3Cstop%20stop-color%3D'%231AABEF'%20offset%3D'.646'%2F%3E%3Cstop%20stop-color%3D'%23079EE7'%20offset%3D'.954'%2F%3E%3Cstop%20stop-color%3D'%23039BE5'%20offset%3D'1'%2F%3E%3C%2FlinearGradient%3E%3Cpath%20fill%3D'url(%23d)'%20d%3D'M39.86%2036.59L39%2037.75l.86-1.16-.17-.61-35.52-.01-.06.06%2059.67%2087.88z'%2F%3E%3ClinearGradient%20id%3D'e'%20x1%3D'29.51'%20x2%3D'21.783'%20y1%3D'5.457'%20y2%3D'36.366'%20gradientUnits%3D'userSpaceOnUse'%3E%3Cstop%20stop-color%3D'%23B3E5FC'%20offset%3D'.005'%2F%3E%3Cstop%20stop-color%3D'%234FC3F7'%20offset%3D'1'%2F%3E%3C%2FlinearGradient%3E%3Cpath%20fill%3D'url(%23e)'%20d%3D'M40%2036L32%204.1%203.74%2036.05z'%2F%3E%3ClinearGradient%20id%3D'f'%20x1%3D'105.87'%20x2%3D'105.87'%20y1%3D'7.06'%20y2%3D'37.027'%20gradientUnits%3D'userSpaceOnUse'%3E%3Cstop%20stop-color%3D'%2381D4FA'%20offset%3D'.009'%2F%3E%3Cstop%20stop-color%3D'%2329B6F6'%20offset%3D'1'%2F%3E%3C%2FlinearGradient%3E%3Cpath%20fill%3D'url(%23f)'%20d%3D'M87.74%2036l8-31.9L124%2036.05z'%2F%3E%3ClinearGradient%20id%3D'g'%20x1%3D'63.644'%20x2%3D'63.644'%20y1%3D'6.738'%20y2%3D'35.715'%20gradientUnits%3D'userSpaceOnUse'%3E%3Cstop%20stop-color%3D'%23E1F5FE'%20offset%3D'0'%2F%3E%3Cstop%20stop-color%3D'%23D3F0FD'%20offset%3D'.275'%2F%3E%3Cstop%20stop-color%3D'%23B3E5FC'%20offset%3D'1'%2F%3E%3C%2FlinearGradient%3E%3Cpath%20fill%3D'url(%23g)'%20d%3D'M39.74%2036l24-31.96L87.55%2036z'%2F%3E%3ClinearGradient%20id%3D'h'%20x1%3D'47.868'%20x2%3D'47.868'%20y1%3D'4.484'%20y2%3D'37.34'%20gradientUnits%3D'userSpaceOnUse'%3E%3Cstop%20stop-color%3D'%2381D4FA'%20offset%3D'.009'%2F%3E%3Cstop%20stop-color%3D'%2329B6F6'%20offset%3D'1'%2F%3E%3C%2FlinearGradient%3E%3Cpath%20fill%3D'url(%23h)'%20d%3D'M64%204.04L40%2036.05%2031.74%204z'%2F%3E%3ClinearGradient%20id%3D'i'%20x1%3D'63.736'%20x2%3D'96'%20y1%3D'20.023'%20y2%3D'20.023'%20gradientUnits%3D'userSpaceOnUse'%3E%3Cstop%20stop-color%3D'%234FC3F7'%20offset%3D'.011'%2F%3E%3Cstop%20stop-color%3D'%2329B6F6'%20offset%3D'1'%2F%3E%3C%2FlinearGradient%3E%3Cpath%20fill%3D'url(%23i)'%20d%3D'M63.74%204.04l24%2032.01L96%204z'%2F%3E%3Cpath%20d%3D'M94.67%207l25.53%2029.2-56.42%2082.41L7.76%2036.19%2033.37%207h61.3m1.37-3H32.01L4%2035.93v.03l.03.07%2059.74%2087.9%2060.18-87.9.05-.02v-.03L96.04%204z'%20fill%3D'%23424242'%20opacity%3D'.2'%2F%3E%3C%2Fsvg%3E"); }
 
-.page-catalog .catalog_controls, .page-catalog .mix_container, .page-catalog .pagination-control, .page-players .mix_container, .page-players .pagination-control, .page-valuechanges .mix_container, .page-valuechanges .pagination-control { width: 100%; }
+.page-catalog .catalog_controls, .page-catalog .mix_container, .page-catalog .pagination-control, .page-players .mix_container, .page-players .pagination-control, .page-valuechanges .mix_container, .page-valuechanges .pagination-control, .page-projecteds .mix_container { width: 100%; }
 
-.page-catalog .mix_container, .page-player .mix_container, .page-players .mix_container, .page-valuechanges .mix_container, .page-games .mix_container, .page-groups .mix_container { display: flex; flex-wrap: wrap; align-items: flex-start; place-content: flex-start; gap: 0px 1rem; text-align: initial; font-size: initial; }
+.page-catalog .mix_container, .page-player .mix_container, .page-players .mix_container, .page-valuechanges .mix_container, .page-projecteds .mix_container, .page-games .mix_container, .page-groups .mix_container { display: flex; flex-wrap: wrap; align-items: flex-start; place-content: flex-start; gap: 0px 1rem; text-align: initial; font-size: initial; }
 
-.page-catalog .mix_container::after, .page-player .mix_container::after, .page-players .mix_container::after, .page-valuechanges .mix_container::after, .page-games .mix_container::after, .page-groups .mix_container::after { content: none; }
+.page-catalog .mix_container::after, .page-player .mix_container::after, .page-players .mix_container::after, .page-valuechanges .mix_container::after, .page-projecteds .mix_container::after, .page-games .mix_container::after, .page-groups .mix_container::after { content: none; }
 
-.page-catalog .mix_item, .page-player .mix_item, .page-players .mix_item, .page-valuechanges .mix_item, .page-games .mix_item, .page-groups .mix_item { display: block; position: relative; flex: 0 0 auto; width: 100%; cursor: pointer; font-size: 15px; }
+.page-catalog .mix_item, .page-player .mix_item, .page-players .mix_item, .page-valuechanges .mix_item, .page-projecteds .mix_item, .page-games .mix_item, .page-groups .mix_item { display: block; position: relative; flex: 0 0 auto; width: 100%; cursor: pointer; font-size: 15px; }
 
-.page-catalog .mix_item a:hover, .page-player .mix_item a:hover, .page-players .mix_item a:hover, .page-valuechanges .mix_item a:hover, .page-games .mix_item a:hover, .page-groups .mix_item a:hover { text-decoration: none; color: white; }
+.page-catalog .mix_item a:hover, .page-player .mix_item a:hover, .page-players .mix_item a:hover, .page-valuechanges .mix_item a:hover, .page-projecteds .mix_item a:hover, .page-games .mix_item a:hover, .page-groups .mix_item a:hover { text-decoration: none; color: white; }
 
-.page-catalog .mix_gap, .page-player .mix_gap, .page-players .mix_gap, .page-valuechanges .mix_gap { display: none; }
+.page-catalog .mix_gap, .page-player .mix_gap, .page-players .mix_gap, .page-valuechanges .mix_gap, .page-projecteds .mix_gap { display: none; }
 
 @media (min-width: 340px) {
   /* The 50% - 0.375rem width below is sized for a 0.75rem gap, but the base
@@ -130,30 +130,30 @@
      Without this line two cards plus one gap come to 100% + 0.25rem, which
      overflows the row and drops every second card onto its own line - the
      grid collapses to a single column on phones. */
-  .page-catalog .mix_container, .page-player .mix_container, .page-players .mix_container, .page-valuechanges .mix_container { column-gap: 0.75rem; }
-  .page-catalog .mix_item, .page-player .mix_item, .page-players .mix_item, .page-valuechanges .mix_item { width: calc(50% - 0.375rem); }
+  .page-catalog .mix_container, .page-player .mix_container, .page-players .mix_container, .page-valuechanges .mix_container, .page-projecteds .mix_container { column-gap: 0.75rem; }
+  .page-catalog .mix_item, .page-player .mix_item, .page-players .mix_item, .page-valuechanges .mix_item, .page-projecteds .mix_item { width: calc(50% - 0.375rem); }
 }
 
 @media (min-width: 480px) {
-  .page-catalog .mix_container, .page-player .mix_container, .page-players .mix_container, .page-valuechanges .mix_container, .page-games .mix_container, .page-groups .mix_container { column-gap: 0.8rem; }
-  .page-catalog .mix_item, .page-player .mix_item, .page-players .mix_item, .page-valuechanges .mix_item { width: calc(33.3333% - 0.533333rem); }
+  .page-catalog .mix_container, .page-player .mix_container, .page-players .mix_container, .page-valuechanges .mix_container, .page-projecteds .mix_container, .page-games .mix_container, .page-groups .mix_container { column-gap: 0.8rem; }
+  .page-catalog .mix_item, .page-player .mix_item, .page-players .mix_item, .page-valuechanges .mix_item, .page-projecteds .mix_item { width: calc(33.3333% - 0.533333rem); }
   .page-games .mix_item, .page-groups .mix_item { width: calc(50% - 0.4rem); }
 }
 
 @media (min-width: 650px) {
-  .page-catalog .mix_item, .page-player .mix_item, .page-players .mix_item, .page-valuechanges .mix_item { width: calc(25% - 0.6rem); }
+  .page-catalog .mix_item, .page-player .mix_item, .page-players .mix_item, .page-valuechanges .mix_item, .page-projecteds .mix_item { width: calc(25% - 0.6rem); }
   .page-games .mix_item, .page-groups .mix_item { width: calc(33.3333% - 0.533333rem); }
 }
 
 @media (min-width: 840px) {
-  .page-catalog .mix_container, .page-player .mix_container, .page-players .mix_container, .page-valuechanges .mix_container, .page-games .mix_container, .page-groups .mix_container { column-gap: 0.85rem; }
-  .page-catalog .mix_item, .page-player .mix_item, .page-players .mix_item, .page-valuechanges .mix_item { width: calc(20% - 0.68rem); }
+  .page-catalog .mix_container, .page-player .mix_container, .page-players .mix_container, .page-valuechanges .mix_container, .page-projecteds .mix_container, .page-games .mix_container, .page-groups .mix_container { column-gap: 0.85rem; }
+  .page-catalog .mix_item, .page-player .mix_item, .page-players .mix_item, .page-valuechanges .mix_item, .page-projecteds .mix_item { width: calc(20% - 0.68rem); }
   .page-games .mix_item, .page-groups .mix_item { width: calc(25% - 0.6375rem); }
 }
 
 @media (min-width: 1100px) {
-  .page-catalog .mix_container, .page-player .mix_container, .page-players .mix_container, .page-valuechanges .mix_container, .page-games .mix_container, .page-groups .mix_container { column-gap: 1rem; }
-  .page-catalog .mix_item, .page-player .mix_item, .page-players .mix_item, .page-valuechanges .mix_item { width: calc(16.6667% - 0.833333rem); }
+  .page-catalog .mix_container, .page-player .mix_container, .page-players .mix_container, .page-valuechanges .mix_container, .page-projecteds .mix_container, .page-games .mix_container, .page-groups .mix_container { column-gap: 1rem; }
+  .page-catalog .mix_item, .page-player .mix_item, .page-players .mix_item, .page-valuechanges .mix_item, .page-projecteds .mix_item { width: calc(16.6667% - 0.833333rem); }
   .page-games .mix_item, .page-groups .mix_item { width: calc(25% - 0.75rem); }
 }
 

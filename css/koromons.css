@@ -525,6 +525,8 @@
 
 .lb_badge svg { width: 16px; height: 16px; }
 
+.lb_badge img { width: 16px; height: 16px; display: block; object-fit: contain; }
+
 .lb_badge .badge-tt { display: none; position: absolute; bottom: 125%; left: 50%; transform: translateX(-50%); background: rgb(35, 37, 41); border: 1px solid rgb(74, 77, 84); border-radius: 4px; padding: 4px 8px; color: rgb(255, 255, 255); font-size: 12px; font-weight: 600; white-space: nowrap; z-index: 100; box-shadow: rgba(0, 0, 0, 0.5) 0px 4px 10px; }
 
 .lb_badge:hover .badge-tt { display: block; }

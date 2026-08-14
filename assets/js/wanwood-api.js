@@ -283,6 +283,108 @@
   }
 
   /*
+   * The same resale-data document that fetchRap reads also carries the daily
+   * price/volume series the player page charts. fetchRap throws the rest away,
+   * so the chart would re-request every asset a second time - this keeps the
+   * whole envelope instead, under its own key so the two caches can expire
+   * independently.
+   */
+  const RESALE_STORE_KEY = 'wolimons_resale_v1';
+  const RESALE_TTL_MS = 10 * 60 * 1000;
+  const resaleCache = new Map();
+
+  function readResaleStore() {
+    try {
+      const raw = sessionStorage.getItem(RESALE_STORE_KEY);
+      if (!raw) return {};
+      const parsed = JSON.parse(raw);
+      if (!isPlainObject(parsed) || !isPlainObject(parsed.resale)) return {};
+      if (!(Date.now() - Number(parsed.at) < RESALE_TTL_MS)) return {};
+      return parsed.resale;
+    } catch (error) {
+      return {};
+    }
+  }
+
+  function writeResaleStore(id, value) {
+    try {
+      const resale = readResaleStore();
+      resale[id] = value;
+      sessionStorage.setItem(RESALE_STORE_KEY,
+        JSON.stringify({ at: Date.now(), resale }));
+    } catch (error) {
+      /* The series can be large; a quota error just means no warm cache. */
+    }
+  }
+
+  /* Only the fields the chart needs, so a big inventory does not blow the
+   * sessionStorage quota storing sale logs nobody reads. */
+  function normalizeResale(data) {
+    const points = Array.isArray(data.priceDataPoints) ? data.priceDataPoints : [];
+    const volume = Array.isArray(data.volumeDataPoints) ? data.volumeDataPoints : [];
+    const clean = rows => rows
+      .map(row => {
+        if (!isPlainObject(row)) return null;
+        const value = toNumber(row.value);
+        const date = typeof row.date === 'string' ? row.date : null;
+        if (value === null || !date) return null;
+        const time = Date.parse(date);
+        if (!Number.isFinite(time)) return null;
+        return { time, value };
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.time - b.time);
+    return {
+      recentAveragePrice: toNumber(data.recentAveragePrice),
+      originalPrice: toNumber(data.originalPrice),
+      assetStock: toNumber(data.assetStock),
+      numberRemaining: toNumber(data.numberRemaining),
+      sales: toNumber(data.sales),
+      priceDataPoints: clean(points),
+      volumeDataPoints: clean(volume),
+    };
+  }
+
+  /*
+   * GET /apisite/economy/v1/assets/{id}/resale-data
+   * -> {sales, recentAveragePrice, priceDataPoints[], volumeDataPoints[], ...}
+   * Same retry-before-caching rule as fetchRap: a memoised transient failure
+   * would silently flatten this asset out of the player's history chart.
+   */
+  function fetchResaleData(id) {
+    const key = Number(id);
+    if (!Number.isSafeInteger(key) || key <= 0) return Promise.resolve(null);
+    if (!resaleCache.has(key)) {
+      const stored = readResaleStore()[key];
+      if (isPlainObject(stored)) {
+        resaleCache.set(key, Promise.resolve(stored));
+      } else {
+        resaleCache.set(key, (async () => {
+          for (let attempt = 0; attempt <= 2; attempt += 1) {
+            try {
+              const data = await fetchJson(
+                `${API_BASE}/apisite/economy/v1/assets/${key}/resale-data`);
+              if (!isPlainObject(data)) return null;
+              const clean = normalizeResale(data);
+              writeResaleStore(key, clean);
+              /* Feed the RAP memo too - same document, one round trip. */
+              if (clean.recentAveragePrice !== null && !rapCache.has(key)) {
+                rapCache.set(key, Promise.resolve(clean.recentAveragePrice));
+              }
+              return clean;
+            } catch (error) {
+              if (attempt === 2) return null;
+              await new Promise(resolve => setTimeout(resolve, 300 * (attempt + 1)));
+            }
+          }
+          return null;
+        })());
+      }
+    }
+    return resaleCache.get(key);
+  }
+
+  /*
    * GET /apisite/thumbnails/v1/assets?assetIds=1,2,3
    * Batched, and returns real CDN URLs. Those URLs point at the Wanwood
    * origin, so they are rewritten through the proxy for consistency with
@@ -711,6 +813,7 @@
     getUsersByIds,
     getItemDetails,
     fetchRap,
+    fetchResaleData,
     fetchThumbnails,
     fetchUserThumbnails,
     thumbnailUrl,

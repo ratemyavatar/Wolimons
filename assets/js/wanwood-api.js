@@ -259,8 +259,18 @@
 
   /*
    * GET /apisite/economy/v1/assets/{id}/resellers?limit=1
-   * Cheapest live listing. Not shown on cards - kept because it is the only
-   * way to read a real sale price if something ever needs one.
+   *
+   * The cheapest copy currently listed for sale. This is a *price*, not a
+   * value: it is what one seller is asking today, and it has nothing to do
+   * with the community's valuation of the item. It is deliberately absent
+   * from every item card for exactly that reason.
+   *
+   * /deals is the one page it belongs on, because a deal is by definition a
+   * comparison between a live asking price and what the item is worth - and
+   * there it is labelled "Price" and never passed off as anything else.
+   *
+   * Returns null when nothing is listed, which is the normal case for most
+   * collectibles.
    */
   async function fetchLowestPrice(id) {
     try {
@@ -271,6 +281,26 @@
     } catch (error) {
       return null;
     }
+  }
+
+  /*
+   * The cheapest listing for a batch of assets, as a Map of id -> price.
+   *
+   * One request per asset, so this is only ever called with the catalog's few
+   * dozen collectibles and never with anything unbounded. Assets with nothing
+   * for sale are simply absent from the map.
+   */
+  async function fetchLowestPrices(ids) {
+    const wanted = [...new Set((ids || [])
+      .map(Number)
+      .filter(id => Number.isSafeInteger(id) && id > 0))];
+
+    const prices = new Map();
+    await mapLimit(wanted, CONCURRENCY, async id => {
+      const price = await fetchLowestPrice(id);
+      if (price !== null && price > 0) prices.set(id, price);
+    });
+    return prices;
   }
 
   /*
@@ -1017,6 +1047,8 @@
     getItemRestrictions,
     fetchRap,
     fetchResaleData,
+    fetchLowestPrice,
+    fetchLowestPrices,
     fetchThumbnails,
     fetchUserThumbnails,
     fetchUserHeadshots,

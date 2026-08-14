@@ -258,5 +258,8 @@
     searchInput.focus();
   });
 
-  if (sliderTrack && searchGrid) loadLatest();
+  if (searchGrid) {
+    if (sliderTrack) loadLatest();
+    else runSearch('');
+  }
 })();

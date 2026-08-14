@@ -1,0 +1,13 @@
+{
+  "name": "wolimons-api-proxy",
+  "version": "1.0.0",
+  "private": true,
+  "description": "CORS + anti-bot proxy that forwards Wolimons API requests to Wanwood",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

@@ -1,7 +1,9 @@
 (() => {
   'use strict';
 
-  const API_BASE = 'https://wanwoo.xyz';
+  const CONFIG = window.WOLIMONS_CONFIG || {};
+  const API_BASE = CONFIG.apiBase || 'https://wanwoo.xyz';
+  const SITE_BASE = CONFIG.siteBase || 'https://wanwoo.xyz';
   const PAGE_SIZE = 30;
   const TYPE_NAMES = {
     8: 'Hat',
@@ -233,7 +235,7 @@
     card.style.backgroundColor = '#30363c';
 
     const link = document.createElement('a');
-    link.href = `${API_BASE}/catalog/${item.id}/${slugify(item.name)}`;
+    link.href = `${SITE_BASE}/catalog/${item.id}/${slugify(item.name)}`;
     const headingWrap = document.createElement('div');
     const heading = document.createElement('h6');
     heading.className = 'item_card_name px-2 text-light my-1 text-truncate';

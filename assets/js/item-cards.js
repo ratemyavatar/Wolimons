@@ -1,7 +1,9 @@
 (() => {
   'use strict';
 
-  const API_BASE = 'https://wanwoo.xyz';
+  const CONFIG = window.WOLIMONS_CONFIG || {};
+  const API_BASE = CONFIG.apiBase || 'https://wanwoo.xyz';
+  const SITE_BASE = CONFIG.siteBase || 'https://wanwoo.xyz';
   const PAGE_SIZE = 18;
   const sliderTrack = document.getElementById('latest_limiteds_track');
   const searchGrid = document.querySelector('#global_item_search_results .search-item-card-grid');
@@ -98,7 +100,7 @@
     return {
       id,
       name: item.name.trim(),
-      href: `${API_BASE}/catalog/${id}/${slugify(item.name)}`,
+      href: `${SITE_BASE}/catalog/${id}/${slugify(item.name)}`,
       thumbnail: `${API_BASE}/asset-thumbnail/image?assetId=${id}&width=420&height=420&format=png`,
       ribbon: isLimitedUnique ? '/img/limitedu.svg' : (isLimited ? '/img/limited.svg' : ''),
       ribbonAlt: isLimitedUnique ? 'Limited U' : 'Limited',

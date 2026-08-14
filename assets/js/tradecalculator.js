@@ -1,7 +1,9 @@
 (() => {
   'use strict';
 
-  const API_BASE = 'https://wanwoo.xyz';
+  const CONFIG = window.WOLIMONS_CONFIG || {};
+  const API_BASE = CONFIG.apiBase || 'https://wanwoo.xyz';
+  const SITE_BASE = CONFIG.siteBase || 'https://wanwoo.xyz';
   const PAGE_SIZE = 42;
   const STORAGE_KEY = 'wolimons_tradecalculator';
 

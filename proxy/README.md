@@ -75,14 +75,47 @@ The site needs these endpoints to work:
 | Method | Path | Used for |
 | --- | --- | --- |
 | GET | `/apisite/catalog/v1/search/items` | item listings and search |
-| POST | `/apisite/catalog/v1/catalog/items/details` | names, values, restrictions |
+| GET | `/apisite/api/marketplace/productinfo` | item name / type / price |
+| GET | `/apisite/api/v1/items/restrictions` | Limited vs Limited-U ribbons |
 | GET | `/apisite/economy/v1/assets/{id}/resale-data` | RAP |
-| POST | `/apisite/users/v1/usernames/users` | username → user id |
+| GET | `/apisite/economy/v1/assets/{id}/resellers` | lowest asking price |
+| GET | `/apisite/thumbnails/v1/assets` | item images (returns URLs) |
+| GET | `/images/thumbnails/*` | the images themselves (binary) |
+| GET | `/apisite/api/users/get-by-username` | username to user id |
 | GET | `/apisite/inventory/v1/users/{id}/assets/collectibles` | a player's inventory |
-| GET | `/asset-thumbnail/image` | item images (binary) |
+| POST | `/apisite/catalog/v1/catalog/items/details` | optional fast path (see below) |
 
-If their proxy only handles `GET`, the trade calculator's item details and the
-player-inventory scan won't work — those two are `POST`.
+**Every required endpoint is a `GET`.** A friend's proxy that only forwards
+`GET` will work fine.
+
+### Why the POST endpoint is optional
+
+Wanwood runs the [BubbaBlox v2](https://github.com/harryzawg/bubbablox-v2)
+backend. Its `CsrfMiddleware` rejects any non-`GET` request that doesn't carry
+a matching `rbxcsrf4` cookie *and* `x-csrf-token` header, replying `403
+{"errors":[{"message":"Token Validation Failed"}]}`.
+
+That makes `POST /apisite/catalog/v1/catalog/items/details` — the one call that
+returns every item's details at once — unusable from a plain browser fetch.
+So the site doesn't rely on it: it falls back to per-item `GET`s that need no
+token. The batch call is still tried first because it's a single round trip
+instead of ~30.
+
+`server.js` in this folder does the handshake for you: on a `403` it reads the
+token from the response header and the cookie from `Set-Cookie`, replays the
+request, and caches the pair for reuse.
+
+### A gotcha worth knowing
+
+Unknown paths on this backend return the SPA HTML shell
+(`<!doctype html><html>...`) with status **200**, not a 404. A wrong path
+therefore shows up as a JSON parse error rather than an HTTP error. These two
+paths look plausible but do **not** exist:
+
+- `GET /apisite/catalog/v1/items/details`
+- `GET /apisite/catalog/v1/search/items/details`
+
+The site now detects an HTML body and treats it as a failed endpoint.
 
 ## Configuration
 

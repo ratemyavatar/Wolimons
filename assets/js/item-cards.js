@@ -2,14 +2,12 @@
   'use strict';
 
   const CONFIG = window.WOLIMONS_CONFIG || {};
-  const API_BASE = CONFIG.apiBase || 'https://wanwoo.xyz';
   const SITE_BASE = CONFIG.siteBase || 'https://wanwoo.xyz';
   const PAGE_SIZE = 18;
   const sliderTrack = document.getElementById('latest_limiteds_track');
   const searchGrid = document.querySelector('#global_item_search_results .search-item-card-grid');
   const searchInput = document.getElementById('global_item_search_textbox');
   const searchClear = document.getElementById('global_item_search_textbox_clear');
-  const rapCache = new Map();
   let searchSequence = 0;
 
   const formatNumber = value => Number(value).toLocaleString('en-US');
@@ -18,77 +16,21 @@
     .replace(/[^a-zA-Z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '') || 'unnamed';
 
-  async function fetchJson(url, options) {
-    const response = await fetch(url, { mode: 'cors', ...options });
-    if (!response.ok) throw new Error(`Wanwood API returned ${response.status}`);
-    const text = await response.text();
-    if (!text.trim()) throw new Error('Wanwood API returned an empty response');
-    return JSON.parse(text);
-  }
+  const API = window.WanwoodAPI;
 
-  async function searchItemIds(keyword = '') {
-    const query = new URLSearchParams({
+  async function getItems(keyword = '') {
+    const search = await API.searchItems({
       category: 'Collectibles',
       subcategory: 'Collectibles',
       sortType: '3',
-      limit: String(PAGE_SIZE),
+      keyword,
+      limit: PAGE_SIZE,
+      cursor: 0,
     });
-    if (keyword) query.set('keyword', keyword);
-
-    try {
-      const result = await fetchJson(`${API_BASE}/apisite/catalog/v1/search/items?${query}`);
-      return (Array.isArray(result.data) ? result.data : [])
-        .map(item => Number(item.id))
-        .filter(Number.isSafeInteger);
-    } catch (canonicalError) {
-      const fallback = new URLSearchParams({ keyword, limit: String(PAGE_SIZE) });
-      const result = await fetchJson(`${API_BASE}/apisite/catalog/v1/search?${fallback}`);
-      const rows = Array.isArray(result) ? result : (result.data || result.items || []);
-      const ids = rows.map(item => Number(item.id ?? item.assetId)).filter(Number.isSafeInteger);
-      if (!ids.length) throw canonicalError;
-      return ids;
-    }
-  }
-
-  async function fetchItemDetails(ids) {
-    if (!ids.length) return [];
-    try {
-      const result = await fetchJson(`${API_BASE}/apisite/catalog/v1/catalog/items/details`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items: ids.map(id => ({ itemType: 'Asset', id })) }),
-      });
-      return Array.isArray(result.data) ? result.data : [];
-    } catch (canonicalError) {
-      const query = new URLSearchParams({ itemIds: ids.join(',') });
-      const result = await fetchJson(`${API_BASE}/apisite/catalog/v1/items/details?${query}`);
-      const rows = Array.isArray(result) ? result : (result.data || result.items || []);
-      if (!rows.length) throw canonicalError;
-      return rows;
-    }
-  }
-
-  async function fetchRap(id) {
-    if (!rapCache.has(id)) {
-      rapCache.set(id, fetchJson(`${API_BASE}/apisite/economy/v1/assets/${id}/resale-data`)
-        .then(data => Number.isFinite(Number(data.recentAveragePrice))
-          ? Number(data.recentAveragePrice)
-          : null)
-        .catch(() => null));
-    }
-    return rapCache.get(id);
-  }
-
-  async function getItems(keyword = '') {
-    const ids = await searchItemIds(keyword);
-    const details = await fetchItemDetails(ids);
-    const byId = new Map(details.map(item => [Number(item.id ?? item.assetId), item]));
-    const ordered = ids.map(id => byId.get(id)).filter(item => {
-      const itemId = Number(item?.id ?? item?.assetId);
-      return item && Number.isSafeInteger(itemId) && typeof item.name === 'string' && item.name.trim();
-    });
-    const raps = await Promise.all(ordered.map(item => fetchRap(Number(item.id ?? item.assetId))));
-    return ordered.map((item, index) => ({ ...item, rap: raps[index] }));
+    if (!search.ids.length) return [];
+    const details = await API.getItemDetails(search.ids);
+    const byId = new Map(details.map(item => [item.id, item]));
+    return search.ids.map(id => byId.get(id)).filter(item => item && item.name);
   }
 
   function itemData(item) {
@@ -96,12 +38,12 @@
     const restrictions = Array.isArray(item.itemRestrictions) ? item.itemRestrictions : [];
     const isLimitedUnique = restrictions.includes('LimitedUnique') || item.isLimitedUnique === true;
     const isLimited = isLimitedUnique || restrictions.includes('Limited') || item.isLimited === true;
-    const priceValue = item.lowestPrice ?? item.price ?? item.priceRobux;
+    const priceValue = item.lowestPrice ?? item.price;
     return {
       id,
       name: item.name.trim(),
       href: `${SITE_BASE}/catalog/${id}/${slugify(item.name)}`,
-      thumbnail: `${API_BASE}/asset-thumbnail/image?assetId=${id}&width=420&height=420&format=png`,
+      thumbnail: item.thumbnail || API.thumbnailUrl(id),
       ribbon: isLimitedUnique ? '/img/limitedu.svg' : (isLimited ? '/img/limited.svg' : ''),
       ribbonAlt: isLimitedUnique ? 'Limited U' : 'Limited',
       rap: Number.isFinite(item.rap) ? item.rap : null,

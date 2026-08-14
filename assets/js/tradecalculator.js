@@ -2,7 +2,6 @@
   'use strict';
 
   const CONFIG = window.WOLIMONS_CONFIG || {};
-  const API_BASE = CONFIG.apiBase || 'https://wanwoo.xyz';
   const SITE_BASE = CONFIG.siteBase || 'https://wanwoo.xyz';
   const PAGE_SIZE = 42;
   const STORAGE_KEY = 'wolimons_tradecalculator';
@@ -48,7 +47,6 @@
     activeSlot: null,
   };
 
-  const rapCache = new Map();
   const formatNumber = value => Number(value || 0).toLocaleString('en-US');
 
   /* ------------------------------------------------------------------ */
@@ -75,79 +73,28 @@
   /* Wanwood API                                                         */
   /* ------------------------------------------------------------------ */
 
-  async function fetchJson(url, options) {
-    const response = await fetch(url, { mode: 'cors', ...options });
-    if (!response.ok) throw new Error(`Wanwood API returned ${response.status}`);
-    const body = await response.text();
-    if (!body.trim()) throw new Error('Wanwood API returned an empty response');
-    return JSON.parse(body);
-  }
+  const API = window.WanwoodAPI;
 
-  async function searchCatalog() {
-    const query = new URLSearchParams({
+  function searchCatalog() {
+    return API.searchItems({
       category: 'Collectibles',
       subcategory: 'Collectibles',
       sortType: '3',
-      limit: String(PAGE_SIZE),
-      cursor: String((state.page - 1) * PAGE_SIZE),
+      keyword: state.keyword,
+      limit: PAGE_SIZE,
+      cursor: (state.page - 1) * PAGE_SIZE,
     });
-    if (state.keyword) query.set('keyword', state.keyword);
-
-    const result = await fetchJson(`${API_BASE}/apisite/catalog/v1/search/items?${query}`);
-    return {
-      ids: (Array.isArray(result.data) ? result.data : [])
-        .map(item => Number(item.id))
-        .filter(Number.isSafeInteger),
-      total: Number(result._total ?? result.total ?? 0),
-    };
-  }
-
-  async function fetchDetails(ids) {
-    if (!ids.length) return [];
-    const result = await fetchJson(`${API_BASE}/apisite/catalog/v1/catalog/items/details`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ items: ids.map(id => ({ itemType: 'Asset', id })) }),
-    });
-    return Array.isArray(result.data) ? result.data : [];
-  }
-
-  function fetchRap(id) {
-    if (!rapCache.has(id)) {
-      rapCache.set(id, fetchJson(`${API_BASE}/apisite/economy/v1/assets/${id}/resale-data`)
-        .then(data => Number.isFinite(Number(data.recentAveragePrice))
-          ? Number(data.recentAveragePrice)
-          : null)
-        .catch(() => null));
-    }
-    return rapCache.get(id);
   }
 
   async function fetchUserId(username) {
-    const result = await fetchJson(`${API_BASE}/apisite/users/v1/usernames/users`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ usernames: [username], excludeBannedUsers: false }),
-    });
-    const row = (Array.isArray(result.data) ? result.data : [])[0];
-    return row ? { id: Number(row.id), name: row.name || username } : null;
+    try {
+      return await API.getUserByUsername(username);
+    } catch (error) {
+      return null;
+    }
   }
 
-  async function fetchCollectibles(userId) {
-    const collected = [];
-    let cursor = '';
-    for (let page = 0; page < 20; page += 1) {
-      const query = new URLSearchParams({ limit: '100', sortOrder: 'Asc' });
-      if (cursor) query.set('cursor', cursor);
-      const result = await fetchJson(
-        `${API_BASE}/apisite/inventory/v1/users/${userId}/assets/collectibles?${query}`);
-      const rows = Array.isArray(result.data) ? result.data : [];
-      collected.push(...rows);
-      cursor = result.nextPageCursor || '';
-      if (!cursor) break;
-    }
-    return collected;
-  }
+  const fetchCollectibles = userId => API.getCollectibles(userId);
 
   /* ------------------------------------------------------------------ */
   /* Item normalisation                                                  */
@@ -155,7 +102,7 @@
 
   function normalizeItem(item, rap) {
     const id = Number(item.id ?? item.assetId);
-    const rawPrice = item.lowestPrice ?? item.price ?? item.priceRobux;
+    const rawPrice = item.lowestPrice ?? item.price;
     const price = Number.isFinite(Number(rawPrice)) && rawPrice !== null && rawPrice !== undefined
       ? Number(rawPrice)
       : null;
@@ -166,7 +113,7 @@
       rare: restrictions.includes('LimitedUnique') || item.isLimitedUnique === true,
       rap: Number.isFinite(Number(rap)) ? Number(rap) : null,
       value: price !== null ? price : (Number.isFinite(Number(rap)) ? Number(rap) : null),
-      thumbnail: `${API_BASE}/asset-thumbnail/image?assetId=${id}&width=420&height=420&format=png`,
+      thumbnail: item.thumbnail || API.thumbnailUrl(id),
     };
   }
 
@@ -201,25 +148,36 @@
       let ordered;
       if (state.source === 'all' || !state.inventory) {
         const search = await searchCatalog();
-        const details = await fetchDetails(search.ids);
-        const byId = new Map(details.map(item => [Number(item.id ?? item.assetId), item]));
+        if (sequence !== state.sequence) return;
+        ordered = search.ids.length ? await API.getItemDetails(search.ids) : [];
+        const byId = new Map(ordered.map(item => [item.id, item]));
         ordered = search.ids.map(id => byId.get(id)).filter(item => item && item.name);
         state.total = Number.isFinite(search.total) && search.total > 0
           ? search.total
           : ordered.length;
       } else {
+        /* Inventory rows already carry name + recentAveragePrice; they only
+         * need thumbnails resolving. */
         const keyword = state.keyword.toLowerCase();
         const matching = state.inventory.filter(item => !keyword
           || String(item.name || '').toLowerCase().includes(keyword));
         state.total = matching.length;
         const start = (state.page - 1) * PAGE_SIZE;
-        ordered = matching.slice(start, start + PAGE_SIZE);
+        const page = matching.slice(start, start + PAGE_SIZE);
+        const thumbs = await API.fetchThumbnails(page.map(item => Number(item.assetId ?? item.id)));
+        ordered = page.map(item => {
+          const id = Number(item.assetId ?? item.id);
+          return {
+            ...item,
+            id,
+            rap: Number(item.recentAveragePrice),
+            thumbnail: thumbs.get(id),
+          };
+        });
       }
-
-      const raps = await Promise.all(ordered.map(item => fetchRap(Number(item.id ?? item.assetId))));
       if (sequence !== state.sequence) return;
 
-      state.items = ordered.map((item, index) => normalizeItem(item, raps[index]));
+      state.items = ordered.map(item => normalizeItem(item, item.rap));
       renderGrid();
     } catch (error) {
       if (sequence !== state.sequence) return;

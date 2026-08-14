@@ -2,7 +2,6 @@
   'use strict';
 
   const CONFIG = window.WOLIMONS_CONFIG || {};
-  const API_BASE = CONFIG.apiBase || 'https://wanwoo.xyz';
   const SITE_BASE = CONFIG.siteBase || 'https://wanwoo.xyz';
   const PAGE_SIZE = 30;
   const TYPE_NAMES = {
@@ -39,7 +38,6 @@
     items: [],
     request: 0,
   };
-  const rapCache = new Map();
 
   const formatNumber = value => Number(value).toLocaleString('en-US');
   const slugify = value => String(value)
@@ -47,13 +45,7 @@
     .replace(/[^a-zA-Z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '') || 'unnamed';
 
-  async function fetchJson(url, options) {
-    const response = await fetch(url, { mode: 'cors', ...options });
-    if (!response.ok) throw new Error(`Wanwood API returned ${response.status}`);
-    const body = await response.text();
-    if (!body.trim()) throw new Error('Wanwood API returned an empty response');
-    return JSON.parse(body);
-  }
+  const API = window.WanwoodAPI;
 
   function apiSortType() {
     if (state.sort === 'price_ascending') return '4';
@@ -61,70 +53,19 @@
     return '3';
   }
 
-  async function searchCatalog() {
-    const query = new URLSearchParams({
+  function searchCatalog() {
+    return API.searchItems({
       category: 'Collectibles',
       subcategory: state.assetType ? TYPE_NAMES[state.assetType] : 'Collectibles',
       sortType: apiSortType(),
-      limit: String(PAGE_SIZE),
-      cursor: String((state.page - 1) * PAGE_SIZE),
+      keyword: state.keyword,
+      limit: PAGE_SIZE,
+      cursor: (state.page - 1) * PAGE_SIZE,
     });
-    if (state.keyword) query.set('keyword', state.keyword);
-
-    try {
-      const result = await fetchJson(`${API_BASE}/apisite/catalog/v1/search/items?${query}`);
-      return {
-        ids: (Array.isArray(result.data) ? result.data : [])
-          .map(item => Number(item.id))
-          .filter(Number.isSafeInteger),
-        total: Number(result._total ?? result.total ?? 0),
-      };
-    } catch (canonicalError) {
-      const fallbackQuery = new URLSearchParams({
-        keyword: state.keyword,
-        limit: String(PAGE_SIZE),
-        cursor: String((state.page - 1) * PAGE_SIZE),
-      });
-      const result = await fetchJson(`${API_BASE}/apisite/catalog/v1/search?${fallbackQuery}`);
-      const rows = Array.isArray(result) ? result : (result.data || result.items || []);
-      const ids = rows.map(item => Number(item.id ?? item.assetId)).filter(Number.isSafeInteger);
-      if (!ids.length) throw canonicalError;
-      return { ids, total: Number(result.total ?? result._total ?? ids.length) };
-    }
   }
 
-  async function fetchDetails(ids) {
-    if (!ids.length) return [];
-    try {
-      const result = await fetchJson(`${API_BASE}/apisite/catalog/v1/catalog/items/details`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items: ids.map(id => ({ itemType: 'Asset', id })) }),
-      });
-      return Array.isArray(result.data) ? result.data : [];
-    } catch (canonicalError) {
-      const query = new URLSearchParams({ itemIds: ids.join(',') });
-      const result = await fetchJson(`${API_BASE}/apisite/catalog/v1/items/details?${query}`);
-      const rows = Array.isArray(result) ? result : (result.data || result.items || []);
-      if (!rows.length) throw canonicalError;
-      return rows;
-    }
-  }
-
-  function fetchRap(id) {
-    if (!rapCache.has(id)) {
-      rapCache.set(id, fetchJson(`${API_BASE}/apisite/economy/v1/assets/${id}/resale-data`)
-        .then(data => Number.isFinite(Number(data.recentAveragePrice))
-          ? Number(data.recentAveragePrice)
-          : null)
-        .catch(() => null));
-    }
-    return rapCache.get(id);
-  }
-
-  function normalizeItem(item, rap) {
-    const id = Number(item.id ?? item.assetId);
-    const rawPrice = item.lowestPrice ?? item.price ?? item.priceRobux;
+  function normalizeItem(item) {
+    const rawPrice = item.lowestPrice ?? item.price;
     const price = rawPrice !== null && rawPrice !== undefined && Number.isFinite(Number(rawPrice))
       ? Number(rawPrice)
       : null;
@@ -136,12 +77,16 @@
         ? Math.max(0, stock - sold)
         : null;
     }
+    const restrictions = Array.isArray(item.itemRestrictions) ? item.itemRestrictions : [];
     return {
-      id,
+      id: item.id,
       name: item.name.trim(),
       assetType: Number(item.assetType),
       price,
-      rap,
+      rap: item.rap,
+      thumbnail: item.thumbnail,
+      limitedUnique: restrictions.includes('LimitedUnique'),
+      limited: restrictions.includes('Limited') || restrictions.includes('LimitedUnique'),
       available: available !== null && Number.isFinite(Number(available)) ? Number(available) : null,
     };
   }
@@ -153,26 +98,37 @@
     topPagination.replaceChildren();
     bottomPagination.replaceChildren();
 
+    status.textContent = 'Loading the Wanwood catalog…';
+
     try {
       const search = await searchCatalog();
-      const details = await fetchDetails(search.ids);
-      const byId = new Map(details.map(item => [Number(item.id ?? item.assetId), item]));
-      const ordered = search.ids.map(id => byId.get(id)).filter(item => {
-        const id = Number(item?.id ?? item?.assetId);
-        return item && Number.isSafeInteger(id) && typeof item.name === 'string' && item.name.trim();
-      });
-      const raps = await Promise.all(ordered.map(item => fetchRap(Number(item.id ?? item.assetId))));
       if (request !== state.request) return;
 
+      if (!search.ids.length) {
+        state.total = 0;
+        state.items = [];
+        render();
+        return;
+      }
+
+      const details = await API.getItemDetails(search.ids);
+      if (request !== state.request) return;
+
+      const byId = new Map(details.map(item => [item.id, item]));
+      const ordered = search.ids
+        .map(id => byId.get(id))
+        .filter(item => item && item.name);
+
       state.total = Number.isFinite(search.total) ? search.total : ordered.length;
-      state.items = ordered.map((item, index) => normalizeItem(item, raps[index]));
+      state.items = ordered.map(normalizeItem);
       render();
     } catch (error) {
       if (request !== state.request) return;
       console.error('Could not load the Wanwood catalog:', error);
+      status.textContent = '';
       const message = document.createElement('div');
       message.className = 'text-center text-muted py-5 w-100';
-      message.textContent = 'The Wanwood catalog could not be loaded.';
+      message.textContent = `The Wanwood catalog could not be loaded. (${error.message})`;
       grid.replaceChildren(message);
     }
   }
@@ -246,10 +202,18 @@
 
     const imageWrap = document.createElement('div');
     imageWrap.className = 'position-relative std_item_card_img_bkgnd_gradient text-center border-top border-bottom border-dark';
-    imageWrap.append(text('div', 'system_item_tag_container', ''));
+    const tagContainer = text('div', 'system_item_tag_container', '');
+    if (item.limited) {
+      const ribbon = document.createElement('img');
+      ribbon.className = 'system_item_tag_icon';
+      ribbon.src = item.limitedUnique ? '/img/limitedu.svg' : '/img/limited.svg';
+      ribbon.alt = item.limitedUnique ? 'Limited U' : 'Limited';
+      tagContainer.append(ribbon);
+    }
+    imageWrap.append(tagContainer);
     const image = document.createElement('img');
     image.className = 'd-block-inline my-1';
-    image.src = `${API_BASE}/asset-thumbnail/image?assetId=${item.id}&width=420&height=420&format=png`;
+    image.src = item.thumbnail || API.thumbnailUrl(item.id);
     image.width = 100;
     image.height = 100;
     image.alt = `${item.name} thumbnail`;

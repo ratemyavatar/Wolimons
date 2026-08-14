@@ -43,9 +43,9 @@ const DEFAULT_API_BASE = 'https://your-proxy.onrender.com';
 
 A ready-to-deploy proxy is in [`proxy/`](proxy/) with
 [setup instructions for Render](proxy/README.md). If a friend already runs one,
-just paste their URL into `config.js` — check
-[the endpoint list](proxy/README.md#using-a-friends-existing-proxy) to make sure
-theirs forwards `POST` as well as `GET`.
+just paste their URL into `config.js`. Every endpoint the site needs is a
+plain `GET`, so a simple forwarding proxy is enough — see
+[the endpoint list](proxy/README.md#using-a-friends-existing-proxy).
 
 To try a proxy without editing files, run in the browser console:
 

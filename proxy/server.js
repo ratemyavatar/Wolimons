@@ -84,6 +84,34 @@ function readBody(req) {
   });
 }
 
+/*
+ * CSRF handshake.
+ *
+ * Wanwood runs the BubbaBlox v2 backend, whose CsrfMiddleware rejects any
+ * non-GET request that doesn't carry a matching `rbxcsrf4` cookie plus an
+ * `x-csrf-token` header. On failure it replies 403 with the freshly minted
+ * token in the `x-csrf-token` response header and the cookie in Set-Cookie.
+ *
+ * So: send the POST, and if it comes back 403, capture that pair and replay
+ * the request once. Tokens live ~4 minutes, so the last good pair is reused.
+ */
+let csrfToken = null;
+let csrfCookie = null;
+
+function rememberCsrf(response) {
+  const token = response.headers.get('x-csrf-token');
+  if (token) csrfToken = token;
+
+  const setCookie = typeof response.headers.getSetCookie === 'function'
+    ? response.headers.getSetCookie()
+    : [response.headers.get('set-cookie')].filter(Boolean);
+
+  for (const entry of setCookie) {
+    const match = /(^|[;,\s])(rbxcsrf4=[^;]+)/.exec(entry);
+    if (match) csrfCookie = match[2];
+  }
+}
+
 function cacheGet(key) {
   const hit = cache.get(key);
   if (!hit) return null;
@@ -167,7 +195,25 @@ const server = http.createServer(async (req, res) => {
       init.headers['Sec-Fetch-Mode'] = 'no-cors';
     }
 
-    const upstreamResponse = await fetch(target, init);
+    /* Attach the CSRF pair we already hold, if any. */
+    if (req.method === 'POST' && csrfToken && csrfCookie) {
+      init.headers['x-csrf-token'] = csrfToken;
+      init.headers.Cookie = csrfCookie;
+    }
+
+    let upstreamResponse = await fetch(target, init);
+
+    /* 403 => the token was missing or stale. Grab the new one and retry once. */
+    if (req.method === 'POST' && upstreamResponse.status === 403) {
+      rememberCsrf(upstreamResponse);
+      if (csrfToken) {
+        init.headers['x-csrf-token'] = csrfToken;
+        if (csrfCookie) init.headers.Cookie = csrfCookie;
+        upstreamResponse = await fetch(target, init);
+      }
+    }
+    rememberCsrf(upstreamResponse);
+
     const buffer = Buffer.from(await upstreamResponse.arrayBuffer());
     const contentType = upstreamResponse.headers.get('content-type') || 'application/octet-stream';
 

@@ -583,6 +583,13 @@
   .player_info_grid { grid-template-columns: 368px 1fr; }
 }
 
+/* Name header on the profile card, above the thumbnail. Shaped like the
+   leaderboard card header so the same name + .lb_badge row reads the same in
+   both places. */
+.player_card_name_bar { display: flex; align-items: center; min-width: 0; background-color: #30363c; color: rgb(238, 238, 238); font-size: 1.05em; font-weight: 500; line-height: 1.4; padding: 0.35rem 0.6rem; }
+
+.player_card_name_bar > .text-truncate { min-width: 0; }
+
 .player_secondary_stats_grid { display: grid; gap: 1rem; }
 
 @media (max-width: 994px) {
@@ -1517,6 +1524,13 @@ html.trade-gain-loss-rap-hidden #rap_delta_row { display: none; }
   .item_roblox_page_link_icon { width: 1.8em; line-height: 1.2em; }
 }
 
-.page-item .item_flag { display: flex; align-items: center; }
+.page-item .item_flag { display: flex; align-items: center; gap: 10px; }
+
+/* The Rare gem and its label, as one inline group beside the item name. The
+   light blue matches the gem artwork and the .item_flag colour the Limited
+   ribbon already sits in. */
+.page-item .item_flag_rare { display: inline-flex; align-items: center; gap: 4px; color: rgb(129, 212, 250); white-space: nowrap; }
+
+.page-item .item_flag_rare img { width: 1em; height: 1em; display: block; flex: 0 0 auto; }
 
 .page-item .item_flag img { display: block; }

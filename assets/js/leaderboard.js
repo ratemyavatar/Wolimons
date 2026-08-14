@@ -125,57 +125,13 @@
    * so the same award looks the same everywhere. Presentation is .lb_badge /
    * .badge-tt in koromons.css.
    */
-  const TROPHY_PATH = 'M19 3h-2V2h-2v1H9V2H7v1H5c-1.1 0-2 .9-2 2v3c0 2.21 1.79 4 4 4h.14c.48 1.48 1.68 2.65 3.2 3.06L9 18H7v2h10v-2h-2l-1.34-2.94c1.52-.41 2.72-1.58 3.2-3.06H17c2.21 0 4-1.79 4-4V5c0-1.1-.9-2-2-2zm-2 5h-1.68C14.77 9.8 13.5 11 12 11s-2.77-1.2-3.32-3H7V5h10v3z';
+  /* Built by assets/js/name-badges.js, which the profile page shares so the
+   * same award renders identically in both places. */
+  const NAME_BADGES = window.WolimonsNameBadges;
 
   const SVG_NS = 'http://www.w3.org/2000/svg';
 
-  /* The shell every icon sits in: fixed size, with a hover tooltip. */
-  function badgeWrap(label, child) {
-    const wrap = text('span', 'lb_badge');
-    wrap.appendChild(child);
-    wrap.appendChild(text('span', 'badge-tt', label));
-    wrap.setAttribute('title', label);
-    return wrap;
-  }
-
-  function trophyNode() {
-    const svg = document.createElementNS(SVG_NS, 'svg');
-    svg.setAttribute('viewBox', '0 0 24 24');
-    svg.setAttribute('fill', 'currentColor');
-    svg.setAttribute('aria-hidden', 'true');
-    const path = document.createElementNS(SVG_NS, 'path');
-    path.setAttribute('d', TROPHY_PATH);
-    svg.appendChild(path);
-
-    const wrap = badgeWrap('Rank #1', svg);
-    wrap.style.color = '#ffd700';
-    return wrap;
-  }
-
-  function imageBadge(label, src) {
-    const image = document.createElement('img');
-    image.src = src;
-    image.alt = label;
-    image.loading = 'lazy';
-    return badgeWrap(label, image);
-  }
-
-  /*
-   * The icons for one player, in a fixed order so the row never reshuffles.
-   * Anyone who is not #1, not verified and not on the list gets nothing at
-   * all - an empty row is the normal case.
-   */
-  function badgeNodes(player) {
-    const nodes = [];
-    if (player.rank === 1) nodes.push(trophyNode());
-    if (player.verified === true) {
-      nodes.push(imageBadge('Verified', '/img/badges/verified-checkmark.png'));
-    }
-    if (CONFIG.isCertifiedWanwoodian && CONFIG.isCertifiedWanwoodian(player.name)) {
-      nodes.push(imageBadge('Certified Wanwoodian', '/img/badges/certified-wanwoodian.png'));
-    }
-    return nodes;
-  }
+  const badgeNodes = player => (NAME_BADGES ? NAME_BADGES.badgeNodes(player) : []);
 
   /* ------------------------------------------------------------------ */
   /* Cards                                                               */

@@ -42,6 +42,9 @@
   const VALUES = {
     get: id => (typeof RAW_VALUES.get === 'function' ? Number(RAW_VALUES.get(id)) || 0 : 0),
     demand: id => (typeof RAW_VALUES.demand === 'function' ? RAW_VALUES.demand(id) : null),
+    categories: id => (typeof RAW_VALUES.categories === 'function'
+      ? (RAW_VALUES.categories(id) || [])
+      : []),
   };
 
   /* Same table the catalog uses - kept identical so labels never drift. */
@@ -304,21 +307,55 @@
     show('history-section', true);
   }
 
-  function renderFlag(isLimited, isLimitedUnique) {
+  /*
+   * The flags beside the item name: the Limited / Limited U ribbon, which the
+   * API decides, and the Rare gem, which it does not.
+   *
+   * Rare is a judgement call about an item, not a fact any endpoint reports,
+   * so it is read from the "rare" category in values.js - the same hand-set
+   * list the catalog filters on. It is marked by hand today and will be set
+   * from the admin panel when that exists; nothing here has to change for
+   * that, because both write the same category.
+   */
+  function renderFlag(isLimited, isLimitedUnique, isRare) {
     const holder = fields('flag')[0];
     if (!holder) return;
     holder.textContent = '';
-    if (!isLimited) {
-      holder.hidden = true;
-      return;
+
+    if (isLimited) {
+      const ribbon = document.createElement('img');
+      ribbon.src = isLimitedUnique ? '/img/limitedu.svg' : '/img/limited.svg';
+      ribbon.alt = isLimitedUnique ? 'Limited U' : 'Limited';
+      ribbon.width = isLimitedUnique ? 75 : 56;
+      ribbon.height = 15;
+      holder.append(ribbon);
     }
-    const ribbon = document.createElement('img');
-    ribbon.src = isLimitedUnique ? '/img/limitedu.svg' : '/img/limited.svg';
-    ribbon.alt = isLimitedUnique ? 'Limited U' : 'Limited';
-    ribbon.width = isLimitedUnique ? 75 : 56;
-    ribbon.height = 15;
-    holder.append(ribbon);
-    holder.hidden = false;
+
+    if (isRare) holder.append(rareFlag());
+
+    /* Nothing to say about this item: the slot leaves the flow entirely so it
+     * cannot push the name around. */
+    holder.hidden = !holder.firstChild;
+  }
+
+  /* The gem plus its label, as one inline group. */
+  function rareFlag() {
+    const wrap = document.createElement('span');
+    wrap.className = 'item_flag_rare';
+    wrap.title = 'Rare - a hand-picked scarce item';
+
+    const gem = document.createElement('img');
+    gem.src = '/img/rare.svg';
+    gem.alt = '';
+    gem.width = 16;
+    gem.height = 16;
+    gem.setAttribute('aria-hidden', 'true');
+
+    const label = document.createElement('span');
+    label.textContent = 'Rare';
+
+    wrap.append(gem, label);
+    return wrap;
   }
 
   function renderValueVsRap(value, rap) {
@@ -352,7 +389,9 @@
     /* Head + title -------------------------------------------------- */
     document.title = `${name} - Wolimons`;
     setText('name', name);
-    renderFlag(isLimited, isLimitedUnique);
+    /* "rare" is a manually curated category, exactly like the value itself. */
+    const isRare = VALUES.categories(id).includes('rare');
+    renderFlag(isLimited, isLimitedUnique, isRare);
     setText('subtitle', isLimitedUnique
       ? 'Wanwood Limited U'
       : (isLimited ? 'Wanwood Limited' : 'Wanwood Item'));

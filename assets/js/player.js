@@ -20,6 +20,7 @@
   const API = window.WanwoodAPI;
   const VALUES = window.WolimonsValues;
   const BADGES = window.WolimonsBadges;
+  const NAME_BADGES = window.WolimonsNameBadges;
 
   /* Resale-data is one request per unique item. Inventories are small on this
    * revival, but a whale with 100+ uniques should not open 100 sockets. */
@@ -29,6 +30,8 @@
   const el = id => document.getElementById(id);
 
   const nameHeading = el('player_name');
+  const cardNameBar = el('player_card_name_bar');
+  const cardName = el('player_card_name');
   const offsiteLink = el('player_offsite_link');
   const avatarImage = el('player_avatar');
   const statusBox = el('player_status');
@@ -82,9 +85,28 @@
    * stats, and only appear once the player has actually earned them.
    */
   function renderName(name) {
-    if (!nameHeading) return;
-    nameHeading.textContent = '';
-    nameHeading.appendChild(text('span', null, name));
+    if (nameHeading) {
+      nameHeading.textContent = '';
+      nameHeading.appendChild(text('span', null, name));
+    }
+    if (cardName) cardName.textContent = name;
+    renderNameBadges();
+  }
+
+  /*
+   * The trophy / verified / Certified Wanwoodian icons that sit inline after
+   * the name on the profile card. Same builder the leaderboard cards use, so
+   * an award looks identical in both places. Called again whenever one of its
+   * inputs lands, because the name, the verified flag and the rank all arrive
+   * at different times.
+   */
+  function renderNameBadges() {
+    if (!cardNameBar || !NAME_BADGES) return;
+    NAME_BADGES.renderInto(cardNameBar, {
+      name: cardName ? cardName.textContent : '',
+      rank: state.rank,
+      verified: state.verified,
+    });
   }
 
   /* ------------------------------------------------------------------ */
@@ -263,6 +285,9 @@
     items: [],
     userId: null,
     verified: false,
+    /* null until the leaderboard cache answers; null means "no trophy",
+     * never a guessed rank. */
+    rank: null,
   };
 
   function renderInventory() {
@@ -647,6 +672,7 @@
     /* Fed to the badge rules once the inventory is in. Verified is strictly
      * what the API reports - nothing here is granted for existing. */
     state.verified = Boolean(profile && profile.isVerified === true);
+    renderNameBadges();
 
     if (avatarImage) {
       const url = avatars && avatars.get ? avatars.get(userId) : null;
@@ -678,6 +704,8 @@
 
     const rank = rankFromLeaderboard(userId);
     setText('player_rank', rank ? `#${rank}` : 'Unranked');
+    state.rank = rank;
+    renderNameBadges();
 
     /* --- inventory ------------------------------------------------- */
 

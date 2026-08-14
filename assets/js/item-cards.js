@@ -48,8 +48,8 @@
     return {
       id,
       name: item.name.trim(),
-      /* Our own item page - /dominus/ reads the id from the query string. */
-      href: `/dominus/?id=${id}&name=${slugify(item.name)}`,
+      /* Our own item page - /item/ reads the id from the query string. */
+      href: `/item/?id=${id}&name=${slugify(item.name)}`,
       thumbnail: item.thumbnail || API.thumbnailUrl(id),
       ribbon: isLimitedUnique ? '/img/limitedu.svg' : (isLimited ? '/img/limited.svg' : ''),
       ribbonAlt: isLimitedUnique ? 'Limited U' : 'Limited',

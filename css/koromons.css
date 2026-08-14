@@ -560,6 +560,13 @@
   .player_info_grid { grid-template-columns: 100%; }
 }
 
+/* Small screens held sideways still have room for two columns, so the value /
+ * RAP history chart sits next to the profile card there too instead of
+ * dropping underneath it. */
+@media (max-width: 767px) and (orientation: landscape) {
+  .player_info_grid { grid-template-columns: minmax(200px, 38%) 1fr; gap: 0.75rem; }
+}
+
 @media (min-width: 768px) {
   .player_info_grid { grid-template-columns: 300px 1fr; }
 }
@@ -600,6 +607,21 @@
 
 @media (min-width: 768px) {
   .player_page_history_chart_container { height: 468px; }
+}
+
+/* The chart is the second cell of .player_info_grid. It stretches to match the
+ * profile card beside it, and only falls back to its own height once the grid
+ * has collapsed to a single column. */
+.player_history_cell { display: flex; flex-direction: column; min-width: 0; }
+
+.player_history_cell .player_page_history_chart_container { flex: 1 1 auto; }
+
+@media (max-width: 767px) and (orientation: portrait) {
+  .player_history_cell { margin-top: 1rem; }
+}
+
+@media (max-width: 767px) and (orientation: landscape) {
+  .player_history_cell .player_page_history_chart_container { min-height: 220px; }
 }
 
 @keyframes player_stat_spinner { 

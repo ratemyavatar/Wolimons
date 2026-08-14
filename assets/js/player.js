@@ -184,7 +184,7 @@
     card.style.backgroundColor = '#30363c';
 
     const link = document.createElement('a');
-    link.href = `/dominus/?id=${item.id}&name=${slugify(item.name)}`;
+    link.href = `/item/?id=${item.id}&name=${slugify(item.name)}`;
 
     const headingWrap = document.createElement('div');
     const heading = text('h6', 'item_card_name px-2 text-light my-1 text-truncate');

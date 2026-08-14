@@ -50,7 +50,7 @@ Pages:
 
 - `/` — homepage
 - `/catalog/` — item catalog
-- `/dominus/?id=<assetId>` — item page (works for any item, not just Dominus)
+- `/item/?id=<assetId>` — item page (works for any item, not just Dominus)
 - `/leaderboard/` — richest players
 - `/player/?id=<userId>` — player profile
 - `/tradecalculator/` — trade calculator
@@ -117,7 +117,7 @@ valued once its value is above 0.
 serve.sh              local + LAN dev server
 index.html            homepage
 catalog/              item catalog
-dominus/              item page (any item, by ?id=)
+item/                 item page (any item, by ?id=)
 leaderboard/          richest players
 player/               player profile
 tradecalculator/      trade calculator

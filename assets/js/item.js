@@ -4,13 +4,13 @@
  * ---------------------------------------------------------------------------
  * THIS PAGE IS A TEMPLATE
  * ---------------------------------------------------------------------------
- * /dominus/index.html contains no item-specific text at all. Every value comes
+ * /item/index.html contains no item-specific text at all. Every value comes
  * from here, written into the placeholders marked with data-item-field="...".
  * Which item is shown is decided by the URL:
  *
- *     /dominus/?id=1581            <- the normal form used by every card link
- *     /dominus/1581                <- also works if the host rewrites pretty URLs
- *     /dominus/1581/Cthulhu
+ *     /item/?id=1581            <- the normal form used by every card link
+ *     /item/1581                <- also works if the host rewrites pretty URLs
+ *     /item/1581/Cthulhu
  *
  * ---------------------------------------------------------------------------
  * WHERE THE NUMBERS COME FROM
@@ -94,7 +94,7 @@
   /* ------------------------------------------------------------------ */
 
   /*
-   * Accepts /dominus/?id=N, /dominus/N and /dominus/N/any-slug. The query
+   * Accepts /item/?id=N, /item/N and /item/N/any-slug. The query
    * string is the form the cards link to, because the site is served as
    * plain static files and pretty paths would need a rewrite rule.
    */
@@ -104,7 +104,7 @@
     if (fromQuery && fromQuery > 0) return fromQuery;
 
     const segments = window.location.pathname.split('/').filter(Boolean);
-    const index = segments.indexOf('dominus');
+    const index = segments.indexOf('item');
     const fromPath = index === -1 ? null : toNumber(segments[index + 1]);
     return fromPath && fromPath > 0 ? fromPath : null;
   }
@@ -397,8 +397,8 @@
     setNumber('best-price-2', bestPrice);
     setNumber('highest-ask', highestAsk);
 
-    const pageLink = `${window.location.origin}/dominus/?id=${id}`;
-    setText('page-link', `/dominus/?id=${id}`);
+    const pageLink = `${window.location.origin}/item/?id=${id}`;
+    setText('page-link', `/item/?id=${id}`);
     setCopyValue('copy-link', pageLink);
 
     /* Tables -------------------------------------------------------- */
@@ -446,7 +446,7 @@
   const assetId = readAssetId();
   if (!assetId) {
     setText('name', 'No item selected');
-    renderError('Add an item id to the address, for example /dominus/?id=1581 - or pick an item from the catalog.');
+    renderError('Add an item id to the address, for example /item/?id=1581 - or pick an item from the catalog.');
   } else {
     setText('name', 'Loading\u2026');
     setText('id', assetId);

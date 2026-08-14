@@ -7,50 +7,51 @@
  * "Value", "Demand" and "Trend" are NOT prices and NOT RAP. They are the
  * community-assigned figures, set by hand - exactly like Rolimon's does it.
  * Nothing on Wanwood reports any of them, so they can never be fetched from
- * the API. That is why they live in this file instead.
+ * the game API. They come from the value team instead.
  *
  * Every item starts unset: value 0, demand and trend blank, no categories.
  * Nothing is guessed and nothing is filled in automatically.
  *
  * ---------------------------------------------------------------------------
- * HOW TO SET AN ITEM
+ * HOW ITEMS GET SET
  * ---------------------------------------------------------------------------
- * Add a line to the ITEMS table below, keyed by the Wanwood asset id. Save the
- * file and reload the site - that is the whole process. There are only 39
- * collectibles on Wanwood, so the whole list fits in this one file.
+ * Through the admin panel, by someone on the value team. This file fetches the
+ * result from the site's own backend at <apiBase>/api/values and hands it to
+ * every page that asks.
  *
- * The asset id is the number in a Wanwood catalog URL:
- *     https://wanwoo.xyz/catalog/1581/Cthulhu   ->   1581
+ * The ITEMS table below is the fallback used before that reply arrives, and if
+ * it never arrives. Leaving it empty is correct: an item nobody has valued
+ * shows as unset, which is the honest answer.
  *
- * A row can be just a number (the value) or an object:
+ * ---------------------------------------------------------------------------
+ * WHY THE ACCESSORS ARE STILL SYNCHRONOUS
+ * ---------------------------------------------------------------------------
+ * Every page calls VALUES.get(id) inline while building its markup, and none
+ * of them can wait. So loading changes nothing about the shape of this API:
+ * the answers are simply unset until the data lands, then pages re-render.
  *
- *     1581: 4500,                                  // value only
- *     4031: {                                      // the long form
- *       value: 12000,
- *       demand: 'High',        // High | Decent | Low | Terrible  (else unset)
- *       trend: 'Raising',      // Raising | Stable | Lowering | Unstable |
- *                              // Fluctuating                    (else unset)
- *       categories: ['rare'],  // rare | projected | tablet | unobtainable |
- *                              // hoarded
- *     },
+ * Two hooks exist for that:
  *
- * "valued" is not written by hand: an item counts as valued as soon as its
- * value is above 0.
+ *     VALUES.ready.then(...)     resolves once, after the first load attempt
+ *     VALUES.subscribe(fn)       runs fn now and again on every later change
  *
- * Anything left out shows as unset - 0 for value, blank for demand and trend -
- * and the catalog's Demand / Trend / Categories filters treat it as
- * "Unassigned".
+ * A page that renders from values should use subscribe() and redraw. One that
+ * only needs them once can await ready.
  */
 (() => {
   'use strict';
 
+  /*
+   * The fallback table, used until the backend answers. Normally empty - the
+   * real values live on the server, where the value team can edit them without
+   * anyone having to touch the code.
+   *
+   *     1581: 4500,                     // value only
+   *     4031: { value: 12000, demand: 'High', trend: 'Raising',
+   *             categories: ['rare'] }, // the long form
+   */
   const ITEMS = {
     /* assetId: value,          // Item name */
-
-    // 4031: 0,                 // Panda Knit
-    // 1581: 0,                 // Cthulhu
-    // 848:  0,                 // (Limited U)
-    // 6:    0,                 // The Classic ROBLOX Fedora
   };
 
   /* The only spellings the filters recognise. Anything else reads as unset. */
@@ -76,9 +77,124 @@
     return match || null;
   };
 
+  /*
+   * Everyone who wants to know when the values change.
+   *
+   * Pages render before the fetch lands, so they need a nudge afterwards. One
+   * subscriber throwing must not stop the rest, hence the try/catch.
+   */
+  const listeners = new Set();
+
+  const notify = () => {
+    listeners.forEach(fn => {
+      try {
+        fn(window.WolimonsValues);
+      } catch (error) {
+        console.error('[values] a subscriber failed:', error);
+      }
+    });
+  };
+
+  /*
+   * Fold the server's reply into ITEMS.
+   *
+   * Rows arrive as { value, demand, trend, categories, updatedBy, updatedAt }.
+   * The extra fields are harmless - row() only reads the first four - and
+   * updatedBy is worth keeping so the admin panel can show who set what.
+   */
+  const absorb = payload => {
+    const values = payload && payload.values;
+    if (!values || typeof values !== 'object') return false;
+
+    /* Replace rather than merge: an item cleared on the server has to
+     * disappear here too, and merging would keep it alive forever. */
+    Object.keys(ITEMS).forEach(key => delete ITEMS[key]);
+
+    Object.entries(values).forEach(([id, entry]) => {
+      const key = Number(id);
+      if (!Number.isFinite(key) || key <= 0) return;
+      ITEMS[key] = entry && typeof entry === 'object' ? entry : { value: entry };
+    });
+    return true;
+  };
+
+  const apiBase = () => {
+    const config = window.WOLIMONS_CONFIG;
+    return config && config.apiBase ? config.apiBase : '';
+  };
+
+  /*
+   * Fetch the table once.
+   *
+   * A failure here is not fatal and not worth shouting about: the site falls
+   * back to "nothing is valued yet", which is exactly what it shows on a fresh
+   * install anyway. The free-tier backend also sleeps, so the first call after
+   * a quiet spell can simply time out.
+   */
+  const loadOnce = async () => {
+    const base = apiBase();
+    if (!base) return false;
+    try {
+      const response = await fetch(`${base}/api/values`, {
+        headers: { Accept: 'application/json' },
+      });
+      if (!response.ok) return false;
+
+      /* An unknown path on some hosts returns the HTML shell with status 200,
+       * so check we really got JSON before trusting it. */
+      const text = await response.text();
+      if (/^\s*</.test(text)) return false;
+
+      const changed = absorb(JSON.parse(text));
+      if (changed) notify();
+      return changed;
+    } catch (error) {
+      return false;
+    }
+  };
+
+  /*
+   * Resolves after the first attempt, whether or not it worked.
+   *
+   * Built as a deferred rather than by calling loadOnce() here, so the fetch
+   * can be kicked off *after* window.WolimonsValues exists - notify() reaches
+   * for it, and a fast reply must not find it half-built.
+   */
+  let markReady;
+  const ready = new Promise(resolve => { markReady = resolve; });
+
   window.WolimonsValues = {
     /* The raw table, in case something wants to iterate it. */
     all: ITEMS,
+
+    /* True once the backend's copy is in hand. False means these are the
+     * fallbacks, which is worth distinguishing from "everything is 0". */
+    loaded: false,
+
+    /* Resolves once, after the first load attempt. */
+    ready,
+
+    /*
+     * Run fn now, and again whenever the values change. Returns a function
+     * that stops it. Calling it immediately means a page can use this as its
+     * only render path instead of rendering once and subscribing separately.
+     */
+    subscribe(fn) {
+      if (typeof fn !== 'function') return () => {};
+      listeners.add(fn);
+      try {
+        fn(this);
+      } catch (error) {
+        console.error('[values] a subscriber failed:', error);
+      }
+      return () => listeners.delete(fn);
+    },
+
+    /* Re-read from the backend. The admin panel calls this after saving so the
+     * rest of the site catches up without a reload. */
+    refresh() {
+      return loadOnce();
+    },
 
     /* The vocabularies, so the catalog never has to repeat them. */
     DEMANDS,
@@ -118,4 +234,10 @@
       return [...new Set(list)];
     },
   };
+
+  /* Safe to start now that the object above exists for notify() to hand out. */
+  loadOnce().then(loaded => {
+    window.WolimonsValues.loaded = loaded;
+    markReady(window.WolimonsValues);
+  });
 })();

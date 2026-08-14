@@ -432,11 +432,22 @@
       return;
     }
 
-    /* The container is sized by CSS (280px min, 468px on wide screens); the
-     * SVG scales to it with a viewBox rather than being measured in JS, so it
-     * stays correct through resizes without a listener. */
-    const width = 1000;
-    const height = 380;
+    /* The chart is drawn in real CSS pixels: the viewBox is set to the box the
+     * container actually occupies, so one viewBox unit is one pixel on screen.
+     *
+     * It used to be a fixed 1000x380 viewBox stretched with
+     * preserveAspectRatio="none", which squashed the horizontal and vertical
+     * axes by different amounts - the profile card leaves the chart about
+     * 368px wide but 468px tall, so glyphs were compressed to roughly a third
+     * of their width and the axis text looked stretched. Measuring instead
+     * keeps the aspect ratio at exactly 1:1, and observeChartResize() below
+     * redraws when the box changes. */
+    const box = chartBox.getBoundingClientRect();
+    /* The legend is a sibling below the SVG, so its strip comes off the
+     * height the plot may use or the two together overflow the container. */
+    const LEGEND_RESERVE = 30;
+    const width = Math.max(320, Math.round(box.width) || 640);
+    const height = Math.max(200, (Math.round(box.height) || 380) - LEGEND_RESERVE);
     const pad = { top: 20, right: 20, bottom: 34, left: 62 };
     const plotWidth = width - pad.left - pad.right;
     const plotHeight = height - pad.top - pad.bottom;
@@ -456,13 +467,16 @@
 
     const svg = svgNode('svg', {
       viewBox: `0 0 ${width} ${height}`,
-      preserveAspectRatio: 'none',
+      /* Uniform scaling; the viewBox already matches the box in pixels. */
+      preserveAspectRatio: 'xMidYMid meet',
       width: '100%',
-      height: '100%',
+      height: String(height),
       role: 'img',
       'aria-label': 'Value and RAP history',
     });
     svg.style.display = 'block';
+    svg.style.width = '100%';
+    svg.style.height = `${height}px`;
 
     /* Gridlines + Y axis labels */
     ticks.forEach(tick => {
@@ -577,13 +591,60 @@
       tooltip.appendChild(text('div', null, formatDate(nearest.time)));
       tooltip.appendChild(text('div', null, `RAP ${formatNumber(nearest.rap)}`));
       tooltip.appendChild(text('div', null, `Value ${formatNumber(nearest.value)}`));
-      tooltip.style.left = `${(x / width) * box.width}px`;
-      tooltip.style.top = `${(yFor(Math.max(nearest.rap, nearest.value)) / height) * box.height}px`;
+      /* The tooltip is absolutely positioned inside chartBox, but the
+       * coordinates above are in the SVG's own space, and the SVG is only
+       * part of chartBox (the legend sits below it). Convert through both
+       * rects rather than assuming the two boxes line up. */
+      const outer = chartBox.getBoundingClientRect();
+      const scaleX = box.width / width;
+      const scaleY = box.height / height;
+      tooltip.style.left = `${(box.left - outer.left) + x * scaleX}px`;
+      tooltip.style.top = `${(box.top - outer.top)
+        + yFor(Math.max(nearest.rap, nearest.value)) * scaleY}px`;
       tooltip.style.opacity = 1;
     }
 
     svg.addEventListener('mousemove', move);
     svg.addEventListener('mouseleave', hide);
+  }
+
+  /*
+   * renderChart() measures the container, so the drawing has to be redone when
+   * that box changes size - a window resize, or a phone turning between
+   * portrait and landscape, which swaps the grid between one and two columns.
+   * The redraw is deferred to an animation frame so a drag resize coalesces
+   * into one repaint instead of one per pixel.
+   */
+  function observeChartResize() {
+    if (!chartBox) return;
+
+    let pending = 0;
+    let lastWidth = 0;
+    let lastHeight = 0;
+
+    const redraw = () => {
+      pending = 0;
+      const box = chartBox.getBoundingClientRect();
+      const width = Math.round(box.width);
+      const height = Math.round(box.height);
+      /* Sub-pixel jitter shouldn't cost a full redraw. */
+      if (Math.abs(width - lastWidth) < 2 && Math.abs(height - lastHeight) < 2) return;
+      lastWidth = width;
+      lastHeight = height;
+      renderChart();
+    };
+
+    const schedule = () => {
+      if (pending) return;
+      pending = window.requestAnimationFrame(redraw);
+    };
+
+    if (typeof window.ResizeObserver === 'function') {
+      new window.ResizeObserver(schedule).observe(chartBox);
+    } else {
+      window.addEventListener('resize', schedule);
+      window.addEventListener('orientationchange', schedule);
+    }
   }
 
   function renderRangeButtons() {
@@ -611,7 +672,12 @@
     const params = new URLSearchParams(window.location.search);
     const raw = params.get('id') || params.get('userId');
     const id = Number(raw);
-    return Number.isSafeInteger(id) && id > 0 ? id : null;
+    if (Number.isSafeInteger(id) && id > 0) return id;
+
+    /* No id in the URL: fall back to the account linked at /verify, so
+     * "My Profile" can be a bare /player/ link. */
+    const linked = window.WolimonsAccount?.get();
+    return linked ? linked.id : null;
   }
 
   /* The leaderboard already ranks everyone and parks the result in
@@ -875,5 +941,6 @@
     });
   }
 
+  observeChartResize();
   load();
 })();

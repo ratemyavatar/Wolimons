@@ -1253,6 +1253,16 @@ a.inv-card-link:hover .item_card_stat_header { color: rgb(173, 173, 173); text-d
 
 .page-verify #verify_player_results .search-player-card a { color: inherit; }
 
+.page-verify .verify-player-card { border-radius: 4px; overflow: hidden; transition: transform .15s ease, box-shadow .15s ease; }
+
+.page-verify .verify-player-card:hover, .page-verify .verify-player-card:focus-visible { transform: translateY(-2px); box-shadow: 0 6px 14px rgba(0, 0, 0, 0.45); outline: none; }
+
+.page-verify .verify-player-card img { display: block; width: 100%; height: auto; aspect-ratio: 1 / 1; background-color: rgb(38, 41, 45); }
+
+.page-verify #verification_phrase_textbox { background-color: rgb(238, 238, 238); font-family: "Courier New", Courier, monospace; font-size: 1rem; resize: none; }
+
+.page-verify #wait_modal .modal-content { background-color: rgb(49, 56, 64); }
+
 img { color: transparent; }
 
 .page-art .mix_container { display: flex; flex-wrap: wrap; align-items: flex-start; place-content: flex-start; gap: 0px 0.8rem; text-align: initial; font-size: initial; }

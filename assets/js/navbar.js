@@ -92,6 +92,104 @@
   });
 
   /* ------------------------------------------------------------------ */
+  /* Account menu                                                        */
+  /* ------------------------------------------------------------------ */
+
+  /*
+   * The Account dropdown reflects whatever player this browser has linked
+   * at /verify. Linked: the player's name, their avatar in place of the
+   * generic silhouette, and profile/sign-out entries. Not linked: it stays
+   * as it ships in the markup, a single "Verify Account" link.
+   */
+  const accountMenu = {
+    name: document.getElementById('navbar_player_menu_player_name'),
+    pfp: document.getElementById('navbar_player_menu_pfp'),
+    menu: document.querySelector('[aria-labelledby="navbarPlayerDropdown"]'),
+    verify: document.getElementById('navbar_player_menu_verify'),
+  };
+
+  function accountItem(id, href, label, iconPath) {
+    const link = document.createElement('a');
+    link.className = 'nav-link site_navbar_item';
+    link.id = id;
+    link.href = href;
+
+    const icon = document.createElement('span');
+    icon.className = 'site_navbar_icon_svg';
+    icon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">'
+      + `<path d="${iconPath}" fill="currentColor"></path></svg>`;
+
+    const title = document.createElement('span');
+    title.className = 'navbar_item_title';
+    title.textContent = label;
+
+    link.append(icon, title);
+    return link;
+  }
+
+  const PROFILE_ICON = 'M12 4a4 4 0 014 4 4 4 0 01-4 4 4 4 0 01-4-4 4 4 0 014-4m0 10c4.42 0 8 1.79 8 4v2H4v-2c0-2.21 3.58-4 8-4z';
+  const SIGN_OUT_ICON = 'M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4a2 2 0 00-2 2v14a2 2 0 002 2h8v-2H4z';
+
+  async function renderAccountMenu() {
+    const account = window.WolimonsAccount;
+    if (!account || !accountMenu.menu) return;
+    const linked = account.get();
+
+    /* Anything this function added last time goes first, so the markup's
+     * own "Verify Account" link is all that is left underneath. */
+    accountMenu.menu.querySelectorAll('[data-account-item]').forEach(node => node.remove());
+
+    if (!linked) {
+      if (accountMenu.name) accountMenu.name.textContent = 'Account';
+      if (accountMenu.pfp) accountMenu.pfp.querySelector('img')?.remove();
+      accountMenu.pfp?.querySelector('svg')?.removeAttribute('hidden');
+      accountMenu.verify?.querySelector('.navbar_item_title')
+        ?.replaceChildren(document.createTextNode('Verify Account'));
+      return;
+    }
+
+    if (accountMenu.name) accountMenu.name.textContent = linked.name;
+    accountMenu.verify?.querySelector('.navbar_item_title')
+      ?.replaceChildren(document.createTextNode('Verify Another Account'));
+
+    const profile = accountItem('navbar_player_menu_profile',
+      `/player/?id=${linked.id}`, 'My Profile', PROFILE_ICON);
+    profile.dataset.accountItem = '';
+    const signOut = accountItem('navbar_player_menu_sign_out', '#', 'Sign Out', SIGN_OUT_ICON);
+    signOut.dataset.accountItem = '';
+    signOut.addEventListener('click', event => {
+      event.preventDefault();
+      account.clear();
+    });
+
+    accountMenu.menu.prepend(profile);
+    accountMenu.menu.append(signOut);
+
+    /* The avatar is a nicety; if the thumbnail call fails the silhouette
+     * that is already in the markup simply stays. */
+    try {
+      const thumbs = await window.WanwoodAPI?.fetchUserThumbnails([linked.id], 150);
+      const url = thumbs?.get(linked.id);
+      if (!url || !accountMenu.pfp) return;
+      if (!account.get()) return;
+      const image = accountMenu.pfp.querySelector('img') || document.createElement('img');
+      image.src = url;
+      image.alt = '';
+      image.width = 24;
+      image.height = 24;
+      image.style.borderRadius = '50%';
+      image.style.objectFit = 'cover';
+      if (!image.isConnected) accountMenu.pfp.append(image);
+      accountMenu.pfp.querySelector('svg')?.setAttribute('hidden', '');
+    } catch (error) {
+      /* Keep the silhouette. */
+    }
+  }
+
+  window.WolimonsAccount?.subscribe(() => { renderAccountMenu(); });
+  renderAccountMenu();
+
+  /* ------------------------------------------------------------------ */
   /* Search modal                                                        */
   /* ------------------------------------------------------------------ */
 

@@ -40,6 +40,21 @@
   // (item pages etc.) - these should never point at the proxy.
   const SITE_BASE = 'https://wanwoo.xyz';
 
+  /*
+   * Certified Wanwoodian - the handpicked badge.
+   *
+   * There is no endpoint for this and there never will be: it is recognition
+   * handed out by the site owner, so the list of recipients is written here
+   * by hand. Names are matched case-insensitively against the Wanwood
+   * username. Add a name to award it; nobody else receives it.
+   *
+   * Kept here rather than inside leaderboard.js so there is one place to
+   * edit, and so anything else that needs to know can read the same list.
+   */
+  const CERTIFIED_WANWOODIANS = [
+    'Nun',
+  ];
+
   let apiBase = DEFAULT_API_BASE;
   try {
     const override = window.localStorage.getItem('wolimons_api_base');
@@ -48,8 +63,17 @@
     /* localStorage can be unavailable in private mode - ignore. */
   }
 
+  const certified = new Set(
+    CERTIFIED_WANWOODIANS.map(name => String(name).trim().toLowerCase()).filter(Boolean),
+  );
+
   window.WOLIMONS_CONFIG = {
     apiBase: String(apiBase).replace(/\/+$/, ''),
     siteBase: SITE_BASE.replace(/\/+$/, ''),
+    certifiedWanwoodians: CERTIFIED_WANWOODIANS,
+    /* True only for a name on the list above. */
+    isCertifiedWanwoodian(name) {
+      return certified.has(String(name || '').trim().toLowerCase());
+    },
   };
 })();

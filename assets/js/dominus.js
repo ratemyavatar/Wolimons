@@ -35,7 +35,14 @@
   const CONFIG = window.WOLIMONS_CONFIG || {};
   const SITE_BASE = CONFIG.siteBase || 'https://wanwoo.xyz';
   const API = window.WanwoodAPI;
-  const VALUES = window.WolimonsValues;
+
+  /* Read values.js defensively: a browser holding an older cached copy has no
+   * demand() on it, and a missing accessor must not take the page down. */
+  const RAW_VALUES = window.WolimonsValues || {};
+  const VALUES = {
+    get: id => (typeof RAW_VALUES.get === 'function' ? Number(RAW_VALUES.get(id)) || 0 : 0),
+    demand: id => (typeof RAW_VALUES.demand === 'function' ? RAW_VALUES.demand(id) : null),
+  };
 
   /* Same table the catalog uses - kept identical so labels never drift. */
   const TYPE_NAMES = {

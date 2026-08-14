@@ -542,6 +542,49 @@
     return null;
   }
 
+  /*
+   * GET /apisite/users/v1/users/{id} -> the account's own verified flag.
+   *
+   * This is the only endpoint that reports it. The batch calls
+   * (POST users/v1/users, api/users/{id}) leave the field out entirely, so a
+   * verified badge costs one request per player and there is no way around
+   * it - hence the cache, which makes paging back and forth free.
+   *
+   * Anything that fails answers false. A badge is never shown on a guess.
+   */
+  const verifiedCache = new Map();
+
+  async function isUserVerified(id) {
+    const userId = Number(id);
+    if (!Number.isSafeInteger(userId) || userId <= 0) return false;
+    if (verifiedCache.has(userId)) return verifiedCache.get(userId);
+
+    let verified = false;
+    try {
+      const result = await fetchJson(`${API_BASE}/apisite/users/v1/users/${userId}`);
+      verified = isPlainObject(result) && result.isVerified === true;
+    } catch (error) {
+      verified = false;
+    }
+
+    verifiedCache.set(userId, verified);
+    return verified;
+  }
+
+  /* The same thing for a handful of ids at once. Only ever call this with the
+   * players actually on screen - it is one request each. */
+  async function fetchVerifiedFlags(ids) {
+    const wanted = [...new Set((ids || [])
+      .map(Number)
+      .filter(id => Number.isSafeInteger(id) && id > 0))];
+
+    const flags = new Map();
+    await mapLimit(wanted, CONCURRENCY, async id => {
+      flags.set(id, await isUserVerified(id));
+    });
+    return flags;
+  }
+
   /* Rewrite an absolute Wanwood URL so it travels through the proxy. */
   function proxied(url) {
     try {
@@ -938,6 +981,8 @@
     proxied,
     getUserById,
     getUserByUsername,
+    isUserVerified,
+    fetchVerifiedFlags,
     searchGroups,
     fetchGroupIcons,
     getCollectibles,

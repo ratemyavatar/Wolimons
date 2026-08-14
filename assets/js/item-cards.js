@@ -15,7 +15,15 @@
     .replace(/^-+|-+$/g, '') || 'unnamed';
 
   const API = window.WanwoodAPI;
-  const VALUES = window.WolimonsValues;
+
+  /* Read values.js defensively - a browser holding a stale cached copy, or
+   * one that never loaded it at all, must not take the search cards down. */
+  const VALUES = {
+    get: id => {
+      const table = window.WolimonsValues;
+      return table && typeof table.get === 'function' ? Number(table.get(id)) || 0 : 0;
+    },
+  };
 
   async function getItems(keyword = '') {
     const search = await API.searchItems({

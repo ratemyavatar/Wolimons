@@ -49,6 +49,7 @@
 
   const API = window.WanwoodAPI;
   const VALUES = window.WolimonsValues;
+  const CONFIG = window.WOLIMONS_CONFIG || {};
 
   /* Assets whose owners are being walked at once. Kept low on purpose: the
    * whole point of this rewrite is to leave proxy capacity for the other
@@ -107,68 +108,73 @@
   /* ------------------------------------------------------------------ */
 
   /*
-   * Ported from the Colimons leaderboard: a 20px inline SVG next to the
-   * name, with a tooltip that appears on hover. The markup there was one
-   * hand-written copy per player with the styling inlined on every element;
-   * here it is a single table plus a builder, and the presentation moved to
-   * .lb_badge / .badge-tt in koromons.css.
+   * Exactly three icons can appear beside a name, and nothing else:
    *
-   * Only rank-derived badges are awarded - they are the ones the site can
-   * work out for itself. `test` receives the player's 1-based position.
+   *   trophy      - the player sitting at rank #1, and only that one player.
+   *                 It moves as the board re-sorts; it is not an award.
+   *   verified    - the account's own isVerified flag from Wanwood
+   *                 (users/v1/users/{id}). Never inferred from anything else.
+   *   wanwoodian  - Certified Wanwoodian. Handpicked, so the recipients are
+   *                 the hand-written list in config.js. No endpoint reports
+   *                 it and none ever will.
    *
-   * These are tiers of one achievement, not three separate ones, so the
-   * order matters: badgesFor() awards the first match only, and #1 wears the
-   * champion trophy rather than the trophy plus both medals behind it.
+   * The tiered rank medals that used to live here (Top 10 / Top 50) are gone:
+   * they were invented by this site rather than being real awards.
+   *
+   * The two picture badges reuse the artwork /badges and the profile row use,
+   * so the same award looks the same everywhere. Presentation is .lb_badge /
+   * .badge-tt in koromons.css.
    */
-  const BADGES = [
-    {
-      id: 'champion',
-      label: 'Rank #1 Champion',
-      color: '#00e5ff',
-      test: rank => rank === 1,
-      path: 'M19 3h-2V2h-2v1H9V2H7v1H5c-1.1 0-2 .9-2 2v3c0 2.21 1.79 4 4 4h.14c.48 1.48 1.68 2.65 3.2 3.06L9 18H7v2h10v-2h-2l-1.34-2.94c1.52-.41 2.72-1.58 3.2-3.06H17c2.21 0 4-1.79 4-4V5c0-1.1-.9-2-2-2zm-2 5h-1.68C14.77 9.8 13.5 11 12 11s-2.77-1.2-3.32-3H7V5h10v3z',
-    },
-    {
-      id: 'top10',
-      label: 'Top 10 Leaderboard',
-      color: '#ffd700',
-      test: rank => rank <= 10,
-      path: 'M5 16L3 5l5.5 5L12 4l3.5 6L21 5l-2 11H5zm14 3c0 .6-.4 1-1 1H6c-.6 0-1-.4-1-1v-1h14v1z',
-    },
-    {
-      id: 'top50',
-      label: 'Top 50 Leaderboard',
-      color: '#c0c0c0',
-      test: rank => rank <= 50,
-      path: 'M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 2.18l7 3.12v4.7c0 4.67-3.13 8.89-7 10.02-3.87-1.13-7-5.35-7-10.02v-4.7l7-3.12z',
-    },
-  ];
+  const TROPHY_PATH = 'M19 3h-2V2h-2v1H9V2H7v1H5c-1.1 0-2 .9-2 2v3c0 2.21 1.79 4 4 4h.14c.48 1.48 1.68 2.65 3.2 3.06L9 18H7v2h10v-2h-2l-1.34-2.94c1.52-.41 2.72-1.58 3.2-3.06H17c2.21 0 4-1.79 4-4V5c0-1.1-.9-2-2-2zm-2 5h-1.68C14.77 9.8 13.5 11 12 11s-2.77-1.2-3.32-3H7V5h10v3z';
 
   const SVG_NS = 'http://www.w3.org/2000/svg';
 
-  function badgeNode(badge) {
+  /* The shell every icon sits in: fixed size, with a hover tooltip. */
+  function badgeWrap(label, child) {
     const wrap = text('span', 'lb_badge');
-    wrap.style.color = badge.color;
+    wrap.appendChild(child);
+    wrap.appendChild(text('span', 'badge-tt', label));
+    wrap.setAttribute('title', label);
+    return wrap;
+  }
 
+  function trophyNode() {
     const svg = document.createElementNS(SVG_NS, 'svg');
     svg.setAttribute('viewBox', '0 0 24 24');
     svg.setAttribute('fill', 'currentColor');
     svg.setAttribute('aria-hidden', 'true');
     const path = document.createElementNS(SVG_NS, 'path');
-    path.setAttribute('d', badge.path);
+    path.setAttribute('d', TROPHY_PATH);
     svg.appendChild(path);
 
-    const tip = text('span', 'badge-tt', badge.label);
-
-    wrap.appendChild(svg);
-    wrap.appendChild(tip);
-    wrap.setAttribute('title', badge.label);
+    const wrap = badgeWrap('Rank #1', svg);
+    wrap.style.color = '#ffd700';
     return wrap;
   }
 
-  function badgesFor(rank) {
-    const earned = BADGES.find(badge => badge.test(rank));
-    return earned ? [earned] : [];
+  function imageBadge(label, src) {
+    const image = document.createElement('img');
+    image.src = src;
+    image.alt = label;
+    image.loading = 'lazy';
+    return badgeWrap(label, image);
+  }
+
+  /*
+   * The icons for one player, in a fixed order so the row never reshuffles.
+   * Anyone who is not #1, not verified and not on the list gets nothing at
+   * all - an empty row is the normal case.
+   */
+  function badgeNodes(player) {
+    const nodes = [];
+    if (player.rank === 1) nodes.push(trophyNode());
+    if (player.verified === true) {
+      nodes.push(imageBadge('Verified', '/img/badges/verified-checkmark.png'));
+    }
+    if (CONFIG.isCertifiedWanwoodian && CONFIG.isCertifiedWanwoodian(player.name)) {
+      nodes.push(imageBadge('Certified Wanwoodian', '/img/badges/certified-wanwoodian.png'));
+    }
+    return nodes;
   }
 
   /* ------------------------------------------------------------------ */
@@ -192,7 +198,7 @@
     name.style.backgroundColor = '#30363c';
     name.title = player.name;
     name.appendChild(text('span', 'text-truncate', player.name));
-    badgesFor(player.rank).forEach(badge => name.appendChild(badgeNode(badge)));
+    badgeNodes(player).forEach(node => name.appendChild(node));
     header.appendChild(name);
 
     const imgWrap = text('div',
@@ -349,11 +355,15 @@
 
     setStatus('');
     const start = (page - 1) * PAGE_SIZE;
-    visible.slice(start, start + PAGE_SIZE)
-      .forEach(player => cards.appendChild(playerCard(player)));
+    const shown = visible.slice(start, start + PAGE_SIZE);
+    shown.forEach(player => cards.appendChild(playerCard(player)));
 
     renderPagination(paginationTop, total);
     renderPagination(paginationBottom, total);
+
+    /* Deliberately not awaited: the cards are already up, and the verified
+     * ticks appear a moment later on the ones that earn them. */
+    ensureVerified(shown);
   }
 
   function goToPage(target) {
@@ -475,6 +485,37 @@
     players.forEach(player => { player.avatar = map.get(player.id) || ''; });
   }
 
+  /*
+   * The verified flag, for the page being looked at and nothing more.
+   *
+   * Only users/v1/users/{id} carries it, one request per player, so fetching
+   * it for the whole roster would mean thousands of calls for a board that
+   * shows 25 at a time. Instead each page asks for its own 25 after it has
+   * already been drawn, then redraws if any came back verified. The API
+   * client memoises the answers, so revisiting a page costs nothing.
+   */
+  async function ensureVerified(players) {
+    const pending = players.filter(player => player.verified === undefined);
+    if (!pending.length || !API.fetchVerifiedFlags) return;
+
+    /* Mark them first so a second render cannot queue the same lookups. */
+    pending.forEach(player => { player.verified = false; });
+
+    const flags = await API.fetchVerifiedFlags(pending.map(player => player.id));
+
+    let changed = false;
+    pending.forEach(player => {
+      if (flags.get(player.id) === true) {
+        player.verified = true;
+        changed = true;
+      }
+    });
+
+    /* Only the players still on screen matter - if the reader has paged on or
+     * typed in the search box, their new page will fetch its own. */
+    if (changed && players.some(player => visible.includes(player))) renderPage();
+  }
+
   /* ------------------------------------------------------------------ */
   /* Cache                                                               */
   /* ------------------------------------------------------------------ */
@@ -494,8 +535,14 @@
 
   function writeCache(players) {
     try {
+      /* The verified flags are left out on purpose. They are filled in per
+       * page after the cards are drawn, so most of them are still false when
+       * the board is cached - saving that would hide a tick for the ten
+       * minutes the cache lives. Dropping the field makes the next visit look
+       * them up again. */
+      const saved = players.map(({ verified, ...player }) => player);
       window.sessionStorage.setItem(CACHE_KEY,
-        JSON.stringify({ at: Date.now(), players }));
+        JSON.stringify({ at: Date.now(), players: saved }));
     } catch (error) {
       /* Private mode or a full quota - the board just rebuilds next time. */
     }

@@ -50,7 +50,31 @@
     .replace(/^-+|-+$/g, '') || 'unnamed';
 
   const API = window.WanwoodAPI;
-  const VALUES = window.WolimonsValues;
+
+  /*
+   * values.js, read defensively.
+   *
+   * A browser that has an older copy of values.js cached still exposes
+   * WolimonsValues, but without demand/trend/categories on it - and a missing
+   * accessor used to take the whole catalog down with "VALUES.demand is not a
+   * function". Reading through this shim means a stale table costs the filters
+   * their data and nothing else: the grid still renders.
+   */
+  const VALUES = (() => {
+    const table = window.WolimonsValues || {};
+    const call = (name, id, fallback) => (typeof table[name] === 'function'
+      ? table[name](id)
+      : fallback);
+    return {
+      get: id => Number(call('get', id, 0)) || 0,
+      demand: id => call('demand', id, null),
+      trend: id => call('trend', id, null),
+      categories: id => {
+        const list = call('categories', id, []);
+        return Array.isArray(list) ? list : [];
+      },
+    };
+  })();
 
   /*
    * The catalog only ever asks Wanwood for "newest". Value is ours, not

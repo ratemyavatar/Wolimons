@@ -13,18 +13,46 @@ HTTP from the repo root:
 ```bash
 git clone -b arena/019fff2c-wolimons https://github.com/ratemyavatar/Wolimons.git
 cd Wolimons
-python3 -m http.server 8080
+./serve.sh
 ```
 
-Then open <http://localhost:8080/>.
+Then open <http://localhost:8080/>. Pass a port to use a different one:
+`./serve.sh 3000`.
 
-In Termux, install the deps first with `pkg install -y git python`, and use
-`python` instead of `python3`.
+In Termux, install the deps first with `pkg install -y git python`.
+
+### Opening it on other devices
+
+`serve.sh` listens on every network interface, so anything on the same Wi-Fi
+can reach it. On startup it prints the address to use:
+
+```
+  On this device:   http://localhost:8080/
+  On the network:   http://192.168.1.42:8080/
+```
+
+Type that second address into the other device's browser. Some notes:
+
+- Both devices have to be on the **same Wi-Fi network**. A phone on mobile
+  data won't reach it, and many public/guest networks block devices from
+  talking to each other.
+- The address is the *host's* IP, and it usually changes when it reconnects
+  to the network. Re-run `serve.sh` to see the current one.
+- Keep the terminal open — closing it, or letting the phone sleep hard
+  enough to suspend Termux, stops the server. `termux-wake-lock` helps.
+- It's plain HTTP on your LAN, with no authentication. Fine for family on
+  your home Wi-Fi; don't port-forward it to the open internet.
+
+Item and player data still comes from Wanwood over the internet (see below),
+so the other devices need a working connection for pages to populate.
 
 Pages:
 
 - `/` — homepage
 - `/catalog/` — item catalog
+- `/dominus/?id=<assetId>` — item page (works for any item, not just Dominus)
+- `/leaderboard/` — richest players
+- `/player/?id=<userId>` — player profile
 - `/tradecalculator/` — trade calculator
 - `/badges/` — badges
 
@@ -57,8 +85,12 @@ location.reload()
 ## Layout
 
 ```
+serve.sh              local + LAN dev server
 index.html            homepage
 catalog/              item catalog
+dominus/              item page (any item, by ?id=)
+leaderboard/          richest players
+player/               player profile
 tradecalculator/      trade calculator
 badges/               badges
 assets/js/config.js   API base URL (points at the Render proxy)
@@ -66,6 +98,7 @@ assets/js/            page scripts
 css/                  stylesheets
 img/                  images
 proxy/                deployable CORS/anti-bot proxy
+tools/                maintenance scripts (badge art/consistency)
 ```
 
 Wolimons is not affiliated with Roblox Corporation or Rolimon's.

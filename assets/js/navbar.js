@@ -108,7 +108,7 @@
     verify: document.getElementById('navbar_player_menu_verify'),
   };
 
-  function accountItem(id, href, label, iconPath) {
+  function accountItem(id, href, label, iconPath, viewBox = '0 0 24 24') {
     const link = document.createElement('a');
     link.className = 'nav-link site_navbar_item';
     link.id = id;
@@ -116,8 +116,8 @@
 
     const icon = document.createElement('span');
     icon.className = 'site_navbar_icon_svg';
-    icon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">'
-      + `<path d="${iconPath}" fill="currentColor"></path></svg>`;
+    icon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}">`
+      + `<path d="${iconPath}" fill="currentColor" fill-rule="evenodd"></path></svg>`;
 
     const title = document.createElement('span');
     title.className = 'navbar_item_title';
@@ -128,6 +128,7 @@
   }
 
   const PROFILE_ICON = 'M12 4a4 4 0 014 4 4 4 0 01-4 4 4 4 0 01-4-4 4 4 0 014-4m0 10c4.42 0 8 1.79 8 4v2H4v-2c0-2.21 3.58-4 8-4z';
+  const MY_TRADE_ADS_ICON = 'M1.84.83C1.27.83.8 1.42.8 2.13v4.52c0 .7.47 1.29 1.04 1.29h5.72c.57 0 1.04-.59 1.04-1.3V2.14c0-.71-.47-1.3-1.04-1.3H1.84Zm1.3 8.72c-.48 0-.9-.4-1.01-.97h5.7c.7 0 1.3-.73 1.3-1.61V2.49c.45.15.77.66.77 1.25v3.23c0 1.42-.94 2.58-2.08 2.58H3.14Zm1.3 1.62c-.47 0-.9-.4-1-.97H8.2c1.21 0 2.21-1.24 2.21-2.75V4.1c.46.15.78.67.78 1.25v2.1c0 2.04-1.35 3.72-2.99 3.72H4.44Z';
   const SIGN_OUT_ICON = 'M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4a2 2 0 00-2 2v14a2 2 0 002 2h8v-2H4z';
 
   async function renderAccountMenu() {
@@ -155,6 +156,9 @@
     const profile = accountItem('navbar_player_menu_profile',
       `/player/?id=${linked.id}`, 'My Profile', PROFILE_ICON);
     profile.dataset.accountItem = '';
+    const myAds = accountItem('navbar_player_menu_my_trade_ads',
+      `/playertrades/?id=${linked.id}`, 'My Trade Ads', MY_TRADE_ADS_ICON, '0 0 12 12');
+    myAds.dataset.accountItem = '';
     const signOut = accountItem('navbar_player_menu_sign_out', '#', 'Sign Out', SIGN_OUT_ICON);
     signOut.dataset.accountItem = '';
     signOut.addEventListener('click', event => {
@@ -163,6 +167,7 @@
     });
 
     accountMenu.menu.prepend(profile);
+    profile.after(myAds);
     accountMenu.menu.append(signOut);
 
     /* The avatar is a nicety; if the thumbnail call fails the silhouette

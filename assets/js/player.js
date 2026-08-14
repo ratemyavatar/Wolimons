@@ -33,6 +33,7 @@
   const cardNameBar = el('player_card_name_bar');
   const cardName = el('player_card_name');
   const offsiteLink = el('player_offsite_link');
+  const tradeAdsLink = el('player_trade_ads_link');
   const avatarImage = el('player_avatar');
   const statusBox = el('player_status');
   const inventoryStatus = el('inventory_status');
@@ -722,6 +723,12 @@
     if (offsiteLink) {
       offsiteLink.href = `${API.SITE_BASE}/users/${userId}/profile`;
       offsiteLink.classList.remove('d-none');
+    }
+
+    /* Their trade ads, once there is a player to point the link at. */
+    if (tradeAdsLink) {
+      tradeAdsLink.href = `/playertrades/?id=${userId}`;
+      tradeAdsLink.classList.remove('d-none');
     }
 
     setStatus(statusBox, 'Loading profile\u2026', { spinner: true });

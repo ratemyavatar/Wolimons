@@ -387,6 +387,332 @@
     return side;
   }
 
+  /*
+   * A whole ad card: creator header, then the offer and request sides.
+   *
+   * /trades draws the board and /playertrades draws one player's ads, and
+   * they must be the same card - so it lives here rather than in either page.
+   * `onDelete` is what makes the Delete button appear: only a page that can
+   * actually remove an ad passes one, and even then it is only offered on the
+   * viewer's own ads, because those are the only ones in their browser.
+   */
+  function adCard(ad, { onDelete = null } = {}) {
+    const ACCOUNT = window.WolimonsAccount;
+
+    const card = el('div', 'shadow_md_15 mix_item');
+    card.style.backgroundColor = 'rgb(36, 38, 42)';
+    card.dataset.adId = ad.id;
+
+    const header = el('div', 'trade_ad_header d-flex flex-wrap');
+    const bar = el('div', 'text-truncate w-100 py-0 pl-2 my-auto d-flex justify-content-between flex-wrap');
+
+    const who = el('div', 'd-flex');
+    const pfpWrap = el('div');
+    const pfpLink = el('a');
+    pfpLink.href = `/player/?id=${ad.creatorId}`;
+    const pfp = el('img', 'ad_creator_pfp');
+    pfp.width = 38;
+    pfp.height = 38;
+    pfp.decoding = 'async';
+    pfp.loading = 'lazy';
+    pfp.alt = 'Player thumbnail';
+    const headshot = creators.get(ad.creatorId);
+    if (headshot) pfp.src = headshot;
+    pfpLink.appendChild(pfp);
+    pfpWrap.appendChild(pfpLink);
+    who.appendChild(pfpWrap);
+
+    const names = el('div', 'ml-2');
+    const nameRow = el('div');
+    nameRow.style.marginTop = '3px';
+    nameRow.style.lineHeight = '1.35em';
+    const nameLink = el('a', 'ad_creator_name my-auto', ad.creatorName);
+    nameLink.href = `/player/?id=${ad.creatorId}`;
+    nameRow.appendChild(nameLink);
+    const stampRow = el('div');
+    stampRow.style.lineHeight = '1em';
+    stampRow.style.paddingBottom = '3px';
+    stampRow.appendChild(el('span', 'trade-ad-timestamp small text-truncate', relativeTime(ad.createdAt)));
+    names.appendChild(nameRow);
+    names.appendChild(stampRow);
+    who.appendChild(names);
+
+    const actions = el('div', 'py-1 my-auto ml-auto');
+    /* Details opens this ad on its own page. */
+    const details = el('a', 'trade_ad_page_link_button my-auto btn btn-flat-light-blue-sm shadow-none', 'Details');
+    details.href = `/tradead/?id=${encodeURIComponent(ad.id)}`;
+    details.setAttribute('role', 'button');
+    actions.appendChild(details);
+
+    /* "Send Trade" goes to the creator's Wanwood profile - trading happens on
+     * Wanwood itself, Wolimons only advertises. */
+    const send = el('a', 'send_trade_button my-auto btn btn-flat-light-blue-sm shadow-none', 'Send Trade');
+    send.href = `${window.WOLIMONS_CONFIG.siteBase}/users/${ad.creatorId}/profile`;
+    send.target = '_blank';
+    send.rel = 'noopener';
+    send.setAttribute('role', 'button');
+    actions.appendChild(send);
+
+    /* Only your own ads can be taken down, and only because they are yours -
+     * they are sitting in your own browser. */
+    const account = ACCOUNT && typeof ACCOUNT.get === 'function' ? ACCOUNT.get() : null;
+    if (onDelete && account && account.id === ad.creatorId) {
+      const remove = el('input', 'delete_trade_ad_button my-auto btn btn-flat-dark-gray shadow-none mr-3');
+      remove.type = 'submit';
+      remove.value = 'Delete';
+      remove.addEventListener('click', () => onDelete(ad.id));
+      actions.appendChild(remove);
+    } else {
+      send.classList.add('mr-3');
+    }
+
+    bar.appendChild(who);
+    bar.appendChild(actions);
+    header.appendChild(bar);
+    card.appendChild(header);
+
+    const sides = el('div', 'd-flex flex-nowrap');
+    sides.appendChild(sideNode(ad, 'offer'));
+    sides.appendChild(sideNode(ad, 'request'));
+    card.appendChild(sides);
+    return card;
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Shared filter panel                                                 */
+  /* ------------------------------------------------------------------ */
+
+  function showModal(modal, open) {
+    if (!modal) return;
+    modal.classList.toggle('show', open);
+    modal.style.display = open ? 'block' : 'none';
+    modal.setAttribute('aria-hidden', open ? 'false' : 'true');
+    document.body.classList.toggle('modal-open', open);
+  }
+
+  function debounce(fn, wait) {
+    let timer = 0;
+    return (...args) => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => fn(...args), wait);
+    };
+  }
+
+  /*
+   * The `.trade_ads_search_grid` block - two item-name boxes, two value-range
+   * modals and the tag modal - is identical markup on /trades and
+   * /playertrades, so the behaviour behind it lives here once.
+   *
+   * `onChange` fires whenever a filter moves; the page re-renders its own
+   * list. The panel owns only the filter state, never the ads.
+   */
+  function createFilterPanel({ onChange = () => {}, debounceMs = 300 } = {}) {
+    const filters = {
+      offerName: '',
+      requestName: '',
+      tags: new Set(),
+      /* null means "no bound set", which is not the same as 0. */
+      offer: { min: null, max: null },
+      request: { min: null, max: null },
+    };
+
+    const dom = {
+      offerFilter: document.getElementById('filter_offer_side_item_name_search_textbox'),
+      requestFilter: document.getElementById('filter_request_side_item_name_search_textbox'),
+      tagFilterRow: document.getElementById('request_tag_filter_row'),
+      tagFilterModal: document.getElementById('request_tag_filter_modal'),
+      tagFilterButton: document.getElementById('trade_ads_request_tags_filter_button'),
+      valueFilterModals: {
+        offer: document.getElementById('offer_value_filter_modal'),
+        request: document.getElementById('request_value_filter_modal'),
+      },
+      valueFilterButtons: {
+        offer: document.getElementById('trade_ads_offer_value_filter_button'),
+        request: document.getElementById('trade_ads_request_value_filter_button'),
+      },
+    };
+
+    function slotMatchesName(slot, needle) {
+      if (!slot || slot.kind !== 'item') return false;
+      const known = items.get(slot.id);
+      const name = ((known && known.name) || slot.name || '').toLowerCase();
+      return name.includes(needle);
+    }
+
+    /* A side passes a value filter when its total sits inside the bounds. A
+     * tags-only side has no total at all, so any bound excludes it - there is
+     * no number to compare, and guessing one would be inventing data. */
+    function withinValueRange(side, bounds) {
+      if (bounds.min === null && bounds.max === null) return true;
+      const total = sideTotals(side).value;
+      if (total === null) return false;
+      if (bounds.min !== null && total < bounds.min) return false;
+      if (bounds.max !== null && total > bounds.max) return false;
+      return true;
+    }
+
+    function matches(ad) {
+      const offerNeedle = filters.offerName.trim().toLowerCase();
+      const requestNeedle = filters.requestName.trim().toLowerCase();
+      if (offerNeedle && !ad.offer.some(slot => slotMatchesName(slot, offerNeedle))) return false;
+      if (requestNeedle && !ad.request.some(slot => slotMatchesName(slot, requestNeedle))) return false;
+      if (!withinValueRange(ad.offer, filters.offer)) return false;
+      if (!withinValueRange(ad.request, filters.request)) return false;
+      if (filters.tags.size) {
+        const present = new Set(ad.request
+          .filter(slot => slot && slot.kind === 'tag')
+          .map(slot => slot.slug));
+        /* Every selected tag must be on the ad. */
+        for (const slug of filters.tags) if (!present.has(slug)) return false;
+      }
+      return true;
+    }
+
+    function apply(ads) {
+      return ads.filter(matches);
+    }
+
+    function renderChips() {
+      TAGS.forEach(({ slug }) => {
+        const on = filters.tags.has(slug);
+        const image = document.getElementById(`filter_display_request_tag_${slug}`);
+        const remove = document.getElementById(`filter_display_request_tag_${slug}_remove_button`);
+        if (image) image.classList.toggle('d-none', !on);
+        /* .filter-remove-button is display:none in the stylesheet, so the
+         * button has to be shown explicitly alongside its tag. */
+        if (remove) remove.style.display = on ? 'block' : '';
+      });
+
+      ['offer', 'request'].forEach(side => {
+        ['min', 'max'].forEach(bound => {
+          const amount = filters[side][bound];
+          const container = document.getElementById(`enabled_filter_${side}_value_${bound}_container`);
+          const text = document.getElementById(`enabled_filter_${side}_value_${bound}`);
+          if (container) container.classList.toggle('d-none', amount === null);
+          if (text) text.textContent = amount === null ? '' : formatNumber(amount);
+        });
+      });
+    }
+
+    /* A tag in the picker grid reads as chosen by the same dimming the rest of
+     * the site uses for an inactive thumbnail. */
+    function syncTagButtons() {
+      if (!dom.tagFilterRow) return;
+      dom.tagFilterRow.querySelectorAll('[data-tag]').forEach(button => {
+        const on = filters.tags.has(button.dataset.tag);
+        button.style.opacity = on ? '1' : '0.45';
+        button.setAttribute('aria-pressed', on ? 'true' : 'false');
+      });
+    }
+
+    function setTag(slug, on) {
+      if (on) filters.tags.add(slug);
+      else filters.tags.delete(slug);
+      syncTagButtons();
+      renderChips();
+      onChange();
+    }
+
+    function setValue(side, bound, amount) {
+      filters[side][bound] = amount;
+      const input = document.getElementById(`filter_${side}_value_${bound}`);
+      if (input && amount === null) input.value = '';
+      renderChips();
+      onChange();
+    }
+
+    function wire() {
+      const applyNames = debounce(() => {
+        filters.offerName = dom.offerFilter ? dom.offerFilter.value : '';
+        filters.requestName = dom.requestFilter ? dom.requestFilter.value : '';
+        onChange();
+      }, debounceMs);
+
+      if (dom.offerFilter) dom.offerFilter.addEventListener('input', applyNames);
+      if (dom.requestFilter) dom.requestFilter.addEventListener('input', applyNames);
+
+      /* Tag picking happens inside the tag modal, on the grid of tag art. */
+      if (dom.tagFilterRow) {
+        const pick = target => {
+          const button = target.closest('[data-tag]');
+          if (!button) return;
+          setTag(button.dataset.tag, !filters.tags.has(button.dataset.tag));
+        };
+        dom.tagFilterRow.addEventListener('click', event => pick(event.target));
+        dom.tagFilterRow.addEventListener('keydown', event => {
+          if (event.key !== 'Enter' && event.key !== ' ') return;
+          event.preventDefault();
+          pick(event.target);
+        });
+      }
+
+      /* The three icon buttons open their modal; the chips' red x buttons and
+       * the modals' own clear buttons take a filter back off. */
+      if (dom.valueFilterButtons.offer) {
+        dom.valueFilterButtons.offer.addEventListener('click',
+          () => showModal(dom.valueFilterModals.offer, true));
+      }
+      if (dom.valueFilterButtons.request) {
+        dom.valueFilterButtons.request.addEventListener('click',
+          () => showModal(dom.valueFilterModals.request, true));
+      }
+      if (dom.tagFilterButton) {
+        dom.tagFilterButton.addEventListener('click',
+          () => showModal(dom.tagFilterModal, true));
+      }
+
+      ['offer', 'request'].forEach(side => {
+        ['min', 'max'].forEach(bound => {
+          const input = document.getElementById(`filter_${side}_value_${bound}`);
+          if (input) {
+            input.addEventListener('input', debounce(() => {
+              const amount = Number(input.value);
+              setValue(side, bound,
+                input.value.trim() === '' || !Number.isFinite(amount) ? null : amount);
+            }, debounceMs));
+          }
+
+          const clear = document.getElementById(`clear_filter_${side}_value_${bound}_button`);
+          if (clear) clear.addEventListener('click', () => setValue(side, bound, null));
+          const chip = document.getElementById(`filter_display_${side}_${bound}_value_remove_button`);
+          if (chip) chip.addEventListener('click', () => setValue(side, bound, null));
+        });
+      });
+
+      TAGS.forEach(({ slug }) => {
+        const remove = document.getElementById(`filter_display_request_tag_${slug}_remove_button`);
+        if (remove) remove.addEventListener('click', () => setTag(slug, false));
+      });
+
+      [dom.tagFilterModal, dom.valueFilterModals.offer, dom.valueFilterModals.request]
+        .forEach(modal => {
+          if (!modal) return;
+          modal.addEventListener('click', event => {
+            if (event.target === modal) showModal(modal, false);
+          });
+          modal.querySelectorAll('[data-dismiss="modal"]').forEach(button => {
+            button.addEventListener('click', () => showModal(modal, false));
+          });
+        });
+
+      document.addEventListener('keydown', event => {
+        if (event.key !== 'Escape') return;
+        closeModals();
+      });
+
+      syncTagButtons();
+      renderChips();
+    }
+
+    function closeModals() {
+      showModal(dom.tagFilterModal, false);
+      showModal(dom.valueFilterModals.offer, false);
+      showModal(dom.valueFilterModals.request, false);
+    }
+
+    return { filters, dom, wire, matches, apply, renderChips, syncTagButtons, setTag, setValue, closeModals };
+  }
+
   window.WolimonsTradeAds = {
     STORAGE_KEY,
     MAX_ADS,
@@ -415,5 +741,9 @@
     sideTotals,
     slotImage,
     sideNode,
+    adCard,
+    showModal,
+    debounce,
+    createFilterPanel,
   };
 })();

@@ -23,8 +23,14 @@
     TAGS, TAG_BY_SLUG, tagArt, VALUES, el, formatNumber,
     relativeTime, loadAds, saveAds, normalizeAd,
     items, creators, resolveItems, resolveCreators, itemIdsIn,
-    sideTotals, sideNode,
+    sideTotals, adCard, showModal, debounce, createFilterPanel,
   } = CORE;
+
+  /* Filters live in the core so /trades and /playertrades behave alike. */
+  const panel = createFilterPanel({
+    onChange: () => { state.page = 0; renderBoard(); },
+    debounceMs: SEARCH_DEBOUNCE_MS,
+  });
 
   /* ------------------------------------------------------------------ */
   /* Page state                                                          */
@@ -33,14 +39,6 @@
   const state = {
     ads: [],
     page: 0,
-    filters: {
-      offerName: '',
-      requestName: '',
-      tags: new Set(),
-      /* null means "no bound set", which is not the same as 0. */
-      offer: { min: null, max: null },
-      request: { min: null, max: null },
-    },
     composer: { offer: [null, null, null, null], request: [null, null, null, null] },
     picker: { side: null, slot: null, sequence: 0 },
   };
@@ -52,19 +50,6 @@
     dom.empty = document.getElementById('trade_ads_empty_state');
     dom.paginationTop = document.getElementById('pagination_control_top');
     dom.paginationBottom = document.getElementById('pagination_control_bottom');
-    dom.offerFilter = document.getElementById('filter_offer_side_item_name_search_textbox');
-    dom.requestFilter = document.getElementById('filter_request_side_item_name_search_textbox');
-    dom.tagFilterRow = document.getElementById('request_tag_filter_row');
-    dom.tagFilterModal = document.getElementById('request_tag_filter_modal');
-    dom.valueFilterModals = {
-      offer: document.getElementById('offer_value_filter_modal'),
-      request: document.getElementById('request_value_filter_modal'),
-    };
-    dom.valueFilterButtons = {
-      offer: document.getElementById('trade_ads_offer_value_filter_button'),
-      request: document.getElementById('trade_ads_request_value_filter_button'),
-    };
-    dom.tagFilterButton = document.getElementById('trade_ads_request_tags_filter_button');
     dom.lockedNotice = document.getElementById('create_ad_locked');
     dom.createPanel = document.getElementById('create_ad_panel');
     dom.createIdentity = document.getElementById('create_ad_identity');
@@ -99,129 +84,9 @@
   /* Details / Send Trade / Delete controls.                             */
   /* ------------------------------------------------------------------ */
 
-  function adCard(ad) {
-    const card = el('div', 'shadow_md_15 mix_item');
-    card.style.backgroundColor = 'rgb(36, 38, 42)';
-    card.dataset.adId = ad.id;
-
-    const header = el('div', 'trade_ad_header d-flex flex-wrap');
-    const bar = el('div', 'text-truncate w-100 py-0 pl-2 my-auto d-flex justify-content-between flex-wrap');
-
-    const who = el('div', 'd-flex');
-    const pfpWrap = el('div');
-    const pfpLink = el('a');
-    pfpLink.href = `/player/?id=${ad.creatorId}`;
-    const pfp = el('img', 'ad_creator_pfp');
-    pfp.width = 38;
-    pfp.height = 38;
-    pfp.decoding = 'async';
-    pfp.loading = 'lazy';
-    pfp.alt = 'Player thumbnail';
-    const headshot = creators.get(ad.creatorId);
-    if (headshot) pfp.src = headshot;
-    pfpLink.appendChild(pfp);
-    pfpWrap.appendChild(pfpLink);
-    who.appendChild(pfpWrap);
-
-    const names = el('div', 'ml-2');
-    const nameRow = el('div');
-    nameRow.style.marginTop = '3px';
-    nameRow.style.lineHeight = '1.35em';
-    const nameLink = el('a', 'ad_creator_name my-auto', ad.creatorName);
-    nameLink.href = `/player/?id=${ad.creatorId}`;
-    nameRow.appendChild(nameLink);
-    const stampRow = el('div');
-    stampRow.style.lineHeight = '1em';
-    stampRow.style.paddingBottom = '3px';
-    stampRow.appendChild(el('span', 'trade-ad-timestamp small text-truncate', relativeTime(ad.createdAt)));
-    names.appendChild(nameRow);
-    names.appendChild(stampRow);
-    who.appendChild(names);
-
-    const actions = el('div', 'py-1 my-auto ml-auto');
-    /* Details opens this ad on its own page. */
-    const details = el('a', 'trade_ad_page_link_button my-auto btn btn-flat-light-blue-sm shadow-none', 'Details');
-    details.href = `/tradead/?id=${encodeURIComponent(ad.id)}`;
-    details.setAttribute('role', 'button');
-    actions.appendChild(details);
-
-    /* "Send Trade" goes to the creator's Wanwood profile - trading happens on
-     * Wanwood itself, Wolimons only advertises. */
-    const send = el('a', 'send_trade_button my-auto btn btn-flat-light-blue-sm shadow-none', 'Send Trade');
-    send.href = `${window.WOLIMONS_CONFIG.siteBase}/users/${ad.creatorId}/profile`;
-    send.target = '_blank';
-    send.rel = 'noopener';
-    send.setAttribute('role', 'button');
-    actions.appendChild(send);
-
-    /* Only your own ads can be taken down, and only because they are yours -
-     * they are sitting in your own browser. */
-    const account = ACCOUNT.get();
-    if (account && account.id === ad.creatorId) {
-      const remove = el('input', 'delete_trade_ad_button my-auto btn btn-flat-dark-gray shadow-none mr-3');
-      remove.type = 'submit';
-      remove.value = 'Delete';
-      remove.addEventListener('click', () => deleteAd(ad.id));
-      actions.appendChild(remove);
-    } else {
-      send.classList.add('mr-3');
-    }
-
-    bar.appendChild(who);
-    bar.appendChild(actions);
-    header.appendChild(bar);
-    card.appendChild(header);
-
-    const sides = el('div', 'd-flex flex-nowrap');
-    sides.appendChild(sideNode(ad, 'offer'));
-    sides.appendChild(sideNode(ad, 'request'));
-    card.appendChild(sides);
-    return card;
-  }
-
   /* ------------------------------------------------------------------ */
   /* Filtering, paging, board render                                     */
   /* ------------------------------------------------------------------ */
-
-  function slotMatchesName(slot, needle) {
-    if (!slot || slot.kind !== 'item') return false;
-    const known = items.get(slot.id);
-    const name = ((known && known.name) || slot.name || '').toLowerCase();
-    return name.includes(needle);
-  }
-
-  /* A side passes a value filter when its total sits inside the bounds. A
-   * tags-only side has no total at all, so any bound excludes it - there is
-   * no number to compare, and guessing one would be inventing data. */
-  function withinValueRange(side, bounds) {
-    if (bounds.min === null && bounds.max === null) return true;
-    const total = sideTotals(side).value;
-    if (total === null) return false;
-    if (bounds.min !== null && total < bounds.min) return false;
-    if (bounds.max !== null && total > bounds.max) return false;
-    return true;
-  }
-
-  function visibleAds() {
-    const offerNeedle = state.filters.offerName.trim().toLowerCase();
-    const requestNeedle = state.filters.requestName.trim().toLowerCase();
-    const tags = state.filters.tags;
-
-    return state.ads.filter(ad => {
-      if (offerNeedle && !ad.offer.some(slot => slotMatchesName(slot, offerNeedle))) return false;
-      if (requestNeedle && !ad.request.some(slot => slotMatchesName(slot, requestNeedle))) return false;
-      if (!withinValueRange(ad.offer, state.filters.offer)) return false;
-      if (!withinValueRange(ad.request, state.filters.request)) return false;
-      if (tags.size) {
-        const present = new Set(ad.request
-          .filter(slot => slot && slot.kind === 'tag')
-          .map(slot => slot.slug));
-        /* Every selected tag must be on the ad. */
-        for (const slug of tags) if (!present.has(slug)) return false;
-      }
-      return true;
-    });
-  }
 
   function renderPagination(container, pageCount) {
     container.textContent = '';
@@ -248,7 +113,7 @@
   }
 
   function renderBoard() {
-    const ads = visibleAds();
+    const ads = panel.apply(state.ads);
     const pageCount = Math.ceil(ads.length / PAGE_SIZE);
     if (state.page >= pageCount) state.page = Math.max(0, pageCount - 1);
 
@@ -262,7 +127,8 @@
     dom.empty.classList.add('d-none');
 
     const start = state.page * PAGE_SIZE;
-    ads.slice(start, start + PAGE_SIZE).forEach(ad => dom.list.appendChild(adCard(ad)));
+    ads.slice(start, start + PAGE_SIZE)
+      .forEach(ad => dom.list.appendChild(adCard(ad, { onDelete: deleteAd })));
     renderPagination(dom.paginationTop, pageCount);
     renderPagination(dom.paginationBottom, pageCount);
   }
@@ -431,14 +297,6 @@
 
   /* Bootstrap's JS is not loaded on this site, so modals are shown by hand
    * the same way the rest of the pages do it. */
-  function showModal(modal, open) {
-    if (!modal) return;
-    modal.classList.toggle('show', open);
-    modal.style.display = open ? 'block' : 'none';
-    modal.setAttribute('aria-hidden', open ? 'false' : 'true');
-    document.body.classList.toggle('modal-open', open);
-  }
-
   function showPicker(open) {
     showModal(dom.pickerModal, open);
   }
@@ -539,57 +397,6 @@
    * matching pair. That is why the markup ships fourteen .filter-remove-button
    * elements: they belong to chips, not to a list built at runtime.
    */
-  function renderFilterChips() {
-    TAGS.forEach(({ slug }) => {
-      const on = state.filters.tags.has(slug);
-      const image = document.getElementById(`filter_display_request_tag_${slug}`);
-      const remove = document.getElementById(`filter_display_request_tag_${slug}_remove_button`);
-      if (image) image.classList.toggle('d-none', !on);
-      /* .filter-remove-button is display:none in the stylesheet, so the
-       * button has to be shown explicitly alongside its tag. */
-      if (remove) remove.style.display = on ? 'block' : '';
-    });
-
-    ['offer', 'request'].forEach(side => {
-      ['min', 'max'].forEach(bound => {
-        const amount = state.filters[side][bound];
-        const container = document.getElementById(`enabled_filter_${side}_value_${bound}_container`);
-        const text = document.getElementById(`enabled_filter_${side}_value_${bound}`);
-        if (container) container.classList.toggle('d-none', amount === null);
-        if (text) text.textContent = amount === null ? '' : formatNumber(amount);
-      });
-    });
-  }
-
-  /* A tag in the picker grid reads as chosen by the same dimming the rest of
-   * the site uses for an inactive thumbnail. */
-  function syncTagFilterButtons() {
-    if (!dom.tagFilterRow) return;
-    dom.tagFilterRow.querySelectorAll('[data-tag]').forEach(button => {
-      const on = state.filters.tags.has(button.dataset.tag);
-      button.style.opacity = on ? '1' : '0.45';
-      button.setAttribute('aria-pressed', on ? 'true' : 'false');
-    });
-  }
-
-  function applyTagFilter(slug, on) {
-    if (on) state.filters.tags.add(slug);
-    else state.filters.tags.delete(slug);
-    syncTagFilterButtons();
-    renderFilterChips();
-    state.page = 0;
-    renderBoard();
-  }
-
-  function applyValueFilter(side, bound, amount) {
-    state.filters[side][bound] = amount;
-    const input = document.getElementById(`filter_${side}_value_${bound}`);
-    if (input && amount === null) input.value = '';
-    renderFilterChips();
-    state.page = 0;
-    renderBoard();
-  }
-
   /* ------------------------------------------------------------------ */
   /* Account gate                                                        */
   /* ------------------------------------------------------------------ */
@@ -609,80 +416,10 @@
   /* Wiring                                                              */
   /* ------------------------------------------------------------------ */
 
-  function debounce(fn, wait) {
-    let timer = 0;
-    return (...args) => {
-      window.clearTimeout(timer);
-      timer = window.setTimeout(() => fn(...args), wait);
-    };
-  }
-
   function wire() {
-    const applyFilters = debounce(() => {
-      state.filters.offerName = dom.offerFilter ? dom.offerFilter.value : '';
-      state.filters.requestName = dom.requestFilter ? dom.requestFilter.value : '';
-      state.page = 0;
-      renderBoard();
-    }, SEARCH_DEBOUNCE_MS);
-
-    if (dom.offerFilter) dom.offerFilter.addEventListener('input', applyFilters);
-    if (dom.requestFilter) dom.requestFilter.addEventListener('input', applyFilters);
-
-    /* Tag picking happens inside the tag modal, on the grid of tag art. */
-    if (dom.tagFilterRow) {
-      const pick = target => {
-        const button = target.closest('[data-tag]');
-        if (!button) return;
-        applyTagFilter(button.dataset.tag, !state.filters.tags.has(button.dataset.tag));
-      };
-      dom.tagFilterRow.addEventListener('click', event => pick(event.target));
-      dom.tagFilterRow.addEventListener('keydown', event => {
-        if (event.key !== 'Enter' && event.key !== ' ') return;
-        event.preventDefault();
-        pick(event.target);
-      });
-    }
-
-    /* The three icon buttons open their modal; the chips' red x buttons and
-     * the modals' own clear buttons take a filter back off. */
-    dom.valueFilterButtons.offer?.addEventListener('click',
-      () => showModal(dom.valueFilterModals.offer, true));
-    dom.valueFilterButtons.request?.addEventListener('click',
-      () => showModal(dom.valueFilterModals.request, true));
-    dom.tagFilterButton?.addEventListener('click',
-      () => showModal(dom.tagFilterModal, true));
-
-    ['offer', 'request'].forEach(side => {
-      ['min', 'max'].forEach(bound => {
-        const input = document.getElementById(`filter_${side}_value_${bound}`);
-        input?.addEventListener('input', debounce(() => {
-          const amount = Number(input.value);
-          applyValueFilter(side, bound,
-            input.value.trim() === '' || !Number.isFinite(amount) ? null : amount);
-        }, SEARCH_DEBOUNCE_MS));
-
-        document.getElementById(`clear_filter_${side}_value_${bound}_button`)
-          ?.addEventListener('click', () => applyValueFilter(side, bound, null));
-        document.getElementById(`filter_display_${side}_${bound}_value_remove_button`)
-          ?.addEventListener('click', () => applyValueFilter(side, bound, null));
-      });
-    });
-
-    TAGS.forEach(({ slug }) => {
-      document.getElementById(`filter_display_request_tag_${slug}_remove_button`)
-        ?.addEventListener('click', () => applyTagFilter(slug, false));
-    });
-
-    [dom.tagFilterModal, dom.valueFilterModals.offer, dom.valueFilterModals.request]
-      .forEach(modal => {
-        if (!modal) return;
-        modal.addEventListener('click', event => {
-          if (event.target === modal) showModal(modal, false);
-        });
-        modal.querySelectorAll('[data-dismiss="modal"]').forEach(button => {
-          button.addEventListener('click', () => showModal(modal, false));
-        });
-      });
+    /* Filters are the core's shared panel - the same markup and behaviour as
+     * the per-player board. It calls back here whenever a filter moves. */
+    panel.wire();
 
     if (dom.composerTagRow) {
       dom.composerTagRow.addEventListener('click', event => {
@@ -725,11 +462,7 @@
       });
     }
     document.addEventListener('keydown', event => {
-      if (event.key !== 'Escape') return;
-      showPicker(false);
-      showModal(dom.tagFilterModal, false);
-      showModal(dom.valueFilterModals.offer, false);
-      showModal(dom.valueFilterModals.request, false);
+      if (event.key === 'Escape') showPicker(false);
     });
 
     if (dom.postButton) dom.postButton.addEventListener('click', postAd);
@@ -787,8 +520,6 @@
     booted = true;
     wire();
     renderAccountGate();
-    syncTagFilterButtons();
-    renderFilterChips();
     renderComposer();
     reload();
   }

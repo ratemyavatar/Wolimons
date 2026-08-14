@@ -199,7 +199,8 @@
 
   /*
    * GET /apisite/economy/v1/assets/{id}/resellers?limit=1
-   * Cheapest live listing, used as the "Value" figure.
+   * Cheapest live listing. Not shown on cards - kept because it is the only
+   * way to read a real sale price if something ever needs one.
    */
   async function fetchLowestPrice(id) {
     try {
@@ -272,8 +273,12 @@
    * Resolve full detail records for a list of asset ids, in the order given.
    * Tries the single-request POST batch, then falls back to composing the
    * same information out of GET endpoints.
+   *
+   * `includePrice` is off by default: the cards show Value (community-set,
+   * see values.js) and RAP, never the live shop price, so paying for a
+   * per-item resellers lookup would be wasted round trips.
    */
-  async function getItemDetails(ids, { includePrice = true, includeRap = true } = {}) {
+  async function getItemDetails(ids, { includePrice = false, includeRap = true } = {}) {
     const unique = [...new Set(ids.map(Number).filter(Number.isSafeInteger))];
     if (!unique.length) return [];
 

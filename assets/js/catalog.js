@@ -46,10 +46,14 @@
     .replace(/^-+|-+$/g, '') || 'unnamed';
 
   const API = window.WanwoodAPI;
+  const VALUES = window.WolimonsValues;
 
+  /*
+   * The catalog only ever asks Wanwood for "newest". Value is ours, not
+   * Wanwood's, and RAP/name are cheap to order client-side, so every other
+   * sort is applied locally in visibleItems().
+   */
   function apiSortType() {
-    if (state.sort === 'price_ascending') return '4';
-    if (state.sort === 'price_descending') return '5';
     return '3';
   }
 
@@ -65,10 +69,6 @@
   }
 
   function normalizeItem(item) {
-    const rawPrice = item.lowestPrice ?? item.price;
-    const price = rawPrice !== null && rawPrice !== undefined && Number.isFinite(Number(rawPrice))
-      ? Number(rawPrice)
-      : null;
     let available = item.unitsAvailableForConsumption;
     if (available === null || available === undefined) {
       const stock = Number(item.serialCount);
@@ -82,7 +82,8 @@
       id: item.id,
       name: item.name.trim(),
       assetType: Number(item.assetType),
-      price,
+      /* Value is community-assigned, never fetched. Unset items read 0. */
+      value: VALUES.get(item.id),
       rap: item.rap,
       thumbnail: item.thumbnail,
       limitedUnique: restrictions.includes('LimitedUnique'),
@@ -111,7 +112,7 @@
         return;
       }
 
-      const details = await API.getItemDetails(search.ids);
+      const details = await API.getItemDetails(search.ids, { includePrice: false });
       if (request !== state.request) return;
 
       const byId = new Map(details.map(item => [item.id, item]));
@@ -141,20 +142,22 @@
   }
 
   function visibleItems() {
-    const priceMin = rangeValue('filter-value-min');
-    const priceMax = rangeValue('filter-value-max');
+    const valueMin = rangeValue('filter-value-min');
+    const valueMax = rangeValue('filter-value-max');
     const rapMin = rangeValue('filter-rap-min');
     const rapMax = rangeValue('filter-rap-max');
     const items = state.items.filter(item => {
       if (state.assetType && item.assetType !== state.assetType) return false;
-      if (priceMin !== null && (item.price === null || item.price < priceMin)) return false;
-      if (priceMax !== null && (item.price === null || item.price > priceMax)) return false;
+      if (valueMin !== null && item.value < valueMin) return false;
+      if (valueMax !== null && item.value > valueMax) return false;
       if (rapMin !== null && (item.rap === null || item.rap < rapMin)) return false;
       if (rapMax !== null && (item.rap === null || item.rap > rapMax)) return false;
       return true;
     });
 
     const comparators = {
+      value_descending: (a, b) => b.value - a.value,
+      value_ascending: (a, b) => a.value - b.value,
       rap_descending: (a, b) => (b.rap ?? -Infinity) - (a.rap ?? -Infinity),
       rap_ascending: (a, b) => (a.rap ?? Infinity) - (b.rap ?? Infinity),
       name_ascending: (a, b) => a.name.localeCompare(b.name),
@@ -172,7 +175,7 @@
   }
 
   function appendStat(parent, label, value, dataCell) {
-    if (value === null) return;
+    if (value === null || value === undefined) return;
     const row = document.createElement('div');
     row.className = 'd-flex justify-content-between';
     const labelWrap = document.createElement('div');
@@ -202,15 +205,19 @@
 
     const imageWrap = document.createElement('div');
     imageWrap.className = 'position-relative std_item_card_img_bkgnd_gradient text-center border-top border-bottom border-dark';
-    const tagContainer = text('div', 'system_item_tag_container', '');
     if (item.limited) {
+      /* limited.svg / limitedu.svg are wide banners (215x58 and 290x58), so
+       * they need the .limited_ribbon box, not the square .system_item_tag_icon
+       * one - squeezing them into 18x18 is what made them unreadable. */
       const ribbon = document.createElement('img');
-      ribbon.className = 'system_item_tag_icon';
+      ribbon.className = 'limited_ribbon';
       ribbon.src = item.limitedUnique ? '/img/limitedu.svg' : '/img/limited.svg';
       ribbon.alt = item.limitedUnique ? 'Limited U' : 'Limited';
-      tagContainer.append(ribbon);
+      ribbon.width = item.limitedUnique ? 75 : 56;
+      ribbon.height = 15;
+      ribbon.loading = 'lazy';
+      imageWrap.append(ribbon);
     }
-    imageWrap.append(tagContainer);
     const image = document.createElement('img');
     image.className = 'd-block-inline my-1';
     image.src = item.thumbnail || API.thumbnailUrl(item.id);
@@ -222,7 +229,7 @@
 
     const stats = document.createElement('div');
     stats.className = 'px-2 pt-1';
-    appendStat(stats, 'Price', item.price, 'price');
+    appendStat(stats, 'Value', item.value, 'value');
     appendStat(stats, 'RAP', item.rap, 'rap');
     appendStat(stats, 'Available', item.available, 'available');
     link.append(headingWrap, imageWrap, stats);

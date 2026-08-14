@@ -17,6 +17,7 @@
     .replace(/^-+|-+$/g, '') || 'unnamed';
 
   const API = window.WanwoodAPI;
+  const VALUES = window.WolimonsValues;
 
   async function getItems(keyword = '') {
     const search = await API.searchItems({
@@ -28,7 +29,7 @@
       cursor: 0,
     });
     if (!search.ids.length) return [];
-    const details = await API.getItemDetails(search.ids);
+    const details = await API.getItemDetails(search.ids, { includePrice: false });
     const byId = new Map(details.map(item => [item.id, item]));
     return search.ids.map(id => byId.get(id)).filter(item => item && item.name);
   }
@@ -38,7 +39,6 @@
     const restrictions = Array.isArray(item.itemRestrictions) ? item.itemRestrictions : [];
     const isLimitedUnique = restrictions.includes('LimitedUnique') || item.isLimitedUnique === true;
     const isLimited = isLimitedUnique || restrictions.includes('Limited') || item.isLimited === true;
-    const priceValue = item.lowestPrice ?? item.price;
     return {
       id,
       name: item.name.trim(),
@@ -47,9 +47,8 @@
       ribbon: isLimitedUnique ? '/img/limitedu.svg' : (isLimited ? '/img/limited.svg' : ''),
       ribbonAlt: isLimitedUnique ? 'Limited U' : 'Limited',
       rap: Number.isFinite(item.rap) ? item.rap : null,
-      price: priceValue !== null && priceValue !== undefined && Number.isFinite(Number(priceValue))
-        ? Number(priceValue)
-        : null,
+      /* Community-assigned, never fetched. 0 until set in values.js. */
+      value: VALUES.get(id),
     };
   }
 
@@ -61,7 +60,7 @@
   }
 
   function appendStat(parent, header, value, valueClass, color) {
-    if (value === null) return;
+    if (value === null || value === undefined) return;
     const row = document.createElement('div');
     row.className = 'gen_items_slider_stat_row';
     row.append(text('span', 'gen_items_slider_stat_header', header));
@@ -92,7 +91,9 @@
       ribbon.className = 'limited_ribbon';
       ribbon.src = item.ribbon;
       ribbon.alt = item.ribbonAlt;
-      ribbon.width = 75;
+      /* limitedu.svg is a wider banner (290x58) than limited.svg (215x58);
+       * giving both the same width squashed the "U" wedge off the end. */
+      ribbon.width = item.ribbonAlt === 'Limited U' ? 75 : 56;
       ribbon.height = 15;
       ribbon.loading = 'lazy';
       imageContainer.append(ribbon);
@@ -103,7 +104,7 @@
     const info = document.createElement('div');
     info.className = 'gen_items_slider_info_section';
     appendStat(info, 'RAP', item.rap, 'gen_items_slider_stat_data');
-    appendStat(info, 'Price', item.price, 'gen_items_slider_stat_data', '#4db7d6');
+    appendStat(info, 'Value', item.value, 'gen_items_slider_stat_data', '#4db7d6');
     container.append(imageContainer, titleContainer, info);
     link.append(container);
     card.append(link);
@@ -128,7 +129,16 @@
 
     const imageWrap = document.createElement('div');
     imageWrap.className = 'position-relative std_item_card_img_bkgnd_gradient text-center border-top border-bottom border-dark';
-    imageWrap.append(text('div', 'system_item_tag_container', ''));
+    if (item.ribbon) {
+      const ribbon = document.createElement('img');
+      ribbon.className = 'limited_ribbon';
+      ribbon.src = item.ribbon;
+      ribbon.alt = item.ribbonAlt;
+      ribbon.width = item.ribbonAlt === 'Limited U' ? 75 : 56;
+      ribbon.height = 15;
+      ribbon.loading = 'lazy';
+      imageWrap.append(ribbon);
+    }
     const image = document.createElement('img');
     image.className = 'd-block-inline my-1';
     image.src = item.thumbnail;
@@ -140,8 +150,8 @@
 
     const stats = document.createElement('div');
     stats.className = 'px-2 pt-1';
-    for (const [label, value, color] of [['RAP', item.rap, ''], ['Price', item.price, '#4db7d6']]) {
-      if (value === null) continue;
+    for (const [label, value, color] of [['RAP', item.rap, ''], ['Value', item.value, '#4db7d6']]) {
+      if (value === null || value === undefined) continue;
       const row = document.createElement('div');
       row.className = 'd-flex justify-content-between';
       const labelWrap = document.createElement('div');

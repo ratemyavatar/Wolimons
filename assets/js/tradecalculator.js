@@ -94,6 +94,8 @@
     }
   }
 
+  const VALUES = window.WolimonsValues;
+
   const fetchCollectibles = userId => API.getCollectibles(userId);
 
   /* ------------------------------------------------------------------ */
@@ -102,17 +104,16 @@
 
   function normalizeItem(item, rap) {
     const id = Number(item.id ?? item.assetId);
-    const rawPrice = item.lowestPrice ?? item.price;
-    const price = Number.isFinite(Number(rawPrice)) && rawPrice !== null && rawPrice !== undefined
-      ? Number(rawPrice)
-      : null;
     const restrictions = Array.isArray(item.itemRestrictions) ? item.itemRestrictions : [];
     return {
       id,
       name: String(item.name || '').trim(),
       rare: restrictions.includes('LimitedUnique') || item.isLimitedUnique === true,
       rap: Number.isFinite(Number(rap)) ? Number(rap) : null,
-      value: price !== null ? price : (Number.isFinite(Number(rap)) ? Number(rap) : null),
+      /* Value is community-assigned and lives in values.js - it is not a
+       * price and it is not RAP. Unset items are worth 0, which is exactly
+       * how they should be totalled in a trade. */
+      value: VALUES.get(id),
       thumbnail: item.thumbnail || API.thumbnailUrl(id),
     };
   }
@@ -149,7 +150,9 @@
       if (state.source === 'all' || !state.inventory) {
         const search = await searchCatalog();
         if (sequence !== state.sequence) return;
-        ordered = search.ids.length ? await API.getItemDetails(search.ids) : [];
+        ordered = search.ids.length
+          ? await API.getItemDetails(search.ids, { includePrice: false })
+          : [];
         const byId = new Map(ordered.map(item => [item.id, item]));
         ordered = search.ids.map(id => byId.get(id)).filter(item => item && item.name);
         state.total = Number.isFinite(search.total) && search.total > 0
@@ -577,7 +580,7 @@
       state.inventory = collectibles.map(row => ({
         id: Number(row.assetId ?? row.id),
         name: row.name,
-        lowestPrice: Number.isFinite(Number(row.recentAveragePrice))
+        recentAveragePrice: Number.isFinite(Number(row.recentAveragePrice))
           ? Number(row.recentAveragePrice)
           : null,
       })).filter(item => Number.isSafeInteger(item.id) && item.name);

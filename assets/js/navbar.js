@@ -17,9 +17,61 @@
     });
   }
 
+  /* ------------------------------------------------------------------ */
+  /* Mobile toggler                                                      */
+  /* ------------------------------------------------------------------ */
+
+  /*
+   * Bootstrap's collapse plugin isn't on the site, so the slide is done by
+   * hand with the .collapsing class the stylesheet already ships
+   * (height: 0; overflow: hidden; transition: height .35s).
+   *
+   * Opening: .collapse -> .collapsing at height 0, then set the height to the
+   * menu's real scrollHeight so the transition has somewhere to go; when it
+   * finishes, swap to .collapse.show and drop the inline height so the menu
+   * can resize itself afterwards. Closing runs the same steps backwards,
+   * pinning the current height first so the animation starts from a real
+   * number instead of "auto".
+   */
+  const REDUCED_MOTION = typeof window.matchMedia === 'function'
+    ? window.matchMedia('(prefers-reduced-motion: reduce)')
+    : { matches: false };
+  let collapseTimer = null;
+
+  function settleNavbar(open) {
+    clearTimeout(collapseTimer);
+    navbar.classList.remove('collapsing');
+    navbar.classList.add('collapse');
+    navbar.classList.toggle('show', open);
+    navbar.style.height = '';
+  }
+
+  function slideNavbar(open) {
+    clearTimeout(collapseTimer);
+
+    /* No animation asked for, or none possible - just switch. */
+    if (REDUCED_MOTION.matches) {
+      settleNavbar(open);
+      return;
+    }
+
+    const from = open ? 0 : navbar.scrollHeight;
+    navbar.classList.remove('collapse', 'show');
+    navbar.classList.add('collapsing');
+    navbar.style.height = `${from}px`;
+
+    /* Read back the height so the browser commits the starting frame; without
+     * this the two style writes coalesce and nothing animates. */
+    void navbar.offsetHeight;
+
+    navbar.style.height = open ? `${navbar.scrollHeight}px` : '0px';
+    collapseTimer = setTimeout(() => settleNavbar(open), 350);
+  }
+
   toggler.addEventListener('click', () => {
-    const isOpen = navbar.classList.toggle('show');
+    const isOpen = !navbar.classList.contains('show');
     toggler.setAttribute('aria-expanded', String(isOpen));
+    slideNavbar(isOpen);
     if (!isOpen) closeDropdowns();
   });
 
@@ -38,6 +90,10 @@
       dropdownToggle.setAttribute('aria-expanded', String(isOpen));
     });
   });
+
+  /* ------------------------------------------------------------------ */
+  /* Search modal                                                        */
+  /* ------------------------------------------------------------------ */
 
   const searchButton = document.getElementById('navbar_search_button');
   const searchModal = document.getElementById('search_modal');
@@ -58,7 +114,7 @@
     searchModal.classList.add('show');
     searchModal.setAttribute('aria-hidden', 'false');
     document.body.classList.add('modal-open');
-    searchModal.querySelector('input')?.focus();
+    activePane()?.querySelector('input[type="text"]')?.focus();
   });
 
   searchModal?.querySelectorAll('[data-dismiss="modal"]').forEach(button => {
@@ -66,6 +122,41 @@
   });
   searchModal?.addEventListener('click', event => {
     if (event.target === searchModal) closeSearch();
+  });
+
+  /* ------------------------------------------------------------------ */
+  /* Search modal tabs                                                   */
+  /* ------------------------------------------------------------------ */
+
+  /*
+   * The LIMITEDS / PLAYERS / GROUPS tabs are plain anchors whose href points
+   * at "/<page>#global_..._search_tab_pane" - the snapshot relied on
+   * Bootstrap's tab plugin to swallow the click. Without it the browser just
+   * followed the link, which is why picking Players or Groups navigated away
+   * instead of switching panes. Nine lines do the job the plugin did.
+   */
+  const tabLinks = [...(searchModal?.querySelectorAll('[data-search-tab]') || [])];
+  const tabPanes = [...(searchModal?.querySelectorAll('.tab-content > .tab-pane') || [])];
+
+  function activePane() {
+    return tabPanes.find(pane => pane.classList.contains('active')) || tabPanes[0];
+  }
+
+  function showTab(link) {
+    /* The href carries the pane id after the '#', whatever page it names. */
+    const paneId = (link.getAttribute('href') || '').split('#')[1];
+    const pane = paneId ? searchModal.querySelector(`#${CSS.escape(paneId)}`) : null;
+    if (!pane) return;
+    tabLinks.forEach(other => other.classList.toggle('active', other === link));
+    tabPanes.forEach(other => other.classList.toggle('active', other === pane));
+    pane.querySelector('input[type="text"]')?.focus();
+  }
+
+  tabLinks.forEach(link => {
+    link.addEventListener('click', event => {
+      event.preventDefault();
+      showTab(link);
+    });
   });
 
   document.addEventListener('click', event => {
@@ -76,4 +167,153 @@
     closeDropdowns();
     closeSearch();
   });
+
+  /* ------------------------------------------------------------------ */
+  /* Player and group search                                             */
+  /* ------------------------------------------------------------------ */
+
+  const API = window.WanwoodAPI;
+
+  function message(container, words) {
+    const note = document.createElement('div');
+    note.className = 'text-center py-5 small';
+    note.style.color = '#7a8288';
+    note.textContent = words;
+    container.replaceChildren(note);
+  }
+
+  function card(href, imageSrc, title, subtitle, { external = false } = {}) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'shadow_md_35 shift_up_md pb-2 search-player-card';
+    wrapper.style.backgroundColor = '#30363c';
+
+    const link = document.createElement('a');
+    link.href = href;
+    if (external) {
+      link.target = '_blank';
+      link.rel = 'noopener';
+    }
+
+    const imageWrap = document.createElement('div');
+    imageWrap.className = 'std_item_card_img_bkgnd_gradient text-center border-bottom border-dark';
+    const image = document.createElement('img');
+    image.className = 'd-block-inline my-1';
+    image.src = imageSrc;
+    image.width = 100;
+    image.height = 100;
+    image.alt = `${title} thumbnail`;
+    image.loading = 'lazy';
+    imageWrap.append(image);
+
+    const name = document.createElement('div');
+    name.className = 'px-2 pt-1 text-light text-truncate';
+    name.style.fontSize = '0.85em';
+    name.style.fontWeight = '600';
+    name.textContent = title;
+    name.title = title;
+
+    link.append(imageWrap, name);
+    if (subtitle) {
+      const detail = document.createElement('div');
+      detail.className = 'px-2 text-truncate small text-muted';
+      detail.textContent = subtitle;
+      link.append(detail);
+    }
+    wrapper.append(link);
+    return wrapper;
+  }
+
+  function grid(cards) {
+    const container = document.createElement('div');
+    container.className = 'search-player-card-grid';
+    container.append(...cards);
+    return container;
+  }
+
+  /* Runs `search` on a 300ms debounce and keeps only the newest answer. */
+  function wireSearch({ input, clear, results, emptyText, search }) {
+    if (!input || !results) return;
+    let sequence = 0;
+    let timer;
+
+    async function run(term) {
+      const mine = ++sequence;
+      if (!term) {
+        message(results, emptyText);
+        return;
+      }
+      message(results, 'Searching…');
+      try {
+        const nodes = await search(term);
+        if (mine !== sequence) return;
+        if (!nodes.length) {
+          message(results, `Nothing on Wanwood matches "${term}".`);
+          return;
+        }
+        results.replaceChildren(grid(nodes));
+      } catch (error) {
+        if (mine !== sequence) return;
+        message(results, 'Wanwood could not be reached for that search.');
+      }
+    }
+
+    input.addEventListener('input', () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => run(input.value.trim()), 300);
+    });
+    clear?.addEventListener('click', () => {
+      input.value = '';
+      run('');
+      input.focus();
+    });
+  }
+
+  if (API) {
+    /*
+     * Players. Wanwood has no user-search endpoint - only an exact
+     * get-by-username lookup (and get-by-id) - so this finds the one account
+     * whose name was typed rather than offering suggestions. Nothing is
+     * invented to pad the list out.
+     */
+    wireSearch({
+      input: document.getElementById('global_player_search_textbox'),
+      clear: document.getElementById('global_player_search_textbox_clear'),
+      results: document.getElementById('global_player_search_results'),
+      emptyText: 'Type an exact Wanwood username',
+      search: async term => {
+        const found = /^\d+$/.test(term)
+          ? await API.getUserById(Number(term))
+          : await API.getUserByUsername(term).catch(() => null);
+        if (!found) return [];
+        const thumbs = await API.fetchUserThumbnails([found.id], 150);
+        return [card(
+          `/player/?id=${found.id}`,
+          thumbs.get(found.id) || '/assets/Wolimonslogoo.png',
+          found.name,
+          `ID ${found.id}`,
+        )];
+      },
+    });
+
+    /* Groups. Wolimons has no group page of its own, so the cards open the
+     * group on Wanwood itself. */
+    wireSearch({
+      input: document.getElementById('global_group_search_textbox'),
+      clear: document.getElementById('global_group_search_textbox_clear'),
+      results: document.getElementById('global_group_search_results'),
+      emptyText: 'Type to search Wanwood groups',
+      search: async term => {
+        const groups = await API.searchGroups(term, { limit: 12 });
+        if (!groups.length) return [];
+        const icons = await API.fetchGroupIcons(groups.map(group => group.id), 150);
+        return groups.map(group => card(
+          `${API.SITE_BASE}/groups/${group.id}/${encodeURIComponent(group.name.replace(/\s+/g, '-'))}`,
+          icons.get(group.id) || '/assets/Wolimonslogoo.png',
+          group.name,
+          group.memberCount === null ? '' : `${group.memberCount.toLocaleString('en-US')} members`,
+          { external: true },
+        ));
+      },
+    });
+  }
 })();

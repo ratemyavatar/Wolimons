@@ -22,10 +22,12 @@
  *                                     seller count, the "Copies For Sale" table
  *   api/v1/items/restrictions         Limited / Limited U flag
  *   thumbnails/v1/assets              the image
- *   values.js                         Value. Community-set, never fetched.
+ *   values.js                         Value and Demand. Community-set by hand,
+ *                                     never fetched.
  *
- * Wanwood has no source for Demand or an acronym, so those stay blank rather
- * than being faked out of a price field.
+ * Wanwood has no source for Demand or an acronym, so Demand comes from
+ * values.js when a maintainer has set it and stays blank otherwise - it is
+ * never faked out of a price field. There is nowhere to get an acronym at all.
  */
 (() => {
   'use strict';
@@ -373,9 +375,11 @@
     setNumber('rap-2', rap);
     setNumber('value', value);
     setNumber('value-2', value);
-    /* No Wanwood endpoint reports demand, so it is deliberately blank. */
-    setText('demand', null);
-    setText('demand-2', null);
+    /* No Wanwood endpoint reports demand. It is shown only when somebody has
+     * set it by hand in values.js, and left blank otherwise. */
+    const demand = VALUES.demand(id);
+    setText('demand', demand);
+    setText('demand-2', demand);
     renderValueVsRap(value, rap);
 
     /* More info ----------------------------------------------------- */

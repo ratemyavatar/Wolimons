@@ -649,6 +649,67 @@
   }
 
   /*
+   * GET /apisite/groups/v1/groups/search?keyword=&limit=
+   *
+   * -> { keyword, previousPageCursor, nextPageCursor,
+   *      data: [ { id, name, description, created, updated, memberCount,
+   *                publicEntryAllowed } ] }
+   *
+   * Wanwood really does expose group search (GroupsControllerV1.SearchGroups),
+   * unlike player search, which has no endpoint at all. It can be switched off
+   * server-side by the GroupsEnabled feature flag, in which case this throws
+   * and the caller reports it rather than inventing results.
+   */
+  async function searchGroups(keyword, { limit = 12 } = {}) {
+    const term = String(keyword || '').trim();
+    if (!term) return [];
+    const query = new URLSearchParams({ keyword: term, limit: String(limit) });
+    const result = await fetchJson(`${API_BASE}/apisite/groups/v1/groups/search?${query}`);
+    const rows = Array.isArray(result && result.data) ? result.data : [];
+    return rows
+      .map(raw => {
+        if (!isPlainObject(raw)) return null;
+        const id = Number(raw.id);
+        const name = String(raw.name ?? '').trim();
+        if (!Number.isSafeInteger(id) || id <= 0 || !name) return null;
+        return {
+          id,
+          name,
+          description: String(raw.description ?? '').trim(),
+          memberCount: toNumber(raw.memberCount),
+        };
+      })
+      .filter(Boolean);
+  }
+
+  /*
+   * GET /apisite/thumbnails/v1/groups/icons?groupIds=1,2&size=150x150
+   * Same shape as the user and asset thumbnail endpoints.
+   */
+  async function fetchGroupIcons(ids, size = 150) {
+    const wanted = [...new Set(ids.map(Number).filter(Number.isSafeInteger))];
+    const icons = new Map();
+    if (!wanted.length) return icons;
+    try {
+      const query = new URLSearchParams({
+        groupIds: wanted.join(','),
+        size: `${size}x${size}`,
+        format: 'Png',
+      });
+      const result = await fetchJson(`${API_BASE}/apisite/thumbnails/v1/groups/icons?${query}`);
+      const rows = Array.isArray(result && result.data) ? result.data : [];
+      rows.forEach(row => {
+        const id = Number(row.targetId);
+        const url = typeof row.imageUrl === 'string' ? row.imageUrl : '';
+        if (Number.isSafeInteger(id) && url) icons.set(id, proxied(url));
+      });
+    } catch (error) {
+      /* An icon is decoration - the cards render fine without one. */
+    }
+    return icons;
+  }
+
+  /*
    * GET /apisite/inventory/v1/users/{id}/assets/collectibles
    * Paginated with a numeric-offset cursor. Rows already carry name,
    * assetId and recentAveragePrice.
@@ -877,6 +938,8 @@
     proxied,
     getUserById,
     getUserByUsername,
+    searchGroups,
+    fetchGroupIcons,
     getCollectibles,
     getCollectiblesSummary,
     mapLimit,

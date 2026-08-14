@@ -82,6 +82,35 @@ localStorage.setItem('wolimons_api_base', 'https://your-proxy.onrender.com')
 location.reload()
 ```
 
+## Values, demand and trend
+
+Wanwood reports prices and RAP, but it has no concept of an item's *value*, its
+*demand* or its *trend* — those are community judgements, the same way
+Rolimon's does it. They're set by hand in
+[`assets/js/values.js`](assets/js/values.js) and nowhere else; nothing is
+guessed from a price field.
+
+Every item starts unset: value `0`, demand and trend blank. To set one, add a
+row keyed by the Wanwood asset id (the number in a catalog URL —
+`wanwoo.xyz/catalog/1581/Cthulhu` → `1581`):
+
+```js
+const ITEMS = {
+  1581: 4500,                    // just a value
+  4031: {
+    value: 12000,
+    demand: 'High',              // High | Decent | Low | Terrible
+    trend: 'Raising',            // Raising | Stable | Lowering | Unstable | Fluctuating
+    categories: ['rare'],        // rare | projected | tablet | unobtainable | hoarded
+  },
+};
+```
+
+Save and reload — there's no build step. The catalog's **Demand**, **Trend**
+and **Categories** filters read straight from this table, and anything left out
+is filtered as "Unassigned". `valued` isn't written by hand: an item counts as
+valued once its value is above 0.
+
 ## Layout
 
 ```

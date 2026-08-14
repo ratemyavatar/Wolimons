@@ -22,6 +22,10 @@
   const topPagination = document.getElementById('catpg_pagination_control_top');
   const bottomPagination = document.getElementById('catpg_pagination_control_bottom');
   const typeButtons = [...document.querySelectorAll('[data-filter-group="type"]')];
+  /* Demand / Trend / Categories - multi-select, applied in the browser. */
+  const TAG_GROUPS = ['demand', 'trend', 'category'];
+  const tagButtons = TAG_GROUPS.flatMap(group =>
+    [...document.querySelectorAll(`[data-filter-group="${group}"]`)]);
   const rangeInputs = ['filter-value-min', 'filter-value-max', 'filter-rap-min', 'filter-rap-max']
     .map(id => document.getElementById(id));
 
@@ -33,6 +37,8 @@
     keyword: '',
     sort: 'newest',
     assetType: null,
+    /* Sets of the selected data-filter-value strings, one per group. */
+    filters: { demand: new Set(), trend: new Set(), category: new Set() },
     items: [],
     request: 0,
   };
@@ -80,8 +86,12 @@
       id: item.id,
       name: item.name.trim(),
       assetType: Number(item.assetType),
-      /* Value is community-assigned, never fetched. Unset items read 0. */
+      /* Value, demand, trend and categories are community-assigned, never
+       * fetched - Wanwood reports none of them. Unset reads 0 / null / []. */
       value: VALUES.get(item.id),
+      demand: VALUES.demand(item.id),
+      trend: VALUES.trend(item.id),
+      categories: VALUES.categories(item.id),
       rap: item.rap,
       thumbnail: item.thumbnail,
       limitedUnique: restrictions.includes('LimitedUnique'),
@@ -144,8 +154,14 @@
     const valueMax = rangeValue('filter-value-max');
     const rapMin = rangeValue('filter-rap-min');
     const rapMax = rangeValue('filter-rap-max');
+    const { demand, trend, category } = state.filters;
     const items = state.items.filter(item => {
       if (state.assetType && item.assetType !== state.assetType) return false;
+      /* "None" is the Unassigned button: it matches items left unset. */
+      if (demand.size && !demand.has(item.demand ?? 'None')) return false;
+      if (trend.size && !trend.has(item.trend ?? 'None')) return false;
+      /* Categories are additive - an item matching any selected one shows. */
+      if (category.size && !item.categories.some(name => category.has(name))) return false;
       if (valueMin !== null && item.value < valueMin) return false;
       if (valueMax !== null && item.value > valueMax) return false;
       if (rapMin !== null && (item.rap === null || item.rap < rapMin)) return false;
@@ -328,6 +344,25 @@
         candidate.setAttribute('aria-pressed', String(active));
       });
       loadCatalog();
+    });
+  });
+
+  /*
+   * Demand / Trend / Categories toggle on and off freely and filter what has
+   * already been fetched, so there is no need to go back to Wanwood.
+   */
+  tagButtons.forEach(button => {
+    button.addEventListener('click', () => {
+      const group = button.dataset.filterGroup;
+      const value = button.dataset.filterValue;
+      const selected = state.filters[group];
+      if (!selected) return;
+      const active = !selected.has(value);
+      if (active) selected.add(value);
+      else selected.delete(value);
+      button.classList.toggle('active', active);
+      button.setAttribute('aria-pressed', String(active));
+      render();
     });
   });
 

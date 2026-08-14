@@ -516,6 +516,23 @@
   .page-leaderboard .lb_cell { width: calc(20% - 0.64rem); }
 }
 
+/* Rank badge beside a leaderboard name, with its hover tooltip. The tooltip
+   markup came from the Colimons leaderboard, where every copy carried the
+   same inline styles; it is a rule here instead. */
+.page-leaderboard .lb_cell h6 > .text-truncate { min-width: 0; }
+
+.lb_badge { position: relative; display: inline-flex; align-items: center; margin-left: 6px; flex: 0 0 auto; cursor: help; }
+
+.lb_badge svg { width: 16px; height: 16px; }
+
+.lb_badge .badge-tt { display: none; position: absolute; bottom: 125%; left: 50%; transform: translateX(-50%); background: rgb(35, 37, 41); border: 1px solid rgb(74, 77, 84); border-radius: 4px; padding: 4px 8px; color: rgb(255, 255, 255); font-size: 12px; font-weight: 600; white-space: nowrap; z-index: 100; box-shadow: rgba(0, 0, 0, 0.5) 0px 4px 10px; }
+
+.lb_badge:hover .badge-tt { display: block; }
+
+.lb_loading::after { content: ""; display: inline-block; width: 10px; height: 10px; margin-left: 8px; vertical-align: -1px; border: 2px solid rgba(255, 255, 255, 0.25); border-top-color: rgb(0, 132, 221); border-radius: 50%; animation: 0.7s linear 0s infinite normal none running lb_spin; }
+
+@keyframes lb_spin { to { transform: rotate(360deg); } }
+
 .page-leaderboard .carousel-caption { position: relative; left: auto; right: auto; padding-top: 56px; padding-bottom: 6px; }
 
 .page-leaderboard .carousel-caption h1 { font-weight: 600; }
@@ -527,6 +544,13 @@
 .page-leaderboard .page-item.active .page-link { background-color: rgb(0, 132, 221); border-color: rgb(0, 132, 221); color: rgb(255, 255, 255); }
 
 .page-leaderboard .page-item.disabled .page-link { background-color: rgb(36, 40, 44); border-color: rgb(58, 63, 68); color: rgb(90, 96, 102); }
+
+/* The simple-pagination arrows. The snapshot left .disabled unstyled, so a
+   dead prev/next arrow looked clickable; matched to the .page-item.disabled
+   colours just above. */
+.simple-pagination .page-link-koro svg { vertical-align: -3px; }
+
+.simple-pagination .page-link-koro.disabled { background: rgb(36, 40, 44); color: rgb(90, 96, 102); cursor: default; pointer-events: none; }
 
 .player_info_grid { display: grid; gap: 1rem; margin-top: 12px; }
 

@@ -259,6 +259,81 @@
     return map;
   }
 
+  /*
+   * GET /apisite/thumbnails/v1/users/avatar
+   *
+   * The player-side twin of fetchThumbnails. Batched, and it answers with
+   * absolute Wanwood CDN URLs, so the results get rewritten through the
+   * proxy the same way item thumbnails are.
+   *
+   * Returns a Map of userId -> url. Ids the backend has no render for are
+   * simply absent from the map; callers decide what to show instead.
+   */
+  async function fetchUserThumbnails(ids, size = 150) {
+    const wanted = [...new Set(ids.map(Number).filter(Number.isSafeInteger))];
+    const map = new Map();
+    if (!wanted.length) return map;
+
+    /* The endpoint takes a comma list; chunk it so one dead id or an
+     * over-long URL cannot take out the whole board. */
+    const CHUNK = 25;
+    const chunks = [];
+    for (let at = 0; at < wanted.length; at += CHUNK) {
+      chunks.push(wanted.slice(at, at + CHUNK));
+    }
+
+    await mapLimit(chunks, 4, async chunk => {
+      try {
+        const query = new URLSearchParams({
+          userIds: chunk.join(','),
+          size: `${size}x${size}`,
+          format: 'Png',
+        });
+        const result = await fetchJson(
+          `${API_BASE}/apisite/thumbnails/v1/users/avatar?${query}`);
+        const rows = Array.isArray(result.data) ? result.data : [];
+        rows.forEach(row => {
+          const id = Number(row.targetId ?? row.userId);
+          const url = typeof row.imageUrl === 'string' ? row.imageUrl : '';
+          if (Number.isSafeInteger(id) && url) map.set(id, proxied(url));
+        });
+      } catch (error) {
+        /* Leave this chunk out of the map - the caller falls back. */
+      }
+    });
+
+    return map;
+  }
+
+  /*
+   * GET /apisite/api/users/{id}
+   *
+   * Returns {Id, Username, ...}. A missing account answers with
+   * {"errors":[...]} and a 200, so the shape has to be checked rather than
+   * the status code. Resolves to null for anything that is not a real user.
+   */
+  async function getUserById(id, { retries = 2 } = {}) {
+    const userId = Number(id);
+    if (!Number.isSafeInteger(userId) || userId <= 0) return null;
+
+    /* Retried for the same reason as getCollectiblesSummary: a Cloudflare 502
+     * is not evidence that the account is missing. */
+    for (let attempt = 0; attempt <= retries; attempt += 1) {
+      try {
+        const result = await fetchJson(`${API_BASE}/apisite/api/users/${userId}`);
+        if (!isPlainObject(result) || Array.isArray(result.errors)) return null;
+        const name = String(result.Username ?? result.username ?? '').trim();
+        /* Deleted/never-created ids come back with a literal "?" username. */
+        if (!name || name === '?') return null;
+        return { id: userId, name };
+      } catch (error) {
+        if (attempt === retries) return null;
+        await new Promise(resolve => setTimeout(resolve, 400 * (attempt + 1)));
+      }
+    }
+    return null;
+  }
+
   /* Rewrite an absolute Wanwood URL so it travels through the proxy. */
   function proxied(url) {
     try {
@@ -385,6 +460,49 @@
     return collected;
   }
 
+  /*
+   * One page of the same collectibles endpoint, kept for callers that need
+   * the envelope rather than the rows - the leaderboard ranks on `totalRap`,
+   * which getCollectibles() throws away.
+   *
+   * This is deliberately a single request per player: the board scans the
+   * whole user range, so a paginating call here would multiply into hundreds
+   * of round trips through the proxy.
+   *
+   * Resolves to null when the player does not exist or has nothing.
+   */
+  async function getCollectiblesSummary(userId, { pageLimit = 100, retries = 2 } = {}) {
+    const id = Number(userId);
+    if (!Number.isSafeInteger(id) || id <= 0) return null;
+
+    const query = new URLSearchParams({ limit: String(pageLimit), sortOrder: 'Asc' });
+    const url = `${API_BASE}/apisite/inventory/v1/users/${id}/assets/collectibles?${query}`;
+
+    /* Wanwood sits behind Cloudflare and throws the occasional 502 under
+     * load. A caller scanning the whole user range would read that as "this
+     * player does not exist" and quietly drop them, so transport failures get
+     * a couple of backed-off retries. A well-formed error body is a real
+     * answer and returns null immediately. */
+    for (let attempt = 0; attempt <= retries; attempt += 1) {
+      try {
+        const result = await fetchJson(url);
+        if (!isPlainObject(result) || Array.isArray(result.errors)) return null;
+        const rows = Array.isArray(result.data) ? result.data : [];
+        return {
+          id,
+          rows,
+          itemCount: rows.length,
+          totalRap: toNumber(result.totalRap) ?? 0,
+          hasMore: Boolean(result.nextPageCursor),
+        };
+      } catch (error) {
+        if (attempt === retries) return null;
+        await new Promise(resolve => setTimeout(resolve, 400 * (attempt + 1)));
+      }
+    }
+    return null;
+  }
+
   window.WanwoodAPI = {
     API_BASE,
     SITE_BASE,
@@ -393,10 +511,13 @@
     getItemDetails,
     fetchRap,
     fetchThumbnails,
+    fetchUserThumbnails,
     thumbnailUrl,
     proxied,
+    getUserById,
     getUserByUsername,
     getCollectibles,
+    getCollectiblesSummary,
     mapLimit,
     isPlainObject,
   };

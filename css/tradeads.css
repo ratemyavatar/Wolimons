@@ -30,7 +30,7 @@ body.page-trades .trade_ads_container, body.page-tradead .trade_ads_container { 
 }
 body.page-trades .trade_ads_pagination_top, body.page-tradead .trade_ads_pagination_top { margin-top: 24px; margin-bottom: 20px; }
 body.page-trades .trade_ads_pagination_bottom, body.page-tradead .trade_ads_pagination_bottom { margin-top: 24px; }
-body.page-trades .trade_ads_empty_state, body.page-tradead .trade_ads_empty_state { min-height: 150px; margin-top: 24px; margin-bottom: 24px; display: flex; align-items: center; justify-content: center; text-align: center; background-color: rgb(36, 38, 42); }
+body.page-trades .trade_ads_empty_state, body.page-tradead .trade_ads_empty_state, body.page-admin .trade_ads_empty_state { min-height: 150px; margin-top: 24px; margin-bottom: 24px; display: flex; align-items: center; justify-content: center; text-align: center; background-color: rgb(36, 38, 42); }
 body.page-trades .trade_ad_header, body.page-tradead .trade_ad_header { background-color: rgb(28, 30, 34); }
 body.page-trades .ad_creator_pfp, body.page-tradead .ad_creator_pfp { margin-top: 4px; height: 38px; width: 38px; border-radius: 1px; }
 @media (max-width: 529px) {
@@ -254,12 +254,12 @@ body.page-trades .trade_ad_locked_notice {
 }
 
 /* The picker list inside the create modal. */
-body.page-trades .trade_ad_picker_results {
+body.page-trades .trade_ad_picker_results, body.page-admin .trade_ad_picker_results {
   max-height: 320px;
   overflow-y: auto;
 }
 
-body.page-trades .trade_ad_picker_row {
+body.page-trades .trade_ad_picker_row, body.page-admin .trade_ad_picker_row {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -269,8 +269,8 @@ body.page-trades .trade_ad_picker_row {
   color: #e9ecef;
 }
 
-body.page-trades .trade_ad_picker_row:hover:hover { background-color: rgb(52, 58, 64); }
-body.page-trades .trade_ad_picker_row img img { width: 44px; height: 44px; border-radius: 4px; background-color: rgb(43, 47, 51); }
+body.page-trades .trade_ad_picker_row:hover:hover, body.page-admin .trade_ad_picker_row:hover:hover { background-color: rgb(52, 58, 64); }
+body.page-trades .trade_ad_picker_row img, body.page-admin .trade_ad_picker_row img { width: 44px; height: 44px; border-radius: 4px; background-color: rgb(43, 47, 51); }
 
 /* Tag chips in the request composer. */
 body.page-trades .trade_ad_tag_option {

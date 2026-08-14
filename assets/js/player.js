@@ -19,6 +19,7 @@
 
   const API = window.WanwoodAPI;
   const VALUES = window.WolimonsValues;
+  const BADGES = window.WolimonsBadges;
 
   /* Resale-data is one request per unique item. Inventories are small on this
    * revival, but a whale with 100+ uniques should not open 100 sockets. */
@@ -72,52 +73,93 @@
   }
 
   /* ------------------------------------------------------------------ */
-  /* Name badges                                                         */
+  /* Name                                                                */
   /* ------------------------------------------------------------------ */
 
   /*
-   * Exactly two badges can ever appear beside the name:
-   *
-   *   verified   - only when the API reports the account as verified
-   *   wanwoodian - the Certified Wanwoodian badge
-   *
-   * Both are the artwork committed at the repo root, scaled down into
-   * /img/badges/. Nothing else is rendered here; leaderboard rank badges
-   * deliberately do not carry over to the profile.
+   * Nothing is appended to the name. Badges are not decorations that come
+   * with having an account - they live in the WoliBadges row below the
+   * stats, and only appear once the player has actually earned them.
    */
-  const BADGES = {
-    verified: {
-      id: 'verified',
-      label: 'Verified',
-      src: '/img/badges/verified.png',
-    },
-    wanwoodian: {
-      id: 'wanwoodian',
-      label: 'Certified Wanwoodian',
-      src: '/img/badges/wanwoodian.png',
-    },
-  };
-
-  function badgeNode(badge) {
-    const wrap = text('span', 'lb_badge');
-    const image = document.createElement('img');
-    image.src = badge.src;
-    image.alt = badge.label;
-    image.width = 16;
-    image.height = 16;
-    image.loading = 'lazy';
-    wrap.appendChild(image);
-    wrap.appendChild(text('span', 'badge-tt', badge.label));
-    wrap.setAttribute('title', badge.label);
-    return wrap;
-  }
-
-  function renderName(name, { verified = false, wanwoodian = false } = {}) {
+  function renderName(name) {
     if (!nameHeading) return;
     nameHeading.textContent = '';
     nameHeading.appendChild(text('span', null, name));
-    if (verified) nameHeading.appendChild(badgeNode(BADGES.verified));
-    if (wanwoodian) nameHeading.appendChild(badgeNode(BADGES.wanwoodian));
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* WoliBadges row                                                      */
+  /* ------------------------------------------------------------------ */
+
+  /*
+   * The row is empty until the player meets a badge's requirement. The
+   * catalog and the earning rules both live in assets/js/badges.js, which is
+   * the same data /badges is documented from, so a badge can never appear
+   * here that is not on that page.
+   *
+   * Layout mirrors the badge strip used elsewhere on the site: one clipped
+   * 68px line by default, expanded to the full grid by the chevron when there
+   * are more badges than fit.
+   */
+  const BADGE_ROW_HEIGHT = 68;
+
+  function renderBadges(earned) {
+    const section = el('badges_section');
+    const container = el('badges_container');
+    const expand = el('badges_expand');
+    if (!section || !container) return;
+
+    container.textContent = '';
+
+    /* No badges earned: the whole section stays out of the document flow
+     * rather than leaving an empty bar behind. */
+    if (!earned.length) {
+      section.classList.add('d-none');
+      if (expand) expand.classList.add('d-none');
+      return;
+    }
+
+    earned.forEach(badge => {
+      const icon = BADGES && BADGES.iconNode ? BADGES.iconNode(badge.id) : null;
+      const node = icon || text('span', 'roli_badge');
+      node.setAttribute('title', badge.name);
+      node.setAttribute('aria-label', badge.name);
+      container.appendChild(node);
+    });
+
+    section.classList.remove('d-none');
+
+    /* scrollHeight is only meaningful once the row is laid out, so the
+     * chevron is offered only when the badges genuinely overflow one line. */
+    if (!expand) return;
+    const overflows = container.scrollHeight > BADGE_ROW_HEIGHT + 1;
+    expand.classList.toggle('d-none', !overflows);
+    if (!overflows) {
+      expand.classList.remove('expanded');
+      expand.setAttribute('aria-expanded', 'false');
+      container.style.height = `${BADGE_ROW_HEIGHT}px`;
+    }
+  }
+
+  /* Re-scores the current inventory and redraws the row. Safe to call more
+   * than once - the profile does, because the item supply figures only
+   * arrive with resale-data, after the inventory has already rendered. */
+  function refreshBadges() {
+    if (!BADGES) return;
+    renderBadges(BADGES.evaluate({
+      items: state.items,
+      verified: state.verified,
+    }));
+  }
+
+  function toggleBadgeRow() {
+    const container = el('badges_container');
+    const expand = el('badges_expand');
+    if (!container || !expand) return;
+    const expanded = expand.classList.toggle('expanded');
+    expand.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+    expand.setAttribute('aria-label', expanded ? 'Show fewer badges' : 'Show all badges');
+    container.style.height = expanded ? 'auto' : `${BADGE_ROW_HEIGHT}px`;
   }
 
   /* ------------------------------------------------------------------ */
@@ -220,6 +262,7 @@
   const state = {
     items: [],
     userId: null,
+    verified: false,
   };
 
   function renderInventory() {
@@ -598,15 +641,12 @@
       || '';
     const name = rawName && rawName !== '?' ? String(rawName).trim() : `User ${userId}`;
 
-    /* Only ever these two badges. Verified is strictly what the API says;
-     * Certified Wanwoodian is worn by every real account, so it is withheld
-     * when neither endpoint could confirm the player exists. */
-    const exists = Boolean(profile || (legacy && rawName && rawName !== '?'));
-    renderName(name, {
-      verified: Boolean(profile && profile.isVerified === true),
-      wanwoodian: exists,
-    });
+    renderName(name);
     document.title = `${name} - Wanwood Player Profile - Wolimons`;
+
+    /* Fed to the badge rules once the inventory is in. Verified is strictly
+     * what the API reports - nothing here is granted for existing. */
+    state.verified = Boolean(profile && profile.isVerified === true);
 
     if (avatarImage) {
       const url = avatars && avatars.get ? avatars.get(userId) : null;
@@ -681,6 +721,13 @@
         serials: row.serialNumber ? [Number(row.serialNumber)] : [],
         limited: true,
         limitedUnique: Boolean(row.serialNumber),
+        /* Both only matter to the badge rules: assetTypeId backs
+         * Accessorized, and `available` (copies in existence) backs the
+         * rarity and percentage-of-copies badges. serialCount is the
+         * inventory row's own guess; resale-data overwrites it below with
+         * the authoritative stock figure when it answers. */
+        assetTypeId: Number.isFinite(Number(row.assetTypeId)) ? Number(row.assetTypeId) : null,
+        available: Number(row.serialCount) || null,
         thumbnail: null,
         history: [],
       });
@@ -706,6 +753,11 @@
     }
 
     renderInventory();
+
+    /* First pass, from the inventory alone. Rules that need each item's
+     * total supply are still working with the row's serialCount here; the
+     * pass after resale-data lands corrects them. */
+    refreshBadges();
 
     /* Thumbnails are batched, so this is one request for the whole grid. */
     API.fetchThumbnails(state.items.map(item => item.id))
@@ -745,6 +797,10 @@
       if (Number.isFinite(data.recentAveragePrice) && data.recentAveragePrice !== null) {
         item.rap = data.recentAveragePrice;
       }
+      /* assetStock is how many copies of the item exist, which is what the
+       * rarity and percentage-of-copies badges are measured against. */
+      const stock = Number.isFinite(data.assetStock) ? data.assetStock : null;
+      if (stock !== null && stock > 0) item.available = stock;
     });
 
     setText('player_total_sales', formatNumber(sales));
@@ -754,10 +810,23 @@
     chartState.series = buildSeries(state.items);
     renderChart();
     renderInventory();
+
+    /* Re-run now that supply figures are real. */
+    refreshBadges();
   }
 
   if (sortSelect) sortSelect.addEventListener('change', renderInventory);
   if (stackToggle) stackToggle.addEventListener('change', renderInventory);
+
+  const badgeExpand = el('badges_expand');
+  if (badgeExpand) {
+    badgeExpand.addEventListener('click', toggleBadgeRow);
+    badgeExpand.addEventListener('keydown', event => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      event.preventDefault();
+      toggleBadgeRow();
+    });
+  }
 
   load();
 })();

@@ -69,7 +69,6 @@
   const cards = document.getElementById('lb_cards');
   const statusBox = document.getElementById('lb_status');
   const searchBox = document.getElementById('lb_search');
-  const updatedBox = document.getElementById('lb_updated');
   const paginationTop = document.getElementById('pagination_control_top');
   const paginationBottom = document.getElementById('pagination_control_bottom');
 
@@ -536,7 +535,7 @@
 
     const cached = readCache();
     if (cached) {
-      publish(cached.players, cached.at);
+      publish(cached.players);
       return;
     }
 
@@ -550,7 +549,7 @@
       return;
     }
 
-    publish(players, Date.now());
+    publish(players);
 
     /* Avatars come last: the board is readable without them, and this way a
      * slow thumbnail service never holds up the rankings. */
@@ -559,17 +558,11 @@
     writeCache(ranked);
   }
 
-  /* Sort, number, draw, and stamp - shared by the live scan and the cache. */
-  function publish(players, at) {
+  /* Sort, number, and draw - shared by the live scan and the cache. */
+  function publish(players) {
     ranked = [...players].sort(byRank);
     ranked.forEach((player, index) => { player.rank = index + 1; });
     applyFilter();
-
-    if (updatedBox) {
-      const stamp = new Date(at).toLocaleString('en-US',
-        { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
-      updatedBox.textContent = `Last update: ${stamp}.`;
-    }
   }
 
   if (document.readyState === 'loading') {

@@ -8,6 +8,7 @@
  * item values and staff roles.
  *
  *   GET  /api/values                    the whole value table, for values.js
+ *   GET  /api/changes?limit=&since=     the value change log, for /valuechanges
  *   GET  /api/roles                     the roster, so the site can show ranks
  *   GET  /api/me?name=<username>        what one account is allowed to do
  *   POST /api/login       { key }                    -> owner session token
@@ -135,6 +136,20 @@ async function handle(req, res, url, readBody) {
       return true;
     }
 
+    if (req.method === 'GET' && route === '/api/changes') {
+      /*
+       * The value change log, newest first. This is the whole of
+       * /valuechanges: the site records every edit made through the admin
+       * panel, so the feed is a real history rather than a guess at one.
+       */
+      const rows = await store.changes({
+        limit: url.searchParams.get('limit') || 200,
+        since: url.searchParams.get('since') || 0,
+      });
+      send(res, 200, { ok: true, changes: rows });
+      return true;
+    }
+
     if (req.method === 'GET' && route === '/api/roles') {
       const snapshot = await store.snapshot();
       send(res, 200, {
@@ -167,6 +182,7 @@ async function handle(req, res, url, readBody) {
         branch: store.config.branch,
         items: Object.keys(snapshot.values).length,
         staff: Object.keys(snapshot.roles).length,
+        changes: (snapshot.changes || []).length,
       });
       return true;
     }

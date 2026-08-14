@@ -3,9 +3,10 @@
 /*
  * Wolimons data store.
  *
- * Holds the two things Wanwood does not know about and never will: the item
- * values (value / demand / trend / categories, all assigned by hand) and the
- * staff roles (who is allowed to assign them).
+ * Holds the three things Wanwood does not know about and never will: the item
+ * values (value / demand / trend / categories, all assigned by hand), the
+ * staff roles (who is allowed to assign them), and the log of every value
+ * change ever made, which is what /valuechanges reads.
  *
  * ---------------------------------------------------------------------------
  * WHERE IT IS KEPT
@@ -53,7 +54,17 @@ const TRENDS = ['Raising', 'Stable', 'Lowering', 'Unstable', 'Fluctuating'];
 const CATEGORIES = ['rare', 'projected', 'tablet', 'unobtainable', 'hoarded'];
 const ROLES = ['owner', 'value_manager', 'staff'];
 
-const EMPTY = { version: 1, updatedAt: 0, roles: {}, values: {} };
+/* The fields whose edits are worth telling the site about. Categories are
+ * deliberately excluded: they are internal bookkeeping rather than news. */
+const CHANGE_FIELDS = ['value', 'demand', 'trend'];
+
+/* How many past changes to keep. The log lives in the same JSON file that is
+ * committed on every write, so it cannot grow without bound - a few thousand
+ * entries is a deep history for a site this size and still a small file. The
+ * oldest fall off the end. */
+const CHANGE_LIMIT = Number(process.env.CHANGE_LIMIT || 2000);
+
+const EMPTY = { version: 1, updatedAt: 0, roles: {}, values: {}, changes: [] };
 
 let data = structuredClone(EMPTY);
 let sha = null;          /* blob sha of the file as we last saw it */
@@ -130,6 +141,34 @@ function normalize(raw) {
         updatedAt: Number(entry.updatedAt) || 0,
       };
     }
+  }
+
+  if (Array.isArray(raw.changes)) {
+    out.changes = raw.changes
+      .map(entry => {
+        if (!entry || typeof entry !== 'object') return null;
+        const assetId = Number(entry.id);
+        if (!Number.isSafeInteger(assetId) || assetId <= 0) return null;
+        if (!CHANGE_FIELDS.includes(entry.field)) return null;
+        const at = Number(entry.at) || 0;
+        if (!at) return null;
+        return {
+          id: assetId,
+          field: entry.field,
+          /* old/new are stored as-is: a number for value, a string for demand
+           * and trend, null for "was not set". Their meaning depends on the
+           * field, and the page renders each field in its own way. */
+          old: entry.old === undefined ? null : entry.old,
+          new: entry.new === undefined ? null : entry.new,
+          by: String(entry.by || ''),
+          at,
+        };
+      })
+      .filter(Boolean)
+      /* Newest first, which is the order /valuechanges wants and the order
+       * the trim below assumes. */
+      .sort((a, b) => b.at - a.at)
+      .slice(0, CHANGE_LIMIT);
   }
 
   return out;
@@ -346,9 +385,49 @@ async function setValue({ id, value, demand, trend, categories, rare, updatedBy 
   if (rare === true && !next.categories.includes('rare')) next.categories.push('rare');
   if (rare === false) next.categories = next.categories.filter(name => name !== 'rare');
 
+  /*
+   * What actually changed, for /valuechanges.
+   *
+   * Only a real difference is logged - saving a row without touching the
+   * value must not put "Value Changed: 500 -> 500" on the front of the feed.
+   * A brand new row counts as a change from nothing, which is how a first
+   * valuation shows up.
+   */
+  const at = Date.now();
+  const entries = [];
+  CHANGE_FIELDS.forEach(field => {
+    const before = existing ? existing[field] ?? null : null;
+    const after = next[field] ?? null;
+    /* Value starts at 0 rather than null, so an untouched new row would
+     * otherwise log a spurious 0 -> 0. */
+    if (before === after) return;
+    if (field === 'value' && !before && !after) return;
+    entries.push({ id: assetId, field, old: before, new: after, by: next.updatedBy, at });
+  });
+
   return mutate(`Update Wolimons values for item ${assetId}`, current => {
     current.values[String(assetId)] = next;
+    /* Newest first, oldest off the end. */
+    if (entries.length) {
+      current.changes = [...entries, ...(current.changes || [])].slice(0, CHANGE_LIMIT);
+    }
   });
+}
+
+/*
+ * The change log, newest first.
+ *
+ * `since` filters to entries newer than a timestamp, so a page that is
+ * already showing the feed can ask for just what it is missing.
+ */
+async function changes({ limit = 200, since = 0 } = {}) {
+  await load();
+  const cap = Math.min(Math.max(Number(limit) || 0, 1), CHANGE_LIMIT);
+  const after = Number(since) || 0;
+  return (data.changes || [])
+    .filter(entry => entry.at > after)
+    .slice(0, cap)
+    .map(entry => ({ ...entry }));
 }
 
 module.exports = {
@@ -361,5 +440,8 @@ module.exports = {
   roleOf,
   setRole,
   setValue,
+  changes,
+  CHANGE_FIELDS,
+  CHANGE_LIMIT,
   config: { repo: GITHUB_REPO, branch: GITHUB_BRANCH, path: DATA_PATH, canWrite: Boolean(GITHUB_TOKEN) },
 };

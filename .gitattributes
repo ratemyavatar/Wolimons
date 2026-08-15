@@ -1,9 +1,34 @@
 # Batch files must keep CRLF line endings. cmd.exe can mis-parse a .bat
-# saved with bare LF - labels and block structure are the usual casualties -
-# so these are marked binary-ish for line-ending purposes: git stores them
-# exactly as they are and never converts them on checkout.
+# saved with bare LF - labels and block structure are the usual casualties.
 *.bat text eol=crlf
 *.cmd text eol=crlf
 
-# Everything else stays LF in the repo.
-* text=auto
+# Shell scripts must keep LF, even if someone edits them on Windows.
+*.sh text eol=lf
+
+# The saved page snapshots are MHTML: mixed text and base64-encoded binary
+# with CRLF line endings baked in. Git must not touch their line endings, or
+# every checkout rewrites them and the embedded images break. They have no
+# file extension, so they are listed by name.
+"Colimons - Player Profile" -text
+"Colimons - Trade Calculator" -text
+"Dominus Empyreus | Roblox Limited Item - Rolimon's" -text
+"KoroBadges - Koromon's" -text
+"Koromon's" -text
+"Koromon's Account Verification" -text
+"Koromon's Item Catalog" -text
+"Leaderboard - Colimons" -text
+"Richest Pekora Players Leaderboard - Koromon's" -text
+"Roblox Trade Calculator | Rolimon's" -text
+"Roblox | Roblox Player Profile - Rolimon's" -text
+"Site Preferences - Koromon's" -text
+"Tradeads.mhtml.roblox trade ads _ rolimon's" -text
+"Tradeadsdetailpage.roblox trade ad 91569542 - rolimon's" -text
+*.mhtml -text
+
+# Images and the vendored library are binary.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary

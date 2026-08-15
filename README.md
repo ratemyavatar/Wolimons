@@ -1,169 +1,204 @@
 # Wolimons
 
-A Wanwood trading site — item catalog, trade calculator, badges and leaderboards.
+My Wanwood trading site. Item catalog, values, trade ads, leaderboards,
+badges, trade calculator.
 
-Static HTML/CSS/JS. There's no build step and no framework.
+It's plain HTML, CSS and JavaScript. No build step, no npm install, nothing
+to compile. The only thing you need on the server is Node.
 
-## Running locally
+---
 
-The pages use root-absolute paths (`/css/…`, `/assets/…`), so opening
-`index.html` from the file manager will look unstyled. It has to be served over
-HTTP from the repo root:
+## Download it (read this bit)
 
-```bash
-git clone -b arena/019fff2c-wolimons https://github.com/ratemyavatar/Wolimons.git
-cd Wolimons
-./serve.sh
-```
+**The site is on the `arena/019fff2c-wolimons` branch, not `main`.**
 
-Then open <http://localhost:8080/>. Pass a port to use a different one:
-`./serve.sh 3000`.
+`main` is old and doesn't have any of this. If you download the wrong one
+you'll get a nearly empty folder and nothing will work. So:
 
-In Termux, install the deps first with `pkg install -y git python`.
+1. Go to the repo on GitHub.
+2. Click the **branch dropdown** at the top left (it says `main`).
+3. Pick **`arena/019fff2c-wolimons`**.
+4. Now click the green **Code** button → **Download ZIP**.
 
-`serve.sh` serves the pages only, and is a shell script, so it needs a
-Unix-like shell. To run the pages **and** the API from one process — which is
-what you want on a server, and works on Windows as-is:
-
-```bash
-cd proxy
-cp .env.example .env      # then set SERVE_STATIC=1 and your ADMIN_KEY
-node server.js
-```
-
-That needs Node 18+ and installs nothing. For a Windows VPS, and for opening
-the site on your phone at the server's IP, see
-[HOSTING-WINDOWS.md](HOSTING-WINDOWS.md).
-
-### Opening it on other devices
-
-`serve.sh` listens on every network interface, so anything on the same Wi-Fi
-can reach it. On startup it prints the address to use:
+Check you got the right one before going further. The ZIP is about **36 MB**
+and is called:
 
 ```
-  On this device:   http://localhost:8080/
-  On the network:   http://192.168.1.42:8080/
+Wolimons-arena-019fff2c-wolimons.zip
 ```
 
-Type that second address into the other device's browser. Some notes:
+If your file is tiny, you downloaded `main`. Go back and pick the branch
+again.
 
-- Both devices have to be on the **same Wi-Fi network**. A phone on mobile
-  data won't reach it, and many public/guest networks block devices from
-  talking to each other.
-- The address is the *host's* IP, and it usually changes when it reconnects
-  to the network. Re-run `serve.sh` to see the current one.
-- Keep the terminal open — closing it, or letting the phone sleep hard
-  enough to suspend Termux, stops the server. `termux-wake-lock` helps.
-- It's plain HTTP on your LAN, with no authentication. Fine for family on
-  your home Wi-Fi; don't port-forward it to the open internet.
+### Unzip it on the VPS
 
-Item and player data still comes from Wanwood over the internet (see below),
-so the other devices need a working connection for pages to populate.
+Right-click the ZIP → **Extract All**.
 
-Pages:
+Watch out for this: extracting gives you a folder called
+`Wolimons-arena-019fff2c-wolimons`, and Windows likes to put it *inside*
+another folder with the same name. You want the one that has `index.html`
+and the `windows` folder directly inside it.
 
-- `/` — homepage
-- `/catalog/` — item catalog
-- `/item/?id=<assetId>` — item page (works for any item, not just Dominus)
-- `/leaderboard/` — richest players
-- `/players/` — player search
-- `/player/?id=<userId>` — player profile
-- `/valuechanges/` — recent value changes
-- `/projecteds/` — items flagged as projected
-- `/luckycat/` — the daily Lucky Cat draw
-- `/trades/` — trade ads
-- `/tradead/?id=<adId>` — a single trade ad
-- `/playertrades/?id=<userId>` — one player's trade ads
-- `/tradecalculator/` — trade calculator
-- `/badges/` — badges
-- `/verify/` — account verification
-- `/preferences/` — site preferences
-- `/admin/` — value/role administration (needs the admin key)
+Rename it to `C:\Wolimons` to keep things simple. Everything below assumes
+that path.
 
-## Item data / the API proxy
-
-Item and player data comes from Wanwood. Wanwood blocks direct requests from
-browsers (no CORS headers, plus bot filtering), so requests go through a small
-proxy.
-
-The live proxy is <https://wolimons.onrender.com>, already set in
-[`assets/js/config.js`](assets/js/config.js). To use a different one, change:
-
-```js
-const DEFAULT_API_BASE = 'https://your-proxy.onrender.com';
-```
-
-A ready-to-deploy proxy is in [`proxy/`](proxy/) with
-[setup instructions for Render](proxy/README.md). If a friend already runs one,
-just paste their URL into `config.js`. Every endpoint the site needs is a
-plain `GET`, so a simple forwarding proxy is enough — see
-[the endpoint list](proxy/README.md#using-a-friends-existing-proxy).
-
-To try a proxy without editing files, run in the browser console:
-
-```js
-localStorage.setItem('wolimons_api_base', 'https://your-proxy.onrender.com')
-location.reload()
-```
-
-## Values, demand and trend
-
-Wanwood reports prices and RAP, but it has no concept of an item's *value*, its
-*demand* or its *trend* — those are community judgements, the same way
-Rolimon's does it. They're set by hand in
-[`assets/js/values.js`](assets/js/values.js) and nowhere else; nothing is
-guessed from a price field.
-
-Every item starts unset: value `0`, demand and trend blank. To set one, add a
-row keyed by the Wanwood asset id (the number in a catalog URL —
-`wanwoo.xyz/catalog/1581/Cthulhu` → `1581`):
-
-```js
-const ITEMS = {
-  1581: 4500,                    // just a value
-  4031: {
-    value: 12000,
-    demand: 'High',              // High | Decent | Low | Terrible
-    trend: 'Raising',            // Raising | Stable | Lowering | Unstable | Fluctuating
-    categories: ['rare'],        // rare | projected | tablet | unobtainable | hoarded
-  },
-};
-```
-
-Save and reload — there's no build step. The catalog's **Demand**, **Trend**
-and **Categories** filters read straight from this table, and anything left out
-is filtered as "Unassigned". `valued` isn't written by hand: an item counts as
-valued once its value is above 0.
-
-## Layout
+You should end up with:
 
 ```
-serve.sh              local + LAN dev server
+C:\Wolimons\
+    index.html
+    windows\setup.bat
+    proxy\
+    assets\
+    ...
+```
+
+If `C:\Wolimons\index.html` doesn't exist, you've got the folder nesting
+wrong. Go up or down a level until it does.
+
+---
+
+## Set it up
+
+Open `C:\Wolimons\windows`, then **right-click `setup.bat` → Run as
+administrator**.
+
+It has to be "Run as administrator" or it can't create the service or open
+the firewall. It'll tell you off if you forget.
+
+Then just work down the menu:
+
+| Option | What it does |
+|---|---|
+| **1** | Sets everything up. Makes your admin password, writes the settings, opens the firewall. |
+| **2** | Runs it in the window so you can check it works. |
+| **3** | Installs it as a service so it stays running after you log off. |
+| **4** | Puts it on my Cloudflare domain with proper HTTPS. |
+| **5** | Checks everything and tells you what's broken. |
+| **6** | Changes the admin password. |
+| **7** | Uninstalls the services. |
+
+**Do 1, then 3, then 4.** Option 2 is only for having a quick look.
+
+It only asks me four things:
+
+- **Admin password** — press Enter and it makes a strong one for me.
+  **Write it down when it shows it.** It doesn't show it again.
+- **Port** — press Enter for 8080.
+- **My domain** — only in option 4, like `wolimons.example.com`.
+- **Cloudflare login** — option 4 opens a browser to sign in.
+
+Everything else it does on its own: downloads NSSM and cloudflared, the
+firewall rule, both services, the tunnel, and the settings that go with it.
+
+### Node has to be installed first
+
+If setup.bat says Node is missing, get the **LTS** installer from
+<https://nodejs.org/>, run it with all the defaults, then **close the window
+and open setup.bat again**. The PATH only updates in new windows, so it
+won't see Node until you reopen it.
+
+Node 18 or newer. The script checks.
+
+---
+
+## Getting to it
+
+- **On the VPS itself:** <http://localhost:8080/>
+- **From my phone, before Cloudflare:** `http://<vps-ip>:8080/` —
+  type `http://` not `https://`, and don't forget the `:8080`.
+- **After option 4:** `https://mydomain.com/`
+
+`http://localhost:8080/` on the VPS always works regardless of Cloudflare.
+If that loads and my domain doesn't, the problem is the tunnel or DNS, not
+the site.
+
+---
+
+## If something breaks
+
+Run **option 5** first. It checks each part and prints the site's own status.
+
+Full troubleshooting is in [HOSTING-WINDOWS.md](HOSTING-WINDOWS.md), but the
+usual ones:
+
+| What's happening | Why |
+|---|---|
+| Downloaded folder is nearly empty | Got `main` instead of the branch. |
+| Pages look unstyled | Opened `index.html` by double-clicking. It has to be served — use setup.bat. |
+| "Not recognised as a command" | Node isn't installed, or the window was open before installing it. |
+| Site works on VPS, not on phone | Firewall. Option 1 opens it, but the VPS host's own control panel has a separate firewall. |
+| Changed `.env`, nothing happened | Needs a restart. Option 3 reinstalls, or `nssm restart Wolimons`. |
+| Error 521 from Cloudflare | Cloudflare doesn't forward ports. See HOSTING-WINDOWS.md §10.1. |
+| Locked out of admin, says 429 | Too many wrong passwords. Wait 15 min or restart the service. |
+
+Logs are in `C:\Wolimons\logs\wolimons.log`.
+
+---
+
+## Where things are
+
+```
+windows\setup.bat     the installer - start here
+HOSTING-WINDOWS.md    the long version, and troubleshooting
+
 index.html            homepage
-admin/                value/role administration
-badges/               badges
-catalog/              item catalog
-item/                 item page (any item, by ?id=)
-leaderboard/          richest players
-luckycat/             daily Lucky Cat draw
-player/               player profile
-players/              player search
-playertrades/         one player's trade ads
-preferences/          site preferences
-projecteds/           projected items
-tradead/              a single trade ad
-tradecalculator/      trade calculator
-trades/               trade ads
-valuechanges/         recent value changes
-verify/               account verification
-assets/js/config.js   API base URL (points at the Render proxy)
-assets/js/            page scripts
-assets/vendor/        Highcharts Stock 10.3.3 (the item/player history graph)
-css/                  stylesheets
-data/                 committed value/role data read by the proxy
-img/                  images
-proxy/                deployable CORS/anti-bot proxy + values API
-tools/                maintenance scripts (badge art/consistency)
+catalog\              item catalog
+item\                 item page, /item/?id=<assetId>
+leaderboard\          richest players
+players\              player search
+player\               player profile, /player/?id=<userId>
+valuechanges\         recent value changes
+projecteds\           projected items
+luckycat\             daily Lucky Cat
+trades\               trade ads
+tradead\              one trade ad
+playertrades\         one player's trade ads
+tradecalculator\      trade calculator
+badges\               badges
+verify\               account verification
+preferences\          site preferences
+admin\                admin panel - needs the password
+
+proxy\                the server. Serves the pages AND the API.
+proxy\.env            my settings. Made by setup.bat. Never goes on GitHub.
+proxy\data\           my saved values live here once I start setting them.
+data\                 the starting copy of values/roles
+assets\               images, scripts, the chart library
+css\                  stylesheets
+snapshots\            the old saved pages I rebuilt this from. Reference
+                      only, nothing loads them. Safe to delete.
+serve.sh              Linux/Termux only, pages without the API
+tools\                maintenance scripts
 ```
 
-Wolimons is not affiliated with Roblox Corporation or Rolimon's.
+Most of the 36 MB is `snapshots\`. The site itself is small.
+
+---
+
+## Setting values
+
+Values, demand and trend aren't from Wanwood — Wanwood only has prices and
+RAP. Value is a judgement call, so I set it myself in the admin panel.
+
+Everything starts at value 0 until I set it. Sign in at `/admin/` with the
+password setup.bat gave me.
+
+Saved values go to `proxy\data\wolimons-data.json` on the server. **That file
+is the one thing that can't be re-downloaded** — back it up. There's a
+`.bak` next to it from the previous save, and HOSTING-WINDOWS.md §9 has a
+scheduled backup script.
+
+---
+
+## Notes
+
+- Item and player data comes from Wanwood (`wanwoo.xyz`). The proxy handles
+  it because Wanwood blocks browsers from calling it directly. The server
+  needs internet access for pages to fill in.
+- `proxy\.env` holds my admin password and is deliberately not in the ZIP or
+  on GitHub. setup.bat creates it.
+- Re-running setup.bat is safe. It replaces the services instead of erroring,
+  and keeps a `.env.old` if it overwrites settings.
+
+Not affiliated with Roblox or Rolimon's.

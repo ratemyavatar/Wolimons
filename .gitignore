@@ -1,0 +1,17 @@
+# Dependencies (the site itself has no build step; this is for proxy/ and tools/)
+node_modules/
+
+# Editor / OS noise
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
+# Local overrides and secrets — the proxy reads ADMIN_KEY / GITHUB_TOKEN from env
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*

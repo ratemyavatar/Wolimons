@@ -17,25 +17,41 @@
  * up, the choice is DERIVED, in the browser, from two things both readers
  * already share:
  *
- *   - which six-hour period we are in (UTC), and
- *   - the catalog and its owner lists, as Wanwood reports them right now.
+ *   - which day we are in (UTC), and
+ *   - the tracked player roster and their inventories, as Wanwood reports
+ *     them right now.
  *
- * The period number seeds a small deterministic hash. Every browser hashing
- * the same period against the same candidate list lands on the same copy, so
- * two people comparing screens see the same UAID, and nobody - including
- * whoever runs the site - can steer it. When the period rolls over the seed
- * changes and a different copy is drawn. That is a real, checkable rule; a
- * hardcoded "current item" would be a fabrication.
+ * The day number seeds a small deterministic hash. Every browser hashing the
+ * same day against the same candidate list lands on the same copy, so two
+ * people comparing screens see the same UAID, and nobody - including whoever
+ * runs the site - can steer it. At UTC midnight the seed changes and a
+ * different copy is drawn. That is a real, checkable rule; a hardcoded
+ * "current item" would be a fabrication.
+ *
+ * The order of the draw is user first:
+ *
+ *   1. Pick a random tracked player for today, from the shared roster in
+ *      player-roster.js - the same list /leaderboard and /players show, so
+ *      the winner is always somebody the site already knows about.
+ *   2. Pick a random limited out of THAT player's inventory.
+ *
+ * This is the way round the page is meant to work: the cat visits a trader,
+ * then blesses something they are holding. Doing it the other way - walking
+ * the catalog and then looking for an owner - biases the result towards
+ * whoever holds the most copies of common items.
+ *
+ * A player's own copy is where the UAID and serial come from, so the badge
+ * still hangs on one exact copy rather than on the item.
  *
  * The candidate pool is the honest one:
- *   - a limited that Wanwood will actually name an owner for (a private
- *     inventory means the copy cannot be found, so it cannot be the target),
- *   - not flagged projected in the value table,
+ *   - a player whose inventory Wanwood will actually show (a private
+ *     inventory returns nothing, so that player is skipped),
+ *   - a limited in it that is not flagged projected in the value table,
  *   - value at or below LUCKY_MAX_VALUE where a value has been set. An item
  *     nobody has valued is still eligible - value 0 means "not priced yet",
  *     never "worthless".
  *
- * If the API is unreachable, or no item passes, the page says so rather than
+ * If the API is unreachable, or nobody passes, the page says so rather than
  * showing a placeholder cat item.
  */
 (() => {
@@ -43,22 +59,24 @@
 
   const API = window.WanwoodAPI;
   const VALUES = window.WolimonsValues;
+  const ROSTER = window.WolimonsRoster;
 
-  /* How long one choice lasts. The real Rolimon's re-rolls at a random point
-   * inside a 4-24h window; a random re-roll time cannot be derived, and two
-   * browsers must agree, so the period here is fixed and the countdown is
-   * exact rather than approximate. */
-  const PERIOD_MS = 6 * 60 * 60 * 1000;
+  /* One choice per day, rolling over at UTC midnight. The real Rolimon's
+   * re-rolls at a random point inside a window; a random re-roll time cannot
+   * be derived, and two browsers must agree, so the period here is a fixed
+   * day and the countdown is exact rather than approximate. */
+  const PERIOD_MS = 24 * 60 * 60 * 1000;
 
   /* Items worth more than this are left out - the badge is meant to be
    * winnable in a trade, not to sit on the single most expensive limited on
    * the site forever. Only applied when a value has actually been set. */
   const LUCKY_MAX_VALUE = 50000;
 
-  /* How many items to consider per draw. The whole catalog is small, but the
-   * owner walk is one request per item, so the pool is capped: the period
-   * seed picks which slice of the shuffled catalog gets walked. */
-  const MAX_CANDIDATES = 12;
+  /* How many players to try per draw. Today's seed shuffles the roster and
+   * the cat walks down it until somebody's inventory is visible and holds an
+   * eligible limited; the cap stops a run of private inventories turning one
+   * page load into a scan of every tracked player. */
+  const MAX_CANDIDATE_PLAYERS = 15;
 
   /* A draw is good until its period ends anyway, so the cached copy is only
    * there to stop a reload re-walking every owner list. */
@@ -85,7 +103,7 @@
   };
 
   /* The catalog's slug, character for character the same as the one in
-   * catalog-card.js / deals.js / player.js, so links match across pages. */
+   * catalog-card.js / player.js, so links match across pages. */
   const slugify = value => String(value || 'unnamed')
     .replace(/'/g, '')
     .replace(/[^a-zA-Z0-9]+/g, '-')
@@ -104,8 +122,8 @@
   /* The period, and the seeded draw                                     */
   /* ------------------------------------------------------------------ */
 
-  /* Which six-hour block of UTC time we are in. Integer, shared by everyone
-   * whose clock is roughly right. */
+  /* Which UTC day we are in. Integer, shared by everyone whose clock is
+   * roughly right. */
   function periodIndex(now = Date.now()) {
     return Math.floor(now / PERIOD_MS);
   }
@@ -169,7 +187,7 @@
         return;
       }
       countdown.textContent =
-        `The Lucky Cat will choose a new item in ${remainingLabel(left)}`;
+        `The Lucky Cat will visit someone new in ${remainingLabel(left)}`;
     };
 
     tick();
@@ -260,12 +278,13 @@
       return;
     }
 
-    /* "Owned since" is the copy's own updated timestamp - when it last moved
-     * into the current inventory - not a guess and not a scan of ours. */
+    /* The collectibles feed says nothing about when a copy last moved, so
+     * there is no honest "Owned Since" to print. What it does say is how
+     * much the player is holding, which is a real number from the same
+     * response the copy came out of. */
     const stats = [];
-    const moved = choice.updated ? Date.parse(choice.updated) : NaN;
-    if (Number.isFinite(moved)) {
-      stats.push(['Owned Since', relativeTime(moved), '']);
+    if (Number.isFinite(choice.ownerItems)) {
+      stats.push(['Limiteds Held', formatNumber(choice.ownerItems), '']);
     }
 
     ownerBox.appendChild(statCard({
@@ -278,22 +297,6 @@
       gradient: false,
       stats,
     }));
-  }
-
-  /* The same wording tradeads-core.js uses, so ages read alike site-wide. */
-  function relativeTime(timestamp) {
-    const seconds = Math.max(0, Math.round((Date.now() - Number(timestamp)) / 1000));
-    const steps = [[60, 'second'], [60, 'minute'], [24, 'hour'], [7, 'day'], [4.348, 'week'], [12, 'month']];
-    let amount = seconds;
-    let unit = 'second';
-    for (let index = 0; index < steps.length; index += 1) {
-      const [size, name] = steps[index];
-      if (amount < size) { unit = name; break; }
-      amount = Math.floor(amount / size);
-      unit = steps[index + 1] ? steps[index + 1][1] : 'year';
-    }
-    const rounded = Math.max(1, Math.floor(amount));
-    return `${rounded} ${unit}${rounded === 1 ? '' : 's'} ago`;
   }
 
   /* ------------------------------------------------------------------ */
@@ -324,66 +327,94 @@
   /* Drawing the copy                                                    */
   /* ------------------------------------------------------------------ */
 
-  /* Items the cat is allowed to look at, in the order this period puts them
-   * in. Value and projected come from the local value table; nothing here is
-   * fetched twice. */
-  function candidateIds(ids, seed) {
-    const eligible = ids.filter(id => {
-      if (!VALUES) return true;
-      const categories = VALUES.categories(id) || [];
-      if (categories.includes('projected')) return false;
-      const value = Number(VALUES.get(id)) || 0;
-      /* 0 means "not valued yet", which is not a reason to exclude. */
-      return value === 0 || value <= LUCKY_MAX_VALUE;
-    });
-    return seededOrder(eligible, seed, id => id).slice(0, MAX_CANDIDATES);
+  /*
+   * Is this row a limited the cat is allowed to bless?
+   *
+   * Projected items are excluded because their price is a manipulation
+   * rather than a valuation, and anything valued above the ceiling is left
+   * out so the badge stays winnable. An item with no value set yet is still
+   * eligible - 0 means "nobody has priced it", not "worthless".
+   */
+  function eligibleItem(row) {
+    const id = Number(row && row.assetId);
+    if (!Number.isSafeInteger(id) || id <= 0) return false;
+    /* Without a UAID the copy cannot be identified, so it cannot be the
+     * target no matter how good a fit the item is. */
+    if (!Number.isFinite(Number(row.userAssetId))) return false;
+    if (!VALUES) return true;
+    const categories = VALUES.categories(id) || [];
+    if (categories.includes('projected')) return false;
+    const value = Number(VALUES.get(id)) || 0;
+    return value === 0 || value <= LUCKY_MAX_VALUE;
   }
 
   /*
-   * Walks the shuffled candidates until one of them has a nameable owner,
-   * then draws one of that item's copies with the same seed. Returns null
-   * when nothing qualifies.
+   * Today's shortlist of players, in the order this day's seed puts them in.
+   * The roster is the site's own tracked-player list, so the cat can only
+   * land on somebody /players and /leaderboard already know about.
+   */
+  function candidatePlayers(players, seed) {
+    const named = players.filter(player =>
+      player && Number.isSafeInteger(Number(player.id)) && Number(player.id) > 0);
+    return seededOrder(named, seed, player => player.id).slice(0, MAX_CANDIDATE_PLAYERS);
+  }
+
+  /*
+   * The draw, in the order the page describes it: a player first, then one of
+   * their limiteds.
+   *
+   * Walks today's shortlist until a player's inventory is both visible and
+   * holds an eligible limited, then picks one copy out of it with the same
+   * seed. Returns null when nobody qualifies.
    */
   async function draw(index) {
     const seed = `luckycat:${index}`;
 
-    const ids = await API.listAllCollectibles();
-    if (!Array.isArray(ids) || !ids.length) return null;
+    /* The roster is shared with /leaderboard and /players and is usually
+     * already warm in sessionStorage, so this is normally free. */
+    const players = await ROSTER.load();
+    if (!Array.isArray(players) || !players.length) return null;
 
-    const shortlist = candidateIds(ids, seed);
+    const shortlist = candidatePlayers(players, seed);
     if (!shortlist.length) return null;
 
     for (let at = 0; at < shortlist.length; at += 1) {
-      const itemId = shortlist[at];
-      const owners = await API.getAssetOwners(itemId, { pageLimit: 100, maxPages: 4 })
-        .catch(() => []);
-      /* A copy with no UAID cannot be identified, and a copy with no named
-       * owner cannot be found - neither can be the Lucky Cat item. */
-      const copies = owners.filter(row => row.userAssetId && row.userId);
-      if (!copies.length) continue;
+      const player = shortlist[at];
 
-      const copy = seededOrder(copies, seed, row => row.userAssetId)[0];
+      /* A private inventory answers with nothing, which is a real answer:
+       * that player simply cannot be today's winner. */
+      const inventory = await API.getCollectibles(player.id, { pageLimit: 100, maxPages: 4 })
+        .catch(() => []);
+      const holdings = Array.isArray(inventory) ? inventory.filter(eligibleItem) : [];
+      if (!holdings.length) continue;
+
+      /* One copy out of that player's eligible holdings, seeded by the UAID
+       * so every browser draws the same one. */
+      const copy = seededOrder(holdings, seed, row => row.userAssetId)[0];
+      const itemId = Number(copy.assetId);
 
       const [details, thumbs, avatar] = await Promise.all([
         API.getItemDetails([itemId], { includePrice: false }).catch(() => []),
         API.fetchThumbnails([itemId]).catch(() => new Map()),
-        API.fetchUserAvatar(copy.userId, { size: 420 }).catch(() => null),
+        API.fetchUserAvatar(player.id, { size: 420 }).catch(() => null),
       ]);
 
       const detail = Array.isArray(details) ? details[0] : null;
 
       return {
         itemId,
-        itemName: (detail && detail.name) || `Item ${itemId}`,
+        itemName: (detail && detail.name) || (copy.name || '').trim() || `Item ${itemId}`,
         thumbnail: (detail && detail.thumbnail)
           || thumbs.get(itemId)
           || API.thumbnailUrl(itemId),
-        userAssetId: copy.userAssetId,
-        serialNumber: copy.serialNumber,
-        ownerId: copy.userId,
-        ownerName: copy.name || '',
-        ownerAvatar: avatar || '',
-        updated: copy.updated || copy.created || null,
+        userAssetId: Number(copy.userAssetId),
+        serialNumber: Number.isFinite(Number(copy.serialNumber)) ? Number(copy.serialNumber) : null,
+        ownerId: Number(player.id),
+        ownerName: player.name || '',
+        ownerAvatar: avatar || player.avatar || '',
+        /* Straight off the inventory response that produced the copy, so it
+         * is what Wanwood says this player holds, not a figure of ours. */
+        ownerItems: inventory.length,
       };
     }
 
@@ -404,6 +435,12 @@
       return;
     }
 
+    if (!ROSTER) {
+      setMessage(itemBox, 'The player roster script failed to load.');
+      setMessage(ownerBox, '');
+      return;
+    }
+
     const cached = readCache(index);
     if (cached) {
       renderItem(cached);
@@ -411,7 +448,7 @@
       return;
     }
 
-    setMessage(itemBox, 'Asking the Lucky Cat what it has chosen\u2026');
+    setMessage(itemBox, 'Asking the Lucky Cat who it has visited today\u2026');
     setMessage(ownerBox, '');
 
     /* The value table decides which items are eligible, so a draw made
@@ -428,14 +465,14 @@
     try {
       choice = await draw(index);
     } catch (error) {
-      setMessage(itemBox, 'Could not reach Wanwood to find the Lucky Cat item. Try again shortly.');
+      setMessage(itemBox, 'Could not reach Wanwood to find today\u2019s Lucky Cat player. Try again shortly.');
       setMessage(ownerBox, '');
       return;
     }
 
     if (!choice) {
       setMessage(itemBox,
-        'No item qualifies for the Lucky Cat right now - nothing in the catalog has an owner Wanwood will name.');
+        'The Lucky Cat found nobody to visit today - no tracked player has a visible inventory with an eligible limited in it.');
       setMessage(ownerBox, '');
       if (ownerCaption) ownerCaption.textContent = 'There is no chosen copy to locate yet.';
       return;

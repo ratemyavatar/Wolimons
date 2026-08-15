@@ -21,11 +21,11 @@
   const VALUES = window.WolimonsValues;
   const BADGES = window.WolimonsBadges;
   const NAME_BADGES = window.WolimonsNameBadges;
+  const CHART = window.WolimonsHistoryChart;
 
   /* Resale-data is one request per unique item. Inventories are small on this
    * revival, but a whale with 100+ uniques should not open 100 sockets. */
   const ITEM_CONCURRENCY = 4;
-  const SVG_NS = 'http://www.w3.org/2000/svg';
 
   const el = id => document.getElementById(id);
 
@@ -41,7 +41,6 @@
   const sortSelect = el('inventory_sort');
   const stackToggle = el('stackHoardsToggle');
   const chartBox = el('player_history_chart_container');
-  const rangeButtons = el('chart_range_buttons');
 
   const formatNumber = value => Number(value || 0).toLocaleString('en-US');
 
@@ -334,20 +333,14 @@
   /* History chart                                                       */
   /* ------------------------------------------------------------------ */
 
+  /*
+   * The drawing is history-chart.js's job - it loads Highcharts Stock and
+   * applies the snapshot's theme. What belongs here is the one thing that is
+   * specific to a player: turning a pile of per-item price series into a
+   * single daily Value/RAP series for the whole inventory.
+   */
+
   const DAY_MS = 24 * 60 * 60 * 1000;
-
-  const RANGES = [
-    { id: '1m', label: '1M', days: 30 },
-    { id: '3m', label: '3M', days: 90 },
-    { id: '6m', label: '6M', days: 180 },
-    { id: '1y', label: '1Y', days: 365 },
-    { id: 'all', label: 'All', days: null },
-  ];
-
-  const chartState = {
-    series: [],
-    range: 'all',
-  };
 
   /*
    * Turn the per-item daily price points into one player-level daily series.
@@ -391,293 +384,19 @@
     return series;
   }
 
-  function visibleSeries() {
-    const range = RANGES.find(entry => entry.id === chartState.range) || RANGES[RANGES.length - 1];
-    if (!range.days) return chartState.series;
-    const cutoff = Date.now() - (range.days * DAY_MS);
-    const rows = chartState.series.filter(point => point.time >= cutoff);
-    /* Never show an empty chart just because the window is quiet - fall back
-     * to the last handful of known points. */
-    return rows.length >= 2 ? rows : chartState.series.slice(-2);
-  }
-
-  function svgNode(tag, attrs) {
-    const node = document.createElementNS(SVG_NS, tag);
-    Object.entries(attrs || {}).forEach(([key, value]) => {
-      node.setAttribute(key, String(value));
-    });
-    return node;
-  }
-
-  function niceTicks(max) {
-    if (max <= 0) return [0, 1];
-    const rough = max / 4;
-    const magnitude = 10 ** Math.floor(Math.log10(rough));
-    const step = [1, 2, 2.5, 5, 10].map(m => m * magnitude)
-      .find(candidate => candidate >= rough) || magnitude * 10;
-    const ticks = [];
-    for (let tick = 0; tick <= max + step / 2; tick += step) ticks.push(tick);
-    return ticks;
-  }
-
-  const shortNumber = value => {
-    const abs = Math.abs(value);
-    if (abs >= 1e9) return `${(value / 1e9).toFixed(1)}B`;
-    if (abs >= 1e6) return `${(value / 1e6).toFixed(1)}M`;
-    if (abs >= 1e3) return `${(value / 1e3).toFixed(1)}K`;
-    return String(Math.round(value));
-  };
-
-  const formatDate = time => new Date(time).toLocaleDateString('en-US', {
-    year: 'numeric', month: 'short', day: 'numeric',
-  });
-
-  function renderChart() {
+  function renderChart(rows) {
     if (!chartBox) return;
-    chartBox.textContent = '';
-
-    const rows = visibleSeries();
-    if (rows.length < 2) {
-      const empty = text('div', 'd-flex align-items-center justify-content-center text-muted h-100');
-      empty.style.minHeight = '280px';
-      empty.textContent = chartState.series.length
-        ? 'Not enough sale history in this range to draw a chart.'
-        : 'No sale history recorded for this player\u2019s items yet.';
-      chartBox.appendChild(empty);
+    if (!CHART) {
+      chartBox.textContent = '';
+      const failed = text('div', 'd-flex align-items-center justify-content-center text-muted h-100',
+        'The chart script failed to load.');
+      failed.style.minHeight = '220px';
+      chartBox.appendChild(failed);
       return;
     }
-
-    /* The chart is drawn in real CSS pixels: the viewBox is set to the box the
-     * container actually occupies, so one viewBox unit is one pixel on screen.
-     *
-     * It used to be a fixed 1000x380 viewBox stretched with
-     * preserveAspectRatio="none", which squashed the horizontal and vertical
-     * axes by different amounts - the profile card leaves the chart about
-     * 368px wide but 468px tall, so glyphs were compressed to roughly a third
-     * of their width and the axis text looked stretched. Measuring instead
-     * keeps the aspect ratio at exactly 1:1, and observeChartResize() below
-     * redraws when the box changes. */
-    const box = chartBox.getBoundingClientRect();
-    /* The legend is a sibling below the SVG, so its strip comes off the
-     * height the plot may use or the two together overflow the container. */
-    const LEGEND_RESERVE = 30;
-    const width = Math.max(320, Math.round(box.width) || 640);
-    const height = Math.max(200, (Math.round(box.height) || 380) - LEGEND_RESERVE);
-    const pad = { top: 20, right: 20, bottom: 34, left: 62 };
-    const plotWidth = width - pad.left - pad.right;
-    const plotHeight = height - pad.top - pad.bottom;
-
-    const minTime = rows[0].time;
-    const maxTime = rows[rows.length - 1].time;
-    const span = Math.max(1, maxTime - minTime);
-    const maxY = Math.max(
-      1,
-      ...rows.map(point => Math.max(point.rap, point.value)),
-    );
-    const ticks = niceTicks(maxY);
-    const top = ticks[ticks.length - 1];
-
-    const xFor = time => pad.left + ((time - minTime) / span) * plotWidth;
-    const yFor = value => pad.top + plotHeight - ((value / top) * plotHeight);
-
-    const svg = svgNode('svg', {
-      viewBox: `0 0 ${width} ${height}`,
-      /* Uniform scaling; the viewBox already matches the box in pixels. */
-      preserveAspectRatio: 'xMidYMid meet',
-      width: '100%',
-      height: String(height),
-      role: 'img',
-      'aria-label': 'Value and RAP history',
-    });
-    svg.style.display = 'block';
-    svg.style.width = '100%';
-    svg.style.height = `${height}px`;
-
-    /* Gridlines + Y axis labels */
-    ticks.forEach(tick => {
-      const y = yFor(tick);
-      svg.appendChild(svgNode('line', {
-        x1: pad.left, x2: width - pad.right, y1: y, y2: y,
-        stroke: '#454b52', 'stroke-width': 1,
-      }));
-      const label = svgNode('text', {
-        x: pad.left - 10, y: y + 4, fill: '#9aa0a6',
-        'font-size': 13, 'text-anchor': 'end',
-      });
-      label.textContent = shortNumber(tick);
-      svg.appendChild(label);
-    });
-
-    /* X axis labels - first, middle, last */
-    [0, Math.floor(rows.length / 2), rows.length - 1].forEach((index, position) => {
-      const point = rows[index];
-      const label = svgNode('text', {
-        x: xFor(point.time), y: height - 10, fill: '#9aa0a6',
-        'font-size': 13,
-        'text-anchor': position === 0 ? 'start' : (position === 2 ? 'end' : 'middle'),
-      });
-      label.textContent = formatDate(point.time);
-      svg.appendChild(label);
-    });
-
-    const linePath = key => rows
-      .map((point, index) => `${index ? 'L' : 'M'}${xFor(point.time).toFixed(2)} ${yFor(point[key]).toFixed(2)}`)
-      .join(' ');
-
-    /* RAP is the meaningful moving line, so it gets a filled area under it.
-     * Value is drawn on top as a flat reference. */
-    const areaPath = `${linePath('rap')} L${xFor(maxTime).toFixed(2)} ${yFor(0).toFixed(2)} L${xFor(minTime).toFixed(2)} ${yFor(0).toFixed(2)} Z`;
-    svg.appendChild(svgNode('path', {
-      d: areaPath, fill: 'rgba(29,141,241,.18)', stroke: 'none',
-    }));
-    svg.appendChild(svgNode('path', {
-      d: linePath('rap'), fill: 'none', stroke: '#1d8df1', 'stroke-width': 2.5,
-      'stroke-linejoin': 'round', 'stroke-linecap': 'round',
-    }));
-    svg.appendChild(svgNode('path', {
-      d: linePath('value'), fill: 'none', stroke: '#4db7d6', 'stroke-width': 2.5,
-      'stroke-linejoin': 'round', 'stroke-linecap': 'round',
-    }));
-
-    /* Hover: a vertical rule plus two dots, positioned from the pointer's
-     * x in viewBox units so it works at any rendered width. */
-    const hoverLine = svgNode('line', {
-      y1: pad.top, y2: pad.top + plotHeight, stroke: '#c8ccd0',
-      'stroke-width': 1, 'stroke-dasharray': '4 3', opacity: 0,
-    });
-    const rapDot = svgNode('circle', { r: 4.5, fill: '#1d8df1', stroke: '#12161a', 'stroke-width': 2, opacity: 0 });
-    const valueDot = svgNode('circle', { r: 4.5, fill: '#4db7d6', stroke: '#12161a', 'stroke-width': 2, opacity: 0 });
-    svg.appendChild(hoverLine);
-    svg.appendChild(rapDot);
-    svg.appendChild(valueDot);
-
-    chartBox.style.position = 'relative';
-    chartBox.appendChild(svg);
-
-    const legend = text('div', 'd-flex justify-content-center flex-wrap pb-2');
-    [['RAP', '#1d8df1'], ['Value', '#4db7d6']].forEach(([label, color]) => {
-      const entry = text('div', 'd-flex align-items-center mx-2');
-      const swatch = text('span');
-      swatch.style.cssText = `display:inline-block;width:12px;height:12px;border-radius:2px;margin-right:6px;background:${color};`;
-      entry.appendChild(swatch);
-      entry.appendChild(text('small', 'text-muted', label));
-      legend.appendChild(entry);
-    });
-    chartBox.appendChild(legend);
-
-    const tooltip = text('div');
-    tooltip.style.cssText = 'position:absolute;pointer-events:none;opacity:0;transform:translate(-50%,-110%);'
-      + 'background:#12161a;border:1px solid #454b52;border-radius:4px;padding:6px 9px;'
-      + 'font-size:12px;color:#e6e6e6;white-space:nowrap;z-index:2;';
-    chartBox.appendChild(tooltip);
-
-    function hide() {
-      hoverLine.setAttribute('opacity', 0);
-      rapDot.setAttribute('opacity', 0);
-      valueDot.setAttribute('opacity', 0);
-      tooltip.style.opacity = 0;
-    }
-
-    function move(event) {
-      const box = svg.getBoundingClientRect();
-      if (!box.width || !box.height) return;
-      const vx = ((event.clientX - box.left) / box.width) * width;
-      const time = minTime + ((vx - pad.left) / plotWidth) * span;
-
-      let nearest = rows[0];
-      let best = Infinity;
-      rows.forEach(point => {
-        const distance = Math.abs(point.time - time);
-        if (distance < best) { best = distance; nearest = point; }
-      });
-
-      const x = xFor(nearest.time);
-      hoverLine.setAttribute('x1', x);
-      hoverLine.setAttribute('x2', x);
-      hoverLine.setAttribute('opacity', 1);
-      rapDot.setAttribute('cx', x);
-      rapDot.setAttribute('cy', yFor(nearest.rap));
-      rapDot.setAttribute('opacity', 1);
-      valueDot.setAttribute('cx', x);
-      valueDot.setAttribute('cy', yFor(nearest.value));
-      valueDot.setAttribute('opacity', 1);
-
-      tooltip.textContent = '';
-      tooltip.appendChild(text('div', null, formatDate(nearest.time)));
-      tooltip.appendChild(text('div', null, `RAP ${formatNumber(nearest.rap)}`));
-      tooltip.appendChild(text('div', null, `Value ${formatNumber(nearest.value)}`));
-      /* The tooltip is absolutely positioned inside chartBox, but the
-       * coordinates above are in the SVG's own space, and the SVG is only
-       * part of chartBox (the legend sits below it). Convert through both
-       * rects rather than assuming the two boxes line up. */
-      const outer = chartBox.getBoundingClientRect();
-      const scaleX = box.width / width;
-      const scaleY = box.height / height;
-      tooltip.style.left = `${(box.left - outer.left) + x * scaleX}px`;
-      tooltip.style.top = `${(box.top - outer.top)
-        + yFor(Math.max(nearest.rap, nearest.value)) * scaleY}px`;
-      tooltip.style.opacity = 1;
-    }
-
-    svg.addEventListener('mousemove', move);
-    svg.addEventListener('mouseleave', hide);
+    CHART.render(chartBox, rows);
   }
 
-  /*
-   * renderChart() measures the container, so the drawing has to be redone when
-   * that box changes size - a window resize, or a phone turning between
-   * portrait and landscape, which swaps the grid between one and two columns.
-   * The redraw is deferred to an animation frame so a drag resize coalesces
-   * into one repaint instead of one per pixel.
-   */
-  function observeChartResize() {
-    if (!chartBox) return;
-
-    let pending = 0;
-    let lastWidth = 0;
-    let lastHeight = 0;
-
-    const redraw = () => {
-      pending = 0;
-      const box = chartBox.getBoundingClientRect();
-      const width = Math.round(box.width);
-      const height = Math.round(box.height);
-      /* Sub-pixel jitter shouldn't cost a full redraw. */
-      if (Math.abs(width - lastWidth) < 2 && Math.abs(height - lastHeight) < 2) return;
-      lastWidth = width;
-      lastHeight = height;
-      renderChart();
-    };
-
-    const schedule = () => {
-      if (pending) return;
-      pending = window.requestAnimationFrame(redraw);
-    };
-
-    if (typeof window.ResizeObserver === 'function') {
-      new window.ResizeObserver(schedule).observe(chartBox);
-    } else {
-      window.addEventListener('resize', schedule);
-      window.addEventListener('orientationchange', schedule);
-    }
-  }
-
-  function renderRangeButtons() {
-    if (!rangeButtons) return;
-    rangeButtons.textContent = '';
-    RANGES.forEach(range => {
-      const button = text('button', 'btn btn-flat-light-blue-sm rounded-pill ml-2 mt-1', range.label);
-      button.type = 'button';
-      if (range.id === chartState.range) button.style.opacity = '1';
-      else button.style.opacity = '.55';
-      button.addEventListener('click', () => {
-        chartState.range = range.id;
-        renderRangeButtons();
-        renderChart();
-      });
-      rangeButtons.appendChild(button);
-    });
-  }
 
   /* ------------------------------------------------------------------ */
   /* Load                                                                */
@@ -907,7 +626,6 @@
 
     /* --- history --------------------------------------------------- */
 
-    renderRangeButtons();
     if (chartBox) {
       const loading = text('div', 'd-flex align-items-center justify-content-center h-100');
       loading.style.minHeight = '280px';
@@ -942,8 +660,7 @@
     setText('player_rap', formatNumber(
       state.items.reduce((sum, item) => sum + (item.rap * item.copies), 0)));
 
-    chartState.series = buildSeries(state.items);
-    renderChart();
+    renderChart(buildSeries(state.items));
     renderInventory();
 
     /* Re-run now that supply figures are real. */
@@ -973,6 +690,5 @@
     refreshBadges();
   });
 
-  observeChartResize();
   load();
 })();

@@ -338,7 +338,13 @@
     loading.style.color = '#7a8288';
     dom.pickerResults.appendChild(loading);
 
-    let items = [];
+    /* Careful with the name: `items` is the core's shared id -> row Map,
+     * destructured at the top of this file. The rows this search produces are
+     * a separate list, so they get their own name - an earlier version called
+     * both `items`, and the local array shadowed the Map, so `items.set(...)`
+     * threw and every search fell into the catch below as "Could not reach
+     * the item catalog". */
+    let results = [];
     try {
       const search = await API.searchItems({
         category: 'Collectibles',
@@ -350,16 +356,20 @@
       });
       if (search.ids.length) {
         const details = await API.getItemDetails(search.ids, { includePrice: false });
-        items = details.filter(item => item && item.name);
-        items.forEach(item => {
-          const id = Number(item.id ?? item.assetId);
-          if (!Number.isSafeInteger(id)) return;
-          items.set(id, {
+        details.forEach(detail => {
+          const id = Number(detail?.id ?? detail?.assetId);
+          const name = String(detail?.name || '').trim();
+          if (!Number.isSafeInteger(id) || id <= 0 || !name) return;
+          const row = {
             id,
-            name: (item.name || '').trim(),
-            thumbnail: item.thumbnail || API.thumbnailUrl(id),
-            rap: Number.isFinite(item.rap) ? item.rap : null,
-          });
+            name,
+            thumbnail: detail.thumbnail || API.thumbnailUrl(id),
+            rap: Number.isFinite(detail.rap) ? detail.rap : null,
+          };
+          /* Seed the shared cache too, so a slot filled from the picker can
+           * draw its thumbnail and totals without a second details call. */
+          if (!items.has(id)) items.set(id, row);
+          results.push(row);
         });
       }
     } catch (error) {
@@ -373,18 +383,13 @@
 
     if (sequence !== state.picker.sequence) return;
     dom.pickerResults.textContent = '';
-    if (!items.length) {
+    if (!results.length) {
       const none = el('div', 'text-center py-4 small', 'No items matched.');
       none.style.color = '#7a8288';
       dom.pickerResults.appendChild(none);
       return;
     }
-    items.forEach(item => dom.pickerResults.appendChild(pickerRow({
-      id: Number(item.id ?? item.assetId),
-      name: (item.name || '').trim(),
-      thumbnail: item.thumbnail,
-      rap: item.rap,
-    })));
+    results.forEach(item => dom.pickerResults.appendChild(pickerRow(item)));
   }
 
   /* ------------------------------------------------------------------ */

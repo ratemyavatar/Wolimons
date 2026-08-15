@@ -4,7 +4,7 @@
  * ---------------------------------------------------------------------------
  * WHY THIS FILE EXISTS
  * ---------------------------------------------------------------------------
- * /catalog draws it, /projecteds draws it, and /deals draws a variant of it.
+ * /catalog draws it and /projecteds draws it.
  * It is the same card each time - the same name header, the same gradient
  * image box with its ribbon and tag icons, the same stat rows - so it is
  * built in one place instead of being copy-pasted per page and left to drift.
@@ -15,8 +15,8 @@
  * Value and RAP, and never a price. Value is the community figure from
  * values.js - assigned by hand, never fetched - and reads 0 until somebody
  * sets it. Price is a shop listing, not a valuation, and does not belong on a
- * card; a page that genuinely needs to talk about a sale price (the deals
- * scanner) labels it as such itself rather than passing it off as value.
+ * card at all; any page that genuinely needs to talk about a sale price must
+ * label it as such itself rather than passing it off as value.
  *
  * The Limited / Limited U ribbon comes from the API's own restriction flags,
  * which the API client resolves through api/v1/items/restrictions. It is

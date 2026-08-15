@@ -52,9 +52,19 @@ Pages:
 - `/catalog/` — item catalog
 - `/item/?id=<assetId>` — item page (works for any item, not just Dominus)
 - `/leaderboard/` — richest players
+- `/players/` — player search
 - `/player/?id=<userId>` — player profile
+- `/valuechanges/` — recent value changes
+- `/projecteds/` — items flagged as projected
+- `/luckycat/` — the daily Lucky Cat draw
+- `/trades/` — trade ads
+- `/tradead/?id=<adId>` — a single trade ad
+- `/playertrades/?id=<userId>` — one player's trade ads
 - `/tradecalculator/` — trade calculator
 - `/badges/` — badges
+- `/verify/` — account verification
+- `/preferences/` — site preferences
+- `/admin/` — value/role administration (needs the admin key)
 
 ## Item data / the API proxy
 
@@ -116,17 +126,29 @@ valued once its value is above 0.
 ```
 serve.sh              local + LAN dev server
 index.html            homepage
+admin/                value/role administration
+badges/               badges
 catalog/              item catalog
 item/                 item page (any item, by ?id=)
 leaderboard/          richest players
+luckycat/             daily Lucky Cat draw
 player/               player profile
+players/              player search
+playertrades/         one player's trade ads
+preferences/          site preferences
+projecteds/           projected items
+tradead/              a single trade ad
 tradecalculator/      trade calculator
-badges/               badges
+trades/               trade ads
+valuechanges/         recent value changes
+verify/               account verification
 assets/js/config.js   API base URL (points at the Render proxy)
 assets/js/            page scripts
+assets/vendor/        Highcharts Stock 10.3.3 (the item/player history graph)
 css/                  stylesheets
+data/                 committed value/role data read by the proxy
 img/                  images
-proxy/                deployable CORS/anti-bot proxy
+proxy/                deployable CORS/anti-bot proxy + values API
 tools/                maintenance scripts (badge art/consistency)
 ```
 

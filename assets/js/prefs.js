@@ -18,9 +18,8 @@
  * ---------------------------------------------------------------------------
  *   hideTablets         leave tablet items out of the catalog listing
  *   hideUnobtainables   leave unobtainable items out of the catalog listing
- *   dealsInNewTab       open a deal card in a new tab rather than this one
  *
- * The first two act on the community categories in values.js - the same
+ * Both act on the community categories in values.js - the same
  * "tablet" and "unobtainable" flags the admin panel assigns - so they hide
  * exactly what a person marked, and nothing is inferred. An item nobody has
  * categorised is never hidden by either of them.
@@ -41,7 +40,6 @@
   const DEFAULTS = {
     hideTablets: false,
     hideUnobtainables: false,
-    dealsInNewTab: false,
   };
 
   const NAMES = Object.keys(DEFAULTS);

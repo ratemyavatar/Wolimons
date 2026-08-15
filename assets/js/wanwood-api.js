@@ -265,9 +265,9 @@
    * with the community's valuation of the item. It is deliberately absent
    * from every item card for exactly that reason.
    *
-   * /deals is the one page it belongs on, because a deal is by definition a
-   * comparison between a live asking price and what the item is worth - and
-   * there it is labelled "Price" and never passed off as anything else.
+   * No page on the site calls it at present. It stays here because it is a
+   * real endpoint of the API this client wraps, but anything that does start
+   * using it must label the number "Price" and never pass it off as a value.
    *
    * Returns null when nothing is listed, which is the normal case for most
    * collectibles.

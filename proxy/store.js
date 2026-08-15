@@ -9,22 +9,38 @@
  * change ever made, which is what /valuechanges reads.
  *
  * ---------------------------------------------------------------------------
- * WHERE IT IS KEPT
+ * WHERE IT IS KEPT - TWO BACKENDS
  * ---------------------------------------------------------------------------
- * In data/wolimons-data.json in the GitHub repo, written through the GitHub
- * contents API. Render's free tier throws away the container's disk on every
- * restart and every deploy, so a file on disk would quietly lose every value
- * ever set. A commit does not: it survives restarts, it is versioned, and the
- * history says who changed what and when.
+ * "file"    a JSON file on disk. This is the obvious way to store data and
+ *           the right one whenever the disk survives a restart: your own VPS,
+ *           a home server, a phone. No token, no network, no rate limit, and
+ *           a save is instant.
  *
- * The whole file is read once at boot and kept in memory. Reads are served
- * from memory; a write updates memory first, then commits. If the commit
- * fails the write is rolled back and the caller is told, so the site never
- * shows a value that was not actually saved.
+ * "github"  data/wolimons-data.json committed through the GitHub contents
+ *           API. This exists for hosts that throw the disk away - Render's
+ *           free tier wipes the container on every restart and deploy, so a
+ *           file there would quietly lose every value ever set. A commit
+ *           survives, is versioned, and records who changed what.
+ *
+ * Which one is used is decided by STORAGE (see below). Everything above the
+ * backend is identical either way: the whole thing is read once at boot and
+ * kept in memory, reads are served from memory, and a write updates memory
+ * first then persists. If persisting fails the write is rolled back and the
+ * caller is told, so the site never shows a value that was not saved.
  *
  * ---------------------------------------------------------------------------
  * CONFIGURATION
  * ---------------------------------------------------------------------------
+ *   STORAGE        "file", "github", or "auto" (the default). Auto picks
+ *                  github when GITHUB_TOKEN is set, and file otherwise.
+ *
+ *   file backend:
+ *   DATA_FILE      where to keep it. Defaults to proxy/data/wolimons-data.json,
+ *                  which is gitignored. On first run it is seeded from the
+ *                  copy committed at data/wolimons-data.json, so the roles
+ *                  and values already in the repo carry over.
+ *
+ *   github backend:
  *   GITHUB_TOKEN   a token with contents:write on the repo. Without it the
  *                  store still reads (over the public raw URL) but every
  *                  write is refused with a clear message rather than being
@@ -35,6 +51,7 @@
  */
 
 const fs = require('fs');
+const fsp = require('fs/promises');
 const path = require('path');
 
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN || '';
@@ -46,6 +63,28 @@ const DATA_PATH = process.env.DATA_PATH || 'data/wolimons-data.json';
 const GITHUB_API = process.env.GITHUB_API_ROOT
   || `https://api.github.com/repos/${GITHUB_REPO}/contents/${DATA_PATH}`;
 const API_ROOT = GITHUB_API;
+
+/*
+ * Which backend.
+ *
+ * "auto" is the honest default: a GitHub token is only ever set deliberately,
+ * and setting one is a clear statement that commits are wanted. With no token
+ * the only thing that can possibly work is the disk - and on a normal server
+ * the disk is also the better answer.
+ */
+const STORAGE = (() => {
+  const asked = String(process.env.STORAGE || 'auto').trim().toLowerCase();
+  if (asked === 'file' || asked === 'disk' || asked === 'local') return 'file';
+  if (asked === 'github' || asked === 'git') return 'github';
+  return GITHUB_TOKEN ? 'github' : 'file';
+})();
+
+/* Where the file backend keeps its copy. Deliberately NOT the checked-in
+ * data/wolimons-data.json: live data would then show up as an uncommitted
+ * change in the repo, and a `git pull` could clobber it. */
+const DATA_FILE = path.resolve(
+  process.env.DATA_FILE || path.join(__dirname, 'data', 'wolimons-data.json'),
+);
 
 /* The vocabularies. Anything outside them is dropped rather than stored, so a
  * typo can never reach the site as a filter value nobody can select. */
@@ -185,7 +224,23 @@ async function load() {
 
   loading = (async () => {
     try {
-      if (GITHUB_TOKEN) {
+      if (STORAGE === 'file') {
+        /*
+         * Read our own file. If it is not there yet this is a first run, so
+         * seed from the copy committed in the repo - that carries the roles
+         * and values that already exist instead of starting empty.
+         */
+        let raw = null;
+        try {
+          raw = JSON.parse(await fsp.readFile(DATA_FILE, 'utf8'));
+        } catch (error) {
+          if (error.code !== 'ENOENT') throw error;
+          raw = readLocal();
+          console.log(`[store] ${DATA_FILE} does not exist yet - it will be created on the first save.`);
+        }
+        data = normalize(raw);
+        authoritative = true;
+      } else if (GITHUB_TOKEN) {
         const response = await fetch(`${API_ROOT}?ref=${encodeURIComponent(GITHUB_BRANCH)}`, {
           headers: githubHeaders(),
         });
@@ -222,6 +277,13 @@ async function load() {
       data = normalize(readLocal());
       authoritative = false;
       loaded = true;
+      if (STORAGE === 'file') {
+        /* An unreadable data file is corruption, not a network blip, and
+         * retrying will not fix it. Say so loudly - the alternative is an
+         * admin who saves all evening into a store that refuses every write. */
+        console.error(`[store] ${DATA_FILE} could not be read. Saving is blocked until it is `
+          + 'fixed or removed. A backup is written alongside it on every save.');
+      }
     } finally {
       loading = null;
     }
@@ -250,8 +312,44 @@ async function refreshSha() {
  * into a 409 loop. */
 let writeChain = Promise.resolve();
 
+/*
+ * Write the file, without ever leaving a half-written one behind.
+ *
+ * Write to a temporary file, then rename it over the real one - a rename is
+ * atomic, so a crash or a pulled plug mid-save leaves either the old file or
+ * the new one, never a truncated file that parses as nothing and reads back
+ * as "no values were ever set".
+ *
+ * The previous contents are kept as .bak first, so even a corrupted save has
+ * something to go back to.
+ */
+async function writeFile() {
+  const text = `${JSON.stringify(data, null, 2)}\n`;
+  await fsp.mkdir(path.dirname(DATA_FILE), { recursive: true });
+
+  try {
+    await fsp.copyFile(DATA_FILE, `${DATA_FILE}.bak`);
+  } catch (error) {
+    /* Nothing to back up on the first save. */
+    if (error.code !== 'ENOENT') throw error;
+  }
+
+  const temp = `${DATA_FILE}.tmp`;
+  await fsp.writeFile(temp, text, 'utf8');
+  await fsp.rename(temp, DATA_FILE);
+}
+
 function commit(message) {
   const run = async () => {
+    if (STORAGE === 'file') {
+      if (!authoritative) {
+        throw new Error('The saved data could not be read, so saving is blocked to avoid '
+          + 'overwriting it. Check the server log.');
+      }
+      await writeFile();
+      return;
+    }
+
     if (!GITHUB_TOKEN) {
       throw new Error('The server has no GitHub token, so nothing can be saved.');
     }
@@ -443,5 +541,15 @@ module.exports = {
   changes,
   CHANGE_FIELDS,
   CHANGE_LIMIT,
-  config: { repo: GITHUB_REPO, branch: GITHUB_BRANCH, path: DATA_PATH, canWrite: Boolean(GITHUB_TOKEN) },
+  config: {
+    storage: STORAGE,
+    /* The file backend can always write; the GitHub one needs a token. */
+    canWrite: STORAGE === 'file' ? true : Boolean(GITHUB_TOKEN),
+    /* Where the data actually is, for /api/status and the log line at boot. */
+    location: STORAGE === 'file' ? DATA_FILE : `${GITHUB_REPO}@${GITHUB_BRANCH}/${DATA_PATH}`,
+    repo: GITHUB_REPO,
+    branch: GITHUB_BRANCH,
+    path: DATA_PATH,
+    file: DATA_FILE,
+  },
 };

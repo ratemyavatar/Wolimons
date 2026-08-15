@@ -178,6 +178,8 @@ async function handle(req, res, url, readBody) {
         ok: true,
         hasAdminKey: Boolean(ADMIN_KEY),
         canWrite: store.config.canWrite,
+        storage: store.config.storage,
+        location: store.config.location,
         repo: store.config.repo,
         branch: store.config.branch,
         items: Object.keys(snapshot.values).length,

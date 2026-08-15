@@ -12,6 +12,14 @@ Thumbs.db
 .env.*
 !.env.example
 
+# Live data written by the server when STORAGE=file.
+# The committed data/wolimons-data.json is the starting point and stays
+# tracked; this is the running copy, which changes every time a value is
+# saved and must not turn into a dirty working tree or a merge conflict.
+proxy/data/
+*.json.bak
+*.json.tmp
+
 # Logs
 *.log
 npm-debug.log*

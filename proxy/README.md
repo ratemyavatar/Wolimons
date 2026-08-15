@@ -175,10 +175,30 @@ same moment won't clobber each other.
 | `CACHE_TTL_MS` | `60000` | how long to cache successful GETs |
 | `ALLOWED_ORIGINS` | *(unset = allow all)* | comma-separated list of sites allowed to call the proxy |
 | `ADMIN_KEY` | *(unset = panel locked)* | the admin panel password |
+| `SERVE_STATIC` | *(off)* | `1` also serves the site's pages, so one port does everything |
+| `SITE_ROOT` | the repo root | where those pages are |
+| `STORAGE` | `auto` | `file` (save to disk) or `github` (commit). Auto = github if a token is set |
+| `DATA_FILE` | `proxy/data/wolimons-data.json` | where the file backend saves |
 | `GITHUB_TOKEN` | *(unset = read-only)* | repo-write token, so changes can be saved |
 | `GITHUB_REPO` | `ratemyavatar/Wolimons` | which repo holds the data file |
 | `GITHUB_BRANCH` | `main` | which branch to commit to |
 | `DATA_PATH` | `data/wolimons-data.json` | the data file itself |
+
+Settings can go in a `.env` file next to `server.js` instead of the
+environment — copy `.env.example` to `.env`. It is gitignored. A real
+environment variable always wins over the file, so Render's dashboard stays
+authoritative there.
+
+### Which storage backend?
+
+**`file`** — a JSON file on the server's disk. Correct for a VPS, a home
+server or a phone: no token, no network, instant saves, and the data stays on
+your machine. Saves are atomic and keep a `.bak` of the previous contents.
+
+**`github`** — commits the data back to the repo. Only worth it where the disk
+does not survive a restart. Render's free tier wipes the container on every
+restart and deploy, so a file there would lose every value ever set; a commit
+survives and is versioned.
 
 Set `ADMIN_KEY` and `GITHUB_TOKEN` in the Render dashboard under **Environment**.
 Never commit them — anything in `render.yaml` is public.

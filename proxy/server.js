@@ -464,7 +464,14 @@ server.listen(PORT, '0.0.0.0', () => {
   if (!process.env.ADMIN_KEY) {
     console.log('No ADMIN_KEY set - the admin panel cannot be signed into.');
   }
-  if (!process.env.GITHUB_TOKEN) {
-    console.log('No GITHUB_TOKEN set - values can be read but not saved.');
+
+  const store = require('./store');
+  if (store.config.storage === 'file') {
+    console.log(`Saving values to ${store.config.file}`);
+  } else if (store.config.canWrite) {
+    console.log(`Saving values to GitHub (${store.config.location})`);
+  } else {
+    console.log('No GITHUB_TOKEN set - values can be read but not saved. '
+      + 'Set STORAGE=file to save to disk instead.');
   }
 });

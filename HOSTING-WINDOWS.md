@@ -48,15 +48,25 @@ copy .env.example .env
 notepad .env
 ```
 
-Set these three lines:
+Set these four lines:
 
 ```
 ADMIN_KEY=your-password-here
 SERVE_STATIC=1
 PORT=8080
+STORAGE=file
 ```
 
 Put your real password where `your-password-here` is.
+
+`STORAGE=file` saves values and roles to a file on the VPS
+(`proxy\data\wolimons-data.json`). That is what you want here: no GitHub
+token, no account, nothing leaving the server, and saves are instant. The
+GitHub option only exists for hosts that wipe the disk on every restart, like
+Render's free tier — a VPS keeps its disk, so it is unnecessary.
+
+On the first run the file is created from the copy committed in the repo, so
+the roles and values already there carry over.
 
 Save and close.
 
@@ -189,17 +199,39 @@ Other things worth knowing:
   on Windows — it gets a free certificate automatically).
 - **Signing in survives 12 hours, restarts sign everyone out.** Tokens are
   held in memory only.
-- **Saving values needs a GitHub token.** Values and roles are stored by
-  committing `data/wolimons-data.json` back to the repo. With `GITHUB_TOKEN`
-  empty, the admin panel loads and shows everything but every save fails with
-  *"The server has no GitHub token, so nothing can be saved."* Create a
-  fine-grained token at <https://github.com/settings/tokens> with
-  **Contents: read and write** on this repository only, and put it in `.env`.
-  That token is far more dangerous than the admin password — it can write to
-  your repo — so never commit it.
+- **Your data lives on the VPS.** With `STORAGE=file` (section 3) values and
+  roles are saved to `proxy\data\wolimons-data.json` on the server. Nothing is
+  sent to GitHub and no token is needed. Back that file up - it is the one
+  irreplaceable thing on the machine, and rebuilding the VPS takes it with it.
+  The previous contents are kept next to it as `.bak` on every save.
 - **Never commit `.env`.** It is gitignored already. If a password or token
   ever does get pushed, treat it as public and change it, because the repo is
   public and the history keeps it.
+
+## 9. Back up your values
+
+`C:\Wolimons\proxy\data\wolimons-data.json` holds every value you have ever
+set, the change history behind `/valuechanges`, and who has which role. It is
+the only thing on the VPS that cannot be re-downloaded, so it is worth a
+scheduled copy.
+
+A daily copy into a dated folder, as one line:
+
+```bat
+xcopy /Y C:\Wolimons\proxy\data\wolimons-data.json C:\WolimonsBackups\%DATE:/=-%\
+```
+
+Save that as `backup.bat` and add it to Task Scheduler (**Create Basic Task**
+→ Daily → Start a program). Better still, point the destination at OneDrive or
+Google Drive so a copy leaves the machine.
+
+To restore, stop the server, drop the file back at that path, and start it
+again. To move to a new VPS, copy that one file across.
+
+Two smaller safety nets are already there: `wolimons-data.json.bak` is the
+previous contents, rewritten on every save, and saves are atomic — the file is
+written to a temporary name and renamed into place, so a crash or a power cut
+mid-save leaves the old file rather than a truncated one.
 
 ## Settings reference
 
@@ -212,7 +244,9 @@ always beats the file.
 | `SERVE_STATIC` | off | `1` serves the web pages too, not just the API. |
 | `PORT` | 3000 | Port to listen on. |
 | `SITE_ROOT` | repo root | Where the site's files are. |
-| `GITHUB_TOKEN` | *(empty)* | Needed to save values permanently. |
+| `STORAGE` | `auto` | `file` saves to disk, `github` commits to the repo. |
+| `DATA_FILE` | `proxy\data\wolimons-data.json` | Where the file backend saves. |
+| `GITHUB_TOKEN` | *(empty)* | Only for `STORAGE=github`. Not needed on a VPS. |
 | `GITHUB_REPO` | `ratemyavatar/Wolimons` | Repo holding the data file. |
 | `GITHUB_BRANCH` | `main` | Branch to commit to. |
 | `UPSTREAM_ORIGIN` | `https://wanwoo.xyz` | Where item/player data comes from. |
@@ -233,6 +267,10 @@ taskkill /PID <the-number-in-the-last-column> /F
 
 **Pages load but everything is unstyled** — you opened `index.html` as a file
 instead of through the server. Use `http://…:8080/`.
+
+**"The server has no GitHub token, so nothing can be saved"** — the server is
+using the GitHub backend. Set `STORAGE=file` in `.env` and restart; on a VPS
+that is what you want.
 
 **"server has no admin key configured"** — the server started without seeing
 `ADMIN_KEY`. Check `.env` is in `C:\Wolimons\proxy\` (not the repo root), that

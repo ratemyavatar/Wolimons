@@ -428,6 +428,14 @@ rem --- AppDirectory is what lets server.js find .env next to it. ----------
 "%NSSM%" set Wolimons Description "Wolimons trading site and API" >nul
 "%NSSM%" set Wolimons Start SERVICE_AUTO_START >nul
 
+rem --- Restart if it ever stops, whatever the reason. Without this the ---
+rem --- site stays down until someone notices and logs in. AppThrottle ---
+rem --- is the "don't spin" guard: if it dies inside 5s NSSM waits ------
+rem --- before trying again, instead of restarting in a tight loop. ------
+"%NSSM%" set Wolimons AppExit Default Restart >nul
+"%NSSM%" set Wolimons AppRestartDelay 3000 >nul
+"%NSSM%" set Wolimons AppThrottle 5000 >nul
+
 rem --- Keep logs, capped, so a long-running server can't fill the disk. --
 if not exist "%REPO%\logs" mkdir "%REPO%\logs" >nul 2>&1
 "%NSSM%" set Wolimons AppStdout "%REPO%\logs\wolimons.log" >nul

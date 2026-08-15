@@ -34,6 +34,7 @@ const path = require('path');
 const loadedFromFile = require('./env').load();
 
 const api = require('./api');
+const embed = require('./embed');
 
 const UPSTREAM = process.env.UPSTREAM_ORIGIN || 'https://wanwoo.xyz';
 const PORT = Number(process.env.PORT) || 3000;
@@ -84,6 +85,18 @@ const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '')
 const CACHE_TTL_MS = Number(process.env.CACHE_TTL_MS || 60_000);
 const CACHE_MAX_ENTRIES = 500;
 const cache = new Map();
+
+/*
+ * How long to wait on Wanwood before giving up.
+ *
+ * Without this a request that Wanwood accepts but never answers is held open
+ * forever, and every one of them keeps a socket and its buffers alive. Wanwood
+ * is a hobby revival that goes down from time to time, so this is not a rare
+ * case. Enough of them and the machine runs out of handles or memory and the
+ * whole site stops answering - which looks like "cannot connect" in the
+ * browser even though the VPS itself is perfectly fine.
+ */
+const UPSTREAM_TIMEOUT_MS = Number(process.env.UPSTREAM_TIMEOUT_MS || 20_000);
 
 const BROWSER_HEADERS = {
   'User-Agent':
@@ -246,14 +259,32 @@ async function serveStatic(req, res, url) {
         ? html.replace('<head>', `<head>\n  ${marker}`)
         : `${marker}\n${html}`;
     }
+    /*
+     * Link previews. Only for the profile page, and only for a crawler -
+     * a real browser gets the page untouched and fills it in itself.
+     * Returns null whenever it cannot help, so the page still loads.
+     */
+    let embedded = false;
+    if (url.pathname === '/player/' || url.pathname === '/player/index.html') {
+      const rewritten = await embed.playerEmbed(html, url, req.headers['user-agent']);
+      if (rewritten) {
+        html = rewritten;
+        embedded = true;
+      }
+    }
+
     const body = Buffer.from(html, 'utf8');
-    const htmlTag = `W/"${body.length}-${Number(info.mtimeMs).toString(36)}-s"`;
+    /* The '-e' keeps a crawler's copy from colliding with a browser's in any
+     * cache between here and them - same file, deliberately different body. */
+    const htmlTag = `W/"${body.length}-${Number(info.mtimeMs).toString(36)}-s${embedded ? 'e' : ''}"`;
     const htmlHeaders = {
       'Content-Type': type,
       'Content-Length': body.length,
       'Cache-Control': 'no-cache',
       ETag: htmlTag,
     };
+    /* Same URL, different HTML depending on who asks. */
+    if (embedded) htmlHeaders.Vary = 'User-Agent';
     if (req.headers['if-none-match'] === htmlTag) {
       res.writeHead(304, htmlHeaders);
       res.end();
@@ -296,6 +327,22 @@ async function serveStatic(req, res, url) {
     stream.pipe(res);
   });
   return true;
+}
+
+/*
+ * fetch() with a deadline. AbortSignal.timeout would do, but building the
+ * controller by hand keeps this working on the older Node 18 builds that are
+ * still common on Windows, and lets the timer be cleared on the happy path so
+ * a slow-but-fine response is not left holding a pending timer.
+ */
+async function fetchUpstream(target, init) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
+  try {
+    return await fetch(target, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 const server = http.createServer(async (req, res) => {
@@ -408,7 +455,7 @@ const server = http.createServer(async (req, res) => {
       init.headers.Cookie = csrfCookie;
     }
 
-    let upstreamResponse = await fetch(target, init);
+    let upstreamResponse = await fetchUpstream(target, init);
 
     /* 403 => the token was missing or stale. Grab the new one and retry once. */
     if (req.method === 'POST' && upstreamResponse.status === 403) {
@@ -416,7 +463,7 @@ const server = http.createServer(async (req, res) => {
       if (csrfToken) {
         init.headers['x-csrf-token'] = csrfToken;
         if (csrfCookie) init.headers.Cookie = csrfCookie;
-        upstreamResponse = await fetch(target, init);
+        upstreamResponse = await fetchUpstream(target, init);
       }
     }
     rememberCsrf(upstreamResponse);
@@ -435,10 +482,74 @@ const server = http.createServer(async (req, res) => {
     });
     res.end(buffer);
   } catch (error) {
-    console.error(`[proxy] ${req.method} ${target} failed:`, error.message);
-    res.writeHead(502, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: 'Upstream request failed', detail: error.message }));
+    const timedOut = error.name === 'AbortError' || error.name === 'TimeoutError';
+    console.error(`[proxy] ${req.method} ${target} failed:`,
+      timedOut ? `no answer within ${UPSTREAM_TIMEOUT_MS}ms` : error.message);
+
+    /*
+     * The reply may already be on its way - the client can disconnect at any
+     * point, and once anything has been written writeHead() throws. That throw
+     * would land outside every try/catch and take the whole process down with
+     * it, which is exactly the "site randomly stops answering" case.
+     */
+    if (res.headersSent) {
+      res.end();
+      return;
+    }
+    res.writeHead(timedOut ? 504 : 502, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      error: timedOut ? 'Upstream timed out' : 'Upstream request failed',
+      detail: timedOut ? `Wanwood did not answer within ${UPSTREAM_TIMEOUT_MS}ms.` : error.message,
+    }));
   }
+});
+
+/*
+ * A malformed request should cost one connection, not the server. Without
+ * this, Node's default for a client error on a socket that is already broken
+ * can surface as an unhandled 'error' event.
+ */
+server.on('clientError', (error, socket) => {
+  if (!socket.writable || socket.destroyed) {
+    socket.destroy();
+    return;
+  }
+  socket.end('HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n');
+});
+
+/*
+ * Sockets that connect and then say nothing tie up a slot each. These caps let
+ * the server let go of them instead of accumulating them until it stops
+ * accepting new connections.
+ */
+server.headersTimeout = 30_000;
+server.requestTimeout = 120_000;
+server.keepAliveTimeout = 65_000;
+
+server.on('error', error => {
+  if (error.code === 'EADDRINUSE') {
+    console.error(`Port ${PORT} is already in use - is Wolimons already running?`);
+    process.exit(1);
+  }
+  console.error('[server] error:', error.message);
+});
+
+/*
+ * The safety net.
+ *
+ * Everything above tries to handle its own failures, but anything missed used
+ * to end the process, and a stopped process is a browser saying "cannot
+ * connect" while the VPS itself looks perfectly healthy. Log it and keep
+ * serving instead: a single broken request is not a reason to take the site
+ * off the internet.
+ */
+process.on('uncaughtException', error => {
+  console.error('[server] uncaught exception - still running:', error && error.stack || error);
+});
+
+process.on('unhandledRejection', reason => {
+  console.error('[server] unhandled rejection - still running:',
+    reason && reason.stack || reason);
 });
 
 /*

@@ -31,6 +31,20 @@ about ten seconds. It backs up your values first, then replaces only the code โ€
 `proxy\data\` (your values, history and roles) and `proxy\.env` (your password)
 are never touched, because neither is in the download.
 
+### If you don't have update.bat yet
+
+You don't need the whole repo for it, just the one file. PowerShell as
+administrator on the VPS:
+
+```powershell
+$u='https://raw.githubusercontent.com/ratemyavatar/Wolimons/arena/019fff2c-wolimons/windows/update.bat'
+(iwr $u -UseBasicParsing).Content -replace "`r`n|`n","`r`n" |
+  Set-Content C:\Wolimons\windows\update.bat -NoNewline -Encoding ascii
+```
+
+The `-replace` matters: raw GitHub hands out `.bat` files with Unix line
+endings and `cmd.exe` mis-parses those. See `HOSTING-WINDOWS.md` ยง11.0.
+
 ## What it asks you
 
 Only four things, and three have sensible defaults:

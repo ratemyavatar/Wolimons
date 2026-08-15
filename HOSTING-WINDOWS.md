@@ -568,7 +568,37 @@ as you don't delete `C:\Wolimons\proxy\data\`, updating is just replacing code.
 > file with no values in it — the server never reads it. Copying it over the
 > real one is the one way to actually lose everything, so don't.
 
-### 11.0 The quick way
+### 11.0 Getting update.bat onto the VPS in the first place
+
+You only need the one file. Don't download the whole 43 MB for this — most of
+that is the `snapshots\` folder, which is reference material the site never
+loads.
+
+On the VPS, open PowerShell as administrator and paste this. It puts
+`update.bat` where it belongs:
+
+```powershell
+$u='https://raw.githubusercontent.com/ratemyavatar/Wolimons/arena/019fff2c-wolimons/windows/update.bat'
+(iwr $u -UseBasicParsing).Content -replace "`r`n|`n","`r`n" |
+  Set-Content C:\Wolimons\windows\update.bat -NoNewline -Encoding ascii
+```
+
+After that, updating is option **8** forever — you never download by hand
+again.
+
+> **Why the `-replace`.** Raw GitHub serves `.bat` files with Unix line
+> endings. `cmd.exe` mis-parses those — labels and `if (` blocks are the usual
+> casualties, so the script fails in odd places rather than cleanly. The ZIP
+> is fine because GitHub applies `.gitattributes` to it; a raw single-file
+> download is not. That one `-replace` fixes it, and the result is
+> byte-identical to the ZIP copy.
+
+If you'd rather not use PowerShell: open the file on GitHub, click **Raw**,
+then Ctrl+S. Save it as `update.bat` with **Save as type: All Files** so
+Notepad doesn't make it `update.bat.txt`. Same line-ending caveat applies —
+in Notepad, check the status bar says `Windows (CRLF)`, not `Unix (LF)`.
+
+### 11.1 The quick way
 
 Don't do any of this by hand. Right-click **`windows\update.bat`** →
 *Run as administrator*, or press **8** in `setup.bat`. It backs your values up
@@ -579,7 +609,7 @@ otherwise the ZIP), copies it in without touching `proxy\data\` or
 The rest of this section is what that script does, for when you want to do it
 yourself or something goes wrong.
 
-### 11.1 Back up first, always
+### 11.2 Back up first, always
 
 One minute, and it makes the rest of this risk-free:
 
@@ -588,7 +618,7 @@ xcopy /Y C:\Wolimons\proxy\data\wolimons-data.json C:\WolimonsBackups\before-upd
 xcopy /Y C:\Wolimons\proxy\.env C:\WolimonsBackups\before-update\
 ```
 
-### 11.2 With Git (easiest)
+### 11.3 With Git (easiest)
 
 ```bat
 cd C:\Wolimons
@@ -603,12 +633,12 @@ a file the update also changes. To throw your edits away and take the new
 version: `git reset --hard` then `git pull`. That is safe for your values —
 `reset --hard` only touches tracked files, and your two files aren't tracked.
 
-### 11.3 From the ZIP (no Git)
+### 11.4 From the ZIP (no Git)
 
 The trap here is deleting `C:\Wolimons` and extracting fresh — that takes your
 values with it. Extract *over* the top instead:
 
-1. Do the backup in 11.1.
+1. Do the backup in 11.2.
 2. Stop the service so nothing is mid-save:
    ```bat
    C:\nssm\win64\nssm.exe stop Wolimons
@@ -634,7 +664,7 @@ robocopy "%USERPROFILE%\Downloads\Wolimons-arena-019fff2c-wolimons" C:\Wolimons 
 in the repo root. That one is unused, so it costs you nothing — and it means
 there is no way for this command to reach your real values.
 
-### 11.4 Check it worked
+### 11.5 Check it worked
 
 Open the site and look at any item you've valued. If the value is there, you
 kept everything. Also check `/valuechanges` — that history comes out of the

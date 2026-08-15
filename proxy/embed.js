@@ -32,6 +32,8 @@
  * blocking - and rather than printing a number that might be wrong.
  */
 
+const fs = require('fs');
+const path = require('path');
 const store = require('./store');
 
 const UPSTREAM = (process.env.UPSTREAM_ORIGIN || 'https://wanwoo.xyz').replace(/\/+$/, '');
@@ -54,6 +56,32 @@ const BROWSER_HEADERS = {
  * faster and always current.
  */
 const CRAWLER = /(discordbot|twitterbot|slackbot|telegrambot|whatsapp|facebookexternalhit|linkedinbot|embedly|redditbot|skypeuripreview|bingpreview|googlebot|pinterest|vkshare|tumblr|mastodon|matrix|signal|iframely|opengraph)/i;
+
+/*
+ * Terminated-limiteds holding accounts, read out of assets/js/config.js so the
+ * list lives in exactly one place. The browser reads that file directly; this
+ * scrapes the same array out of it rather than keeping a second copy here that
+ * could drift. A parse failure just means no account is treated as a holding
+ * account, which is the harmless direction to fail in.
+ */
+const HOLDING_ACCOUNTS = (() => {
+  try {
+    const src = fs.readFileSync(
+      path.join(__dirname, '..', 'assets', 'js', 'config.js'), 'utf8');
+    const block = src.match(/const HOLDING_ACCOUNTS\s*=\s*\[([\s\S]*?)\]/);
+    if (!block) return new Set();
+    const names = [...block[1].matchAll(/['"]([^'"]+)['"]/g)]
+      .map(m => m[1].trim().toLowerCase())
+      .filter(Boolean);
+    return new Set(names);
+  } catch (error) {
+    return new Set();
+  }
+})();
+
+function isHoldingAccount(name) {
+  return HOLDING_ACCOUNTS.has(String(name || '').trim().toLowerCase());
+}
 
 function isCrawler(userAgent) {
   return CRAWLER.test(String(userAgent || ''));
@@ -136,7 +164,13 @@ async function ownersOf(assetId) {
     const rows = result && Array.isArray(result.data) ? result.data : [];
     rows.forEach(row => {
       const id = Number(row.owner && (row.owner.userId ?? row.owner.id));
-      if (Number.isSafeInteger(id) && id > 0) owners.push(id);
+      if (!Number.isSafeInteger(id) || id <= 0) return;
+      /* Holding accounts are not ranked, the same way the browser leaves them
+       * out of the leaderboard - otherwise the ranks this hands to previews
+       * would disagree with the board the reader sees. The owners feed carries
+       * the name, so this costs no extra request. */
+      if (isHoldingAccount(row.owner && row.owner.name)) return;
+      owners.push(id);
     });
     cursor = (result && result.nextPageCursor) || '';
     if (!cursor) break;
@@ -280,6 +314,9 @@ function buildTags(player, pageUrl) {
   ];
   /* Only stated when it is actually known. */
   if (player.rank) parts.push(`Rank #${formatNumber(player.rank)}`);
+  /* Holding accounts are not ranked, so say why rather than just leaving the
+   * rank off and letting the preview imply an ordinary unranked player. */
+  if (isHoldingAccount(player.name)) parts.push('Limited holder account');
 
   const title = `${player.name} - Wolimons`;
   const description = parts.join('  |  ');

@@ -56,6 +56,27 @@
   ];
 
   /*
+   * Limited holder accounts - kept off the player rankings.
+   *
+   * When someone is terminated their limiteds are moved onto a holding
+   * account rather than destroyed, so these accounts accumulate items they
+   * never traded for. Ranking them against real players is misleading - the
+   * RAP is not a record of anything anyone did - so they are left out of the
+   * leaderboard, the player list and the Lucky Cat draw.
+   *
+   * They are not hidden: the profile still opens from a direct link and still
+   * reads live from Wanwood. It just says what the account is, and blurs the
+   * avatar so it does not read as somebody's profile.
+   *
+   * Matched case-insensitively against the Wanwood username, same as the two
+   * lists above. There is no endpoint that flags these - the backend has no
+   * concept of a holding account - so the list is kept here by hand.
+   */
+  const HOLDING_ACCOUNTS = [
+    'baddecisions',
+  ];
+
+  /*
    * Site owners - who the admin panel opens for.
    *
    * Same idea as the list above, and the same limits: it is a list of names
@@ -105,6 +126,10 @@
     OWNERS.map(name => String(name).trim().toLowerCase()).filter(Boolean),
   );
 
+  const holding = new Set(
+    HOLDING_ACCOUNTS.map(name => String(name).trim().toLowerCase()).filter(Boolean),
+  );
+
   window.WOLIMONS_CONFIG = {
     apiBase: String(apiBase).replace(/\/+$/, ''),
     siteBase: SITE_BASE.replace(/\/+$/, ''),
@@ -117,6 +142,12 @@
     /* True only for a name on the owners list. See the warning above it. */
     isOwner(name) {
       return owners.has(String(name || '').trim().toLowerCase());
+    },
+    holdingAccounts: HOLDING_ACCOUNTS,
+    /* True for a terminated-limiteds holding account. Keeps them off the
+     * rankings and puts the notice on their profile. */
+    isHoldingAccount(name) {
+      return holding.has(String(name || '').trim().toLowerCase());
     },
   };
 })();

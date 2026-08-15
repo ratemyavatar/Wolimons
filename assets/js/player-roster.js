@@ -70,6 +70,13 @@
   /* In-flight scan, so two callers on one page cannot start two scans. */
   let pending = null;
 
+  /* Terminated-limiteds holding accounts, listed in config.js. They own real
+   * items but were never traded with, so they are not ranked. */
+  function isHoldingAccount(name) {
+    const CONFIG = window.WOLIMONS_CONFIG;
+    return Boolean(CONFIG && CONFIG.isHoldingAccount && CONFIG.isHoldingAccount(name));
+  }
+
   /* ------------------------------------------------------------------ */
   /* Cache                                                               */
   /* ------------------------------------------------------------------ */
@@ -81,7 +88,10 @@
       const saved = JSON.parse(raw);
       if (!saved || !Array.isArray(saved.players) || !saved.at) return null;
       if (Date.now() - saved.at > CACHE_TTL_MS) return null;
-      return saved.players;
+      /* Filtered on the way out as well: a cache written before an account
+       * was added to the list would otherwise keep it on the board until it
+       * expired. */
+      return saved.players.filter(player => !isHoldingAccount(player.name));
     } catch (error) {
       return null;
     }
@@ -168,11 +178,18 @@
       done += 1;
 
       if (players.size && typeof onProgress === 'function') {
-        onProgress([...players.values()], { done, total: assetIds.length });
+        /* Filtered here too, otherwise a holding account would flash onto the
+         * board while the scan runs and vanish when it finishes. Rows without
+         * a name yet cannot match, but those are backfilled and re-filtered
+         * once the scan completes. */
+        onProgress(
+          [...players.values()].filter(player => !isHoldingAccount(player.name)),
+          { done, total: assetIds.length },
+        );
       }
     });
 
-    const roster = [...players.values()];
+    let roster = [...players.values()];
 
     /* Names normally come free with the owners rows, so this is usually a
      * no-op. Anyone still missing one gets filled in by a single batched
@@ -194,6 +211,12 @@
         player.name = (user && user.name) || `User ${player.id}`;
       });
     }
+
+    /* Holding accounts come out here rather than in each page, so the
+     * leaderboard, /players and the Lucky Cat draw all agree. It has to be
+     * after the name backfill above - the match is on username, and a row
+     * that arrived without a name would slip through otherwise. */
+    roster = roster.filter(player => !isHoldingAccount(player.name));
 
     return roster;
   }

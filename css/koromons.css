@@ -1361,3 +1361,20 @@ html.trade-gain-loss-rap-hidden #rap_delta_row { display: none; }
   .change_timestamp_relative { font-size: 1em; }
   .change_timestamp_utc { font-size: 0.9em; }
 }
+
+/* --------------------------------------------------------------------------
+   /player - limited holder accounts.
+
+   Terminated players' limiteds are moved onto a holding account, so it ends
+   up with a large inventory that belongs to nobody. The profile still opens
+   and still reads live from Wanwood; the avatar is blurred so the page does
+   not read as somebody's profile, and the notice above it says what the
+   account is. The notice itself reuses the .alert .alert-danger box from the
+   item page, so there is no new chrome here - only the blur.
+
+   The stats, the inventory and the graph are deliberately left alone: the
+   items on there are real, and hiding them would make the page useless for
+   checking where a terminated player's limiteds went.
+   -------------------------------------------------------------------------- */
+
+.holding_account_avatar { filter: blur(12px); transform: scale(0.97); }

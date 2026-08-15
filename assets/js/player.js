@@ -41,6 +41,7 @@
   const sortSelect = el('inventory_sort');
   const stackToggle = el('stackHoardsToggle');
   const chartBox = el('player_history_chart_container');
+  const holdingNotice = el('player_holding_notice');
 
   const formatNumber = value => Number(value || 0).toLocaleString('en-US');
 
@@ -474,6 +475,17 @@
 
     renderName(name);
     document.title = `${name} - Wanwood Player Profile - Wolimons`;
+
+    /* Terminated players' limiteds are moved onto a holding account. It is
+     * left out of the rankings (see player-roster.js) and says so here, with
+     * the avatar blurred so the page does not read as somebody's profile.
+     * Everything else on the page is left alone - the items really are on
+     * this account, and that is the useful part. */
+    const CONFIG = window.WOLIMONS_CONFIG;
+    if (CONFIG && CONFIG.isHoldingAccount && CONFIG.isHoldingAccount(name)) {
+      if (holdingNotice) holdingNotice.hidden = false;
+      if (avatarImage) avatarImage.classList.add('holding_account_avatar');
+    }
 
     /* Fed to the badge rules once the inventory is in. Verified is strictly
      * what the API reports - nothing here is granted for existing. */

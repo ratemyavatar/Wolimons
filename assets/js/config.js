@@ -71,9 +71,21 @@
    * Matched case-insensitively against the Wanwood username, same as the two
    * lists above. There is no endpoint that flags these - the backend has no
    * concept of a holding account - so the list is kept here by hand.
+   *
+   * CASE DOES NOT MATTER. Write the name once, in whatever case reads best.
+   * Both the stored list and the name being checked are lowercased before
+   * they are compared, so "baddecisions", "BadDecisions" and "BADDECISIONS"
+   * are all the same entry - including when Wanwood itself reports the name
+   * with different capitals than what is written here. Surrounding spaces are
+   * trimmed too. Do not add case variants of a name: they would all collapse
+   * onto the single entry below and achieve nothing.
+   *
+   * What DOES matter is the spelling. This matches the username, so if one of
+   * these accounts is ever renamed on Wanwood, the new name has to be put
+   * here or the account comes back onto the leaderboard.
    */
   const HOLDING_ACCOUNTS = [
-    'baddecisions',
+    'BadDecisions',
   ];
 
   /*

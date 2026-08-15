@@ -27,3 +27,4 @@ logs/
 
 # Downloaded by windows/setup.bat on first use, not ours to ship.
 windows/nssm.exe
+windows/cloudflared.exe

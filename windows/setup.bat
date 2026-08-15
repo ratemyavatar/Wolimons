@@ -53,7 +53,7 @@ echo.
 echo   1  Set up the site      (do this first)
 echo   2  Run it in this window   (test it)
 echo   3  Install as a service   (starts with Windows)
-echo   4  Put it on my Cloudflare domain
+echo   4  Put it on my Cloudflare domain  (browser or token)
 echo   5  Check that it's working
 echo   6  Change the admin password
 echo   7  Uninstall the services
@@ -476,28 +476,31 @@ if not exist "%ENVFILE%" (
   goto menu
 )
 
-set "HOSTNAME="
-set /p "HOSTNAME=  Full address you want, e.g. wolimons.example.com: "
-if "!HOSTNAME!"=="" goto menu
+echo   Two ways to connect this machine to Cloudflare:
+echo.
+echo     1  Sign in with a browser ON THIS MACHINE. setup.bat makes
+echo        the tunnel and the DNS record for you.
+echo.
+echo     2  Paste a tunnel TOKEN from the Cloudflare dashboard or the
+echo        phone app. Use this when this machine has no browser -
+echo        you then add the hostname yourself in Cloudflare.
+echo.
+set "MODE="
+set /p "MODE=  Choose 1 or 2 [1]: "
+if "!MODE!"=="" set "MODE=1"
+if "!MODE!"=="2" goto tunnel_token
+if not "!MODE!"=="1" (
+  echo   That's not 1 or 2.
+  pause
+  goto tunnel
+)
 
-rem --- A bare label or a pasted URL are the two likely mistakes. ---------
-echo !HOSTNAME!| findstr /r "^https*://" >nul
-if not errorlevel 1 (
-  echo.
-  echo   Leave off the https:// - just the hostname.
-  echo.
-  pause
-  goto menu
-)
-echo !HOSTNAME!| findstr /r "\." >nul
-if errorlevel 1 (
-  echo.
-  echo   That doesn't look like a domain - it needs a dot in it,
-  echo   like wolimons.example.com
-  echo.
-  pause
-  goto menu
-)
+rem ===========================================================================
+rem  4a. Browser sign-in on this machine
+rem ===========================================================================
+:tunnel_browser
+call :tunnel_hostname
+if "!HOSTNAME!"=="" goto menu
 
 call :readport
 
@@ -648,6 +651,176 @@ echo       https://!HOSTNAME!/
 echo.
 echo   DNS can take a minute. If it doesn't load straight away,
 echo   wait and retry before changing anything.
+echo   ------------------------------------------------------------
+echo.
+echo   Nothing needs an open inbound port any more. Close the one
+echo   setup opened?
+set "CLOSEFW="
+set /p "CLOSEFW=  (recommended) (y/N): "
+if /i "!CLOSEFW!"=="y" (
+  netsh advfirewall firewall delete rule name="Wolimons" >nul 2>&1
+  echo   Closed. Remember your host's own firewall panel too.
+)
+echo.
+pause
+goto menu
+
+rem ===========================================================================
+rem  Shared by both tunnel flows: ask which address the site will live at.
+rem  Sets HOSTNAME, or leaves it empty if the answer was no good.
+rem ===========================================================================
+:tunnel_hostname
+set "HOSTNAME="
+set /p "HOSTNAME=  Full address you want, e.g. wolimons.example.com: "
+if "!HOSTNAME!"=="" exit /b 0
+
+rem --- A bare label or a pasted URL are the two likely mistakes. ---------
+echo !HOSTNAME!| findstr /r "^https*://" >nul
+if not errorlevel 1 (
+  echo.
+  echo   Leave off the https:// - just the hostname.
+  echo.
+  set "HOSTNAME="
+  pause
+  exit /b 0
+)
+echo !HOSTNAME!| findstr /r "\." >nul
+if errorlevel 1 (
+  echo.
+  echo   That doesn't look like a domain - it needs a dot in it,
+  echo   like wolimons.example.com
+  echo.
+  set "HOSTNAME="
+  pause
+  exit /b 0
+)
+exit /b 0
+
+rem ===========================================================================
+rem  4b. Tunnel token, for when this machine has no browser
+rem ===========================================================================
+:tunnel_token
+call :tunnel_hostname
+if "!HOSTNAME!"=="" goto menu
+
+rem --- Offer www too, so the API allowlist below covers both. ------------
+set "ADDWWW="
+set /p "ADDWWW=  Also use https://www.!HOSTNAME! ? (y/N): "
+set "ORIGINS=https://!HOSTNAME!"
+if /i "!ADDWWW!"=="y" set "ORIGINS=https://!HOSTNAME!,https://www.!HOSTNAME!"
+
+call :readport
+
+rem --- Standalone exe next to this script, so nothing depends on the -----
+rem --- PATH or on guessing where an installer put it. --------------------
+set "CFEXE=%REPO%\windows\cloudflared.exe"
+if not exist "!CFEXE!" (
+  if exist "!PF64!\cloudflared\cloudflared.exe" set "CFEXE=!PF64!\cloudflared\cloudflared.exe"
+  if exist "!PF86!\cloudflared\cloudflared.exe" set "CFEXE=!PF86!\cloudflared\cloudflared.exe"
+)
+if not exist "!CFEXE!" (
+  echo.
+  echo   Downloading cloudflared...
+  curl -L -s -o "%REPO%\windows\cloudflared.exe" https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe
+  set "CFEXE=%REPO%\windows\cloudflared.exe"
+  if not exist "!CFEXE!" (
+    echo   Couldn't download cloudflared. Check internet access on the VPS.
+    pause
+    goto menu
+  )
+  echo   Got it.
+)
+
+echo.
+echo   ------------------------------------------------------------
+echo   In Cloudflare: Zero Trust - Networks - Tunnels - your tunnel
+echo   - Configure. Or in the phone app: the tunnel - Add a replica.
+echo.
+echo   Copy the install command it shows. The token is the long
+echo   eyJ... part at the end of it - that bit only.
+echo.
+echo   Anyone with this token can attach to your tunnel, so treat
+echo   it like a password and don't paste it anywhere public.
+echo   ------------------------------------------------------------
+echo.
+set "TOKEN="
+set /p "TOKEN=  Paste the eyJ... token here: "
+if "!TOKEN!"=="" goto menu
+
+rem --- A tunnel token is a JWT, so it always starts eyJ. Catches the -----
+rem --- common mistake of pasting the whole install command. --------------
+echo !TOKEN!| findstr /r "^eyJ" >nul
+if errorlevel 1 (
+  echo.
+  echo   That doesn't look like a token - it should start with eyJ.
+  echo   Copy just the long eyJ... string, not the whole command.
+  echo.
+  pause
+  goto menu
+)
+
+echo.
+echo   Installing the tunnel service...
+sc query Cloudflared >nul 2>&1
+if not errorlevel 1 (
+  "!CFEXE!" service uninstall >nul 2>&1
+  timeout /t 2 /nobreak >nul
+)
+"!CFEXE!" service install "!TOKEN!"
+timeout /t 3 /nobreak >nul
+sc start Cloudflared >nul 2>&1
+
+sc query Cloudflared 2>nul | findstr /i "RUNNING" >nul
+if errorlevel 1 (
+  echo.
+  echo   The tunnel service didn't start. Run this by hand to see why:
+  echo   "!CFEXE!" service install "!TOKEN!"
+) else (
+  echo   Running.
+)
+
+rem --- Same two settings the browser flow writes. TRUST_PROXY matters ----
+rem --- because behind a tunnel every request arrives from Cloudflare, ----
+rem --- so without it the login limiter sees one visitor for everyone. ----
+findstr /i /c:"TRUST_PROXY" "%ENVFILE%" >nul 2>&1
+if errorlevel 1 (
+  echo.>>"%ENVFILE%"
+  echo # Behind Cloudflare - read the real visitor IP from CF-Connecting-IP.>>"%ENVFILE%"
+  echo TRUST_PROXY=1>>"%ENVFILE%"
+  echo   Enabled TRUST_PROXY.
+)
+
+findstr /i /c:"ALLOWED_ORIGINS" "%ENVFILE%" >nul 2>&1
+if errorlevel 1 (
+  echo.>>"%ENVFILE%"
+  echo # Only your own site may call the API from a browser.>>"%ENVFILE%"
+  echo ALLOWED_ORIGINS=!ORIGINS!>>"%ENVFILE%"
+  echo   Locked the API to !ORIGINS!
+)
+
+sc query Wolimons >nul 2>&1
+if not errorlevel 1 (
+  echo   Restarting Wolimons to apply the new settings...
+  net stop Wolimons >nul 2>&1
+  net start Wolimons >nul 2>&1
+)
+
+echo.
+echo   ------------------------------------------------------------
+echo   DONE on this machine.
+echo.
+echo   Last step, in Cloudflare - open the same tunnel and add a
+echo   public hostname:
+echo.
+echo     Subdomain:  blank for the root, or "www"
+echo     Domain:     !HOSTNAME!
+echo     Service:    HTTP   localhost:!SITEPORT!
+echo.
+echo   Saving that adds the DNS record for you. Then open:
+echo.
+echo       https://!HOSTNAME!/
+echo.
+echo   DNS can take a minute - wait and retry before changing things.
 echo   ------------------------------------------------------------
 echo.
 echo   Nothing needs an open inbound port any more. Close the one

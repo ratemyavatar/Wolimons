@@ -931,6 +931,9 @@
    *        owner: { id, type: "User", name } | null
    *      } ] }
    *
+   * `id` on the row is the UserAssetId - the identity of that one copy, not
+   * of the item - which is the thing /luckycat is about.
+   *
    * One row per *copy*, so a player holding three of an item appears three
    * times. `owner` is nulled out when that player's inventory is private or
    * their account is gone - those rows are skipped rather than counted.
@@ -979,6 +982,14 @@
           userId: ownerId,
           name: typeof owner.name === 'string' ? owner.name : '',
           serialNumber: toNumber(row.serialNumber),
+          /* The row id IS the copy's UAID, and the two timestamps say when
+           * that copy was created and when it last moved. The leaderboard
+           * only counts holders and ignores all three, but /luckycat has to
+           * name one exact copy, so they are carried through rather than
+           * dropped. */
+          userAssetId: toNumber(row.id),
+          created: typeof row.created === 'string' ? row.created : null,
+          updated: typeof row.updated === 'string' ? row.updated : null,
         });
       });
 

@@ -174,7 +174,18 @@
     { id: '500k-plus', name: '500K+', tier: 'uncommon', section: 'Trading Badges', earn: valueAtLeast(500000) },
     { id: '100k-plus', name: '100K+', tier: 'common', section: 'Trading Badges', earn: valueAtLeast(100000) },
 
-    { id: 'lucky-cat', name: 'Lucky Cat', tier: 'epic', section: 'Trading Badges', earn: context => owns(context, name => name === 'lucky cat') },
+    /*
+     * Awarded for holding the one copy /luckycat has currently chosen -
+     * identified by its UAID, not by the item, so owning a different copy of
+     * the same item earns nothing. Finding that copy means redrawing the
+     * whole Lucky Cat selection (the catalog plus an owner walk per
+     * candidate), which is far too much work to do on every profile load, so
+     * no browser-side rule can settle it here. It is listed because the
+     * badge exists and /luckycat explains it; nothing on the profile grants
+     * it, and it must not be faked by matching an item name - there is no
+     * item called "Lucky Cat".
+     */
+    { id: 'lucky-cat', name: 'Lucky Cat', tier: 'epic', section: 'Trading Badges', earn: null },
 
     { id: 'serial-1', name: 'Serial #1', tier: 'rare', section: 'Trading Badges', earn: context => hasSerial(context, serial => serial === 1) },
     { id: 'l337', name: 'L337', tier: 'rare', section: 'Trading Badges', earn: context => hasSerial(context, serial => serial === 1337) },

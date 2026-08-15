@@ -21,6 +21,20 @@ Then open <http://localhost:8080/>. Pass a port to use a different one:
 
 In Termux, install the deps first with `pkg install -y git python`.
 
+`serve.sh` serves the pages only, and is a shell script, so it needs a
+Unix-like shell. To run the pages **and** the API from one process — which is
+what you want on a server, and works on Windows as-is:
+
+```bash
+cd proxy
+cp .env.example .env      # then set SERVE_STATIC=1 and your ADMIN_KEY
+node server.js
+```
+
+That needs Node 18+ and installs nothing. For a Windows VPS, and for opening
+the site on your phone at the server's IP, see
+[HOSTING-WINDOWS.md](HOSTING-WINDOWS.md).
+
 ### Opening it on other devices
 
 `serve.sh` listens on every network interface, so anything on the same Wi-Fi

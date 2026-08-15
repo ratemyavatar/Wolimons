@@ -74,7 +74,22 @@
     'Nun',
   ];
 
+  /*
+   * Where the API actually is, in order of precedence:
+   *
+   *   1. localStorage 'wolimons_api_base'  - a manual override for testing.
+   *   2. window.WOLIMONS_API_BASE          - set by the server when the site
+   *                                          is self-hosted (see /proxy). The
+   *                                          API is then on the same origin as
+   *                                          the page, whatever address was
+   *                                          used to reach it, so it cannot be
+   *                                          written down here in advance.
+   *   3. DEFAULT_API_BASE                  - the hosted Render proxy.
+   */
   let apiBase = DEFAULT_API_BASE;
+  if (typeof window.WOLIMONS_API_BASE === 'string' && window.WOLIMONS_API_BASE) {
+    apiBase = window.WOLIMONS_API_BASE;
+  }
   try {
     const override = window.localStorage.getItem('wolimons_api_base');
     if (override) apiBase = override;

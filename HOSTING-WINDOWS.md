@@ -626,13 +626,14 @@ right ones:
 ```powershell
 $win='C:\Users\Administrator\Documents\wolimons\windows'
 
-$z="$env:TEMP\wolimons_dl"; $x="$env:TEMP\wx"
+$z="$env:TEMP\wolimons_dl"
 $url='htt'+'ps://codeload.git'+'hub.com/ratemyavatar/Wolimons/zip/refs/heads/arena/019fff2c-wolimons'
 curl.exe -L -s -o $z $url
-if(Test-Path $x){Remove-Item $x -Recurse -Force}
 Add-Type -AssemblyName System.IO.Compression.FileSystem
-[IO.Compression.ZipFile]::ExtractToDirectory($z,$x)
-copy "$x\Wolimons-arena-019fff2c-wolimons\windows\update.bat" "$win\update.bat"
+$zip=[IO.Compression.ZipFile]::OpenRead($z)
+$e=$zip.Entries | Where-Object { $_.FullName.EndsWith('windows/update.bat') }
+[IO.Compression.ZipFileExtensions]::ExtractToFile($e,"$win\update.bat",$true)
+$zip.Dispose()
 ```
 
 Bigger download, but there is nothing in it to get wrong. Or do it by hand:

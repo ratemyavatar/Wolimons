@@ -178,7 +178,7 @@ if defined USEGIT (
     echo   Download failed. Check the VPS has internet access.
   ) else (
     echo   Unpacking...
-    powershell -NoProfile -Command "Expand-Archive -LiteralPath '!ZIP!' -DestinationPath '!UNZIP!' -Force" >nul 2>&1
+    call :unpack "!ZIP!" "!UNZIP!"
 
     set "SRC="
     for /d %%d in ("!UNZIP!\*") do set "SRC=%%d"
@@ -294,3 +294,35 @@ echo   Backup of your values: %BACKUP%
 echo.
 pause
 exit /b 0
+
+rem ===========================================================================
+rem  :unpack - extract the ZIP one entry at a time.
+rem
+rem  Expand-Archive (and ZipFile::ExtractToDirectory) abort the ENTIRE archive
+rem  if a single entry has a name Windows will not allow - a pipe, colon,
+rem  question mark and so on. Some of the reference snapshots in this repo are
+rem  saved with the original page titles, which contain "|". Extracting entry
+rem  by entry means one awkward filename can never stop the update.
+rem
+rem  The PowerShell is written to a .ps1 first. Long inline -Command strings
+rem  full of quotes and braces are exactly what cmd.exe mangles.
+rem ===========================================================================
+:unpack
+set "PSF=%TEMP%\wolimons-unpack.ps1"
+> "%PSF%" echo Add-Type -AssemblyName System.IO.Compression.FileSystem
+>>"%PSF%" echo $zip = [IO.Compression.ZipFile]::OpenRead($args[0])
+>>"%PSF%" echo $out = $args[1]
+>>"%PSF%" echo $bad = 0
+>>"%PSF%" echo foreach ($e in $zip.Entries) {
+>>"%PSF%" echo   if ($e.FullName.EndsWith('/')) { continue }
+>>"%PSF%" echo   if ($e.Name -match '[\<\>:"\|\?\*]') { $bad++; continue }
+>>"%PSF%" echo   $dest = Join-Path $out $e.FullName
+>>"%PSF%" echo   $dir = Split-Path $dest -Parent
+>>"%PSF%" echo   if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force ^| Out-Null }
+>>"%PSF%" echo   try { [IO.Compression.ZipFileExtensions]::ExtractToFile($e, $dest, $true) } catch { $bad++ }
+>>"%PSF%" echo }
+>>"%PSF%" echo $zip.Dispose()
+>>"%PSF%" echo if ($bad -gt 0) { Write-Host ("     skipped $bad file(s) Windows cannot name - harmless") }
+powershell -NoProfile -ExecutionPolicy Bypass -File "%PSF%" "%~1" "%~2"
+del /q "%PSF%" >nul 2>&1
+goto :eof

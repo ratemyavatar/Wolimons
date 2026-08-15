@@ -5,6 +5,14 @@ Windows server, and open it on your phone by typing the VPS's IP address.
 
 Everything below assumes you are logged into the VPS over Remote Desktop.
 
+> **Don't want to type all this?**
+> Right-click **`windows\setup.bat`** → *Run as administrator*. It does every
+> step on this page for you and only asks for your password, your port and
+> your domain. See [`windows/README.md`](windows/README.md).
+>
+> The rest of this document explains what that script is doing, and is what
+> you need when something goes wrong.
+
 ---
 
 ## 1. Install Node.js

@@ -1,0 +1,9 @@
+# Batch files must keep CRLF line endings. cmd.exe can mis-parse a .bat
+# saved with bare LF - labels and block structure are the usual casualties -
+# so these are marked binary-ish for line-ending purposes: git stores them
+# exactly as they are and never converts them on checkout.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Everything else stays LF in the repo.
+* text=auto

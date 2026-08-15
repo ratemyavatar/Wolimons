@@ -34,7 +34,28 @@ title Wolimons update
 set "REPO=%~2"
 set "PROXY=%REPO%\proxy"
 set "ENVFILE=%PROXY%\.env"
+
+rem --- Where the values actually live. Normally proxy\data\, but .env can ---
+rem --- point DATA_FILE anywhere (D:\WolimonsData\... and so on), and if it -
+rem --- does we must back up THAT file, not the default one that isn't -----
+rem --- being used. Read it out of .env rather than assuming. --------------
 set "DATAFILE=%PROXY%\data\wolimons-data.json"
+if exist "%ENVFILE%" (
+  for /f "usebackq tokens=1,* delims==" %%a in ("%ENVFILE%") do (
+    set "K=%%a"
+    set "K=!K: =!"
+    if /i "!K!"=="exportDATA_FILE" set "K=DATA_FILE"
+    if /i "!K!"=="DATA_FILE" (
+      set "V=%%b"
+      rem --- strip a leading space and any trailing spaces --------------
+      for /f "tokens=* delims= " %%v in ("!V!") do set "V=%%v"
+      rem --- .env allows "quoted values"; the server strips them, so ----
+      rem --- we must too or we'd back up a path that doesn't exist. -----
+      if defined V set "V=!V:"=!"
+      if not "!V!"=="" set "DATAFILE=!V!"
+    )
+  )
+)
 
 cls
 echo.
@@ -83,12 +104,27 @@ echo   Backing up...
 for /f "delims=" %%d in ('powershell -NoProfile -Command "Get-Date -Format yyyy-MM-dd_HHmmss"') do set "STAMP=%%d"
 set "BACKUP=C:\WolimonsBackups\%STAMP%"
 mkdir "%BACKUP%" >nul 2>&1
+
+rem --- Record the size of the values file now, so we can prove after the ---
+rem --- update that it is still exactly the same file. ---------------------
+set "SIZEBEFORE="
 if exist "%DATAFILE%" (
+  for %%f in ("%DATAFILE%") do set "SIZEBEFORE=%%~zf"
   copy /y "%DATAFILE%" "%BACKUP%\" >nul
+  if errorlevel 1 (
+    echo.
+    echo   Could not back up your values. Stopping here rather than
+    echo   updating without a backup.
+    echo     %DATAFILE%
+    echo.
+    pause
+    exit /b 1
+  )
   echo     values    -^> %BACKUP%
 ) else (
   echo     no values file yet - nothing to back up
 )
+if exist "%DATAFILE%.bak" copy /y "%DATAFILE%.bak" "%BACKUP%\" >nul 2>&1
 if exist "%ENVFILE%" copy /y "%ENVFILE%" "%BACKUP%\" >nul
 
 rem ===========================================================================
@@ -154,7 +190,13 @@ if defined USEGIT (
       rem --- destination is ever deleted. /XD data skips both data --------
       rem --- folders, /XF .env skips the password file. So the two --------
       rem --- things that matter cannot be reached by this copy. -----------
-      robocopy "!SRC!" "%REPO%" /E /NFL /NDL /NJH /NJS /NP /XD data .git /XF .env >nul
+      rem --- Belt and braces on the exclusions: -------------------------
+      rem ---   /XD "%PROXY%\data"  the real values folder, by full path --
+      rem ---   /XD "!SRC!\data"    the unused starter file in the ZIP ----
+      rem ---   /XF "%ENVFILE%"     the password file, by full path -------
+      rem --- The source has no proxy\data in it anyway, so there is ------
+      rem --- nothing to copy over the top even if a flag were dropped. ---
+      robocopy "!SRC!" "%REPO%" /E /NFL /NDL /NJH /NJS /NP /XD "%PROXY%\data" "!SRC!\data" "%REPO%\.git" /XF "%ENVFILE%" >nul
       if errorlevel 8 (
         echo   Copy failed.
       ) else (
@@ -185,6 +227,41 @@ if not defined OK (
   echo.
   pause
   exit /b 1
+)
+
+rem ===========================================================================
+rem  Prove the values file survived, rather than just claiming it did.
+rem  Same file, same size = the update never went near it.
+rem ===========================================================================
+set "DATAOK=1"
+if defined SIZEBEFORE (
+  if not exist "%DATAFILE%" (
+    set "DATAOK="
+  ) else (
+    for %%f in ("%DATAFILE%") do set "SIZEAFTER=%%~zf"
+    if not "!SIZEAFTER!"=="!SIZEBEFORE!" set "DATAOK="
+  )
+)
+if not defined DATAOK (
+  echo.
+  echo   ------------------------------------------------------
+  echo   WARNING - your values file changed during the update.
+  echo   ------------------------------------------------------
+  echo.
+  echo   It should not have. Putting your backup back:
+  echo.
+  net stop Wolimons >nul 2>&1
+  copy /y "%BACKUP%\wolimons-data.json" "%DATAFILE%" >nul
+  if errorlevel 1 (
+    echo     Couldn't restore automatically. Copy this back by hand:
+    echo       from: %BACKUP%\wolimons-data.json
+    echo       to:   %DATAFILE%
+  ) else (
+    echo     Restored from %BACKUP%
+  )
+  net start Wolimons >nul 2>&1
+  echo.
+  pause
 )
 
 rem --- Prove it actually came back up. --------------------------------------

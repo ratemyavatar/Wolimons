@@ -22,7 +22,7 @@ add-on.
 | `Koromon's` | homepage |
 | `Koromon's Item Catalog` | item catalog |
 | `Dominus Empyreus \| Roblox Limited Item - Rolimon's` | item detail page |
-| `Richest Pekora Players Leaderboard - Koromon's` | leaderboard |
+| `Richest Players Leaderboard - Koromon's` | leaderboard |
 | `Leaderboard - Colimons` | leaderboard, other layout |
 | `Colimons - Player Profile` | player profile |
 | `Roblox \| Roblox Player Profile - Rolimon's` | player profile, other layout |

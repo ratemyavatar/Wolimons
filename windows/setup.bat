@@ -696,6 +696,31 @@ if errorlevel 1 (
   echo   [OK] Service running
 )
 
+rem --- Is the service serving THIS folder, or an older copy of the site? ---
+rem  If you downloaded a fresh copy and pasted it somewhere new, the service
+rem  is still pointed at the old folder until you reinstall it. That looks
+rem  exactly like "my changes didn't do anything", so check it here.
+rem  Read it from the registry rather than "nssm get" - nssm prints in a
+rem  format that for /f mangles, and nssm.exe isn't in the download anyway.
+set "SERVEDIR="
+for /f "usebackq tokens=2,*" %%a in (`reg query "HKLM\SYSTEM\CurrentControlSet\Services\Wolimons\Parameters" /v AppDirectory 2^>nul ^| findstr /i AppDirectory`) do (
+  set "SERVEDIR=%%b"
+)
+if defined SERVEDIR (
+  if /i "!SERVEDIR!"=="%PROXY%" (
+    echo   [OK] Service is serving this folder
+  ) else (
+    echo   [X] SERVICE IS SERVING A DIFFERENT FOLDER
+    echo.
+    echo        it is running:  !SERVEDIR!
+    echo        you are in:     %PROXY%
+    echo.
+    echo        That is why the site still shows the old pages. Fix it with
+    echo        option 7 ^(uninstall^), then option 1, then option 3 - all
+    echo        from THIS folder's setup.bat.
+  )
+)
+
 echo.
 echo   Asking the site if it's alive...
 curl -s -m 10 "http://localhost:!SITEPORT!/healthz"

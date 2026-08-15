@@ -32,7 +32,19 @@
  */
 
 const crypto = require('crypto');
+const path = require('path');
 const store = require('./store');
+
+/*
+ * Which folder the pages are being served out of. Worked out the same way
+ * server.js does it, so /api/status can report it.
+ *
+ * This is here to answer one specific question: "I updated the files but the
+ * site still shows the old pages." Nearly always that means the service is
+ * still pointed at the previous copy of the site, and this tells you which
+ * folder it is actually reading instead of leaving you to guess.
+ */
+const SITE_ROOT = path.resolve(process.env.SITE_ROOT || path.join(__dirname, '..'));
 
 const ADMIN_KEY = process.env.ADMIN_KEY || '';
 const TOKEN_TTL_MS = Number(process.env.TOKEN_TTL_MS || 12 * 60 * 60 * 1000);
@@ -248,6 +260,7 @@ async function handle(req, res, url, readBody) {
       send(res, 200, {
         ok: true,
         hasAdminKey: Boolean(ADMIN_KEY),
+        siteRoot: SITE_ROOT,
         canWrite: store.config.canWrite,
         storage: store.config.storage,
         location: store.config.location,

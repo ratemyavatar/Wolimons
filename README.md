@@ -56,6 +56,30 @@ C:\Wolimons\
 If `C:\Wolimons\index.html` doesn't exist, you've got the folder nesting
 wrong. Go up or down a level until it does.
 
+### If I'm replacing a copy that's already on there
+
+Don't paste the new files over the old folder. Old files that aren't in the
+new download just stay behind, and the service carries on pointing at
+whatever it was set up with, so the site keeps showing the old pages.
+
+Do it this way instead:
+
+1. Run the **old** folder's `setup.bat` as administrator and pick **7** to
+   uninstall the services.
+2. Rename the old folder to `C:\Wolimons-old` so nothing is guessing which
+   one is which.
+3. Put the fresh download at `C:\Wolimons`.
+4. Run the **new** `C:\Wolimons\windows\setup.bat` and do **1**, then **3**,
+   then **4**.
+5. Check with **option 5** — it prints which folder it's serving. It should
+   say `C:\Wolimons\proxy`.
+
+Once the site looks right, delete `C:\Wolimons-old`.
+
+Also: only ever download from the `arena/019fff2c-wolimons` branch. The
+other branches are old and still have the old pages in them, so mixing files
+from two different downloads is what causes this in the first place.
+
 ---
 
 ## Set it up
@@ -129,6 +153,7 @@ usual ones:
 | "Not recognised as a command" | Node isn't installed, or the window was open before installing it. |
 | Site works on VPS, not on phone | Firewall. Option 1 opens it, but the VPS host's own control panel has a separate firewall. |
 | Changed `.env`, nothing happened | Needs a restart. Option 3 reinstalls, or `nssm restart Wolimons`. |
+| Updated the files but the site still shows the old pages | The service is still pointed at the old folder. Run option 5 — it tells you which folder it's actually serving. Fix it with option 7, then 1, then 3, from the new folder. |
 | Error 521 from Cloudflare | Cloudflare doesn't forward ports. See HOSTING-WINDOWS.md §10.1. |
 | Locked out of admin, says 429 | Too many wrong passwords. Wait 15 min or restart the service. |
 

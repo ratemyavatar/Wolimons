@@ -448,6 +448,17 @@ doesn't, the problem is in this section, not in the app.
 
 ### 10.6 When the domain doesn't work
 
+**First, work out which half is broken.** The two halves fail differently:
+
+- A **Cloudflare error page** (521, 522, 1016 — a real page with a number on
+  it) means TLS worked fine and Cloudflare could not reach *your VPS*. The
+  problem is on your side: the table below.
+- **`ERR_SSL_PROTOCOL_ERROR`**, "can't provide a secure connection", "invalid
+  response" — no page at all — means the browser never finished the
+  handshake with **Cloudflare's edge**. Your VPS was never contacted. Nothing
+  in `.env`, the service, the firewall or the tunnel can cause this, so don't
+  go changing them. See 10.7.
+
 | What you see | What it means |
 |---|---|
 | **Error 521** (web server is down) | Cloudflare reached your IP and nothing answered on the port it tried. Almost always the port trap in 10.1 — you are on option B or C and Cloudflare is knocking on 443. |
@@ -457,6 +468,84 @@ doesn't, the problem is in this section, not in the app.
 | Site loads, admin sign-in says **429** | The rate limit, working. Either you really did mistype it ten times, or `TRUST_PROXY=1` is missing (10.5). Wait 15 minutes or restart the service to clear it. |
 | Tunnel shows **Down** in the dashboard | `sc query cloudflared` on the VPS. If it isn't running, `sc start cloudflared`. |
 | Changes to `.env` seem ignored | You didn't restart: `nssm.exe restart Wolimons`. |
+
+### 10.7 ERR_SSL_PROTOCOL_ERROR on the domain, but localhost:8080 works
+
+This one confuses everyone, so here is what it actually means.
+
+`localhost:8080` working tells you the site is **fine**. It is plain HTTP and
+it never touches a certificate. The domain failing at the TLS stage means the
+browser could not agree on encryption with whatever answered — and it never
+got far enough to ask for a page. So these are two unrelated things, and the
+working one is not evidence about the broken one.
+
+The site itself never does HTTPS. `proxy/server.js` calls
+`http.createServer` — there is no certificate in this repo and no place to put
+one. HTTPS is entirely Cloudflare's job. That is why nothing you change in
+`.env` or in the Windows service will fix this error.
+
+**Check the four causes in this order.** The first is by far the most common.
+
+**1. The DNS record is grey-clouded (most likely).**
+
+In Cloudflare → **DNS** → **Records**, look at the cloud icon next to your
+record. It must be **orange** (Proxied), not **grey** (DNS only).
+
+Grey cloud = Cloudflare hands out your VPS's raw IP and steps out of the way.
+The browser then tries to speak HTTPS **directly to your Windows box**, which
+only speaks plain HTTP on 8080 — so the handshake dies exactly like this. The
+certificate you see in the dashboard only applies to traffic that goes
+*through* Cloudflare.
+
+Click the cloud to turn it orange. It takes effect within a minute or so.
+
+If you are on **option A (tunnel)** the record must be the `CNAME` ending in
+`.cfargotunnel.com` that the tunnel created, and it is always proxied. If you
+also left an old `A` record for the same name, delete it — two records fight
+and you get intermittent failures.
+
+**2. You are using a port Cloudflare doesn't do HTTPS on.**
+
+Re-read 10.1. Cloudflare only serves HTTPS on 443, 2053, 2083, 2087, 2096 and
+8443. `https://gazeee.xyz:8080` will never work, proxied or not — 8080 is an
+**HTTP**-only port on Cloudflare. Visit `https://gazeee.xyz` with no port.
+
+**3. SSL/TLS mode is Off.**
+
+**SSL/TLS** → **Overview**. If the mode is **Off (not secure)**, Cloudflare
+refuses HTTPS for the zone. Set it to **Flexible** — correct for every option
+in section 10, because your origin is plain HTTP.
+
+(**Full** or **Full (strict)** cause a *different* symptom: a 5xx page or a
+redirect loop, not this error. If you see 525 that is Full against an origin
+with no certificate — also Flexible.)
+
+**4. The certificate hasn't been issued yet.**
+
+On a brand-new domain, **SSL/TLS** → **Edge Certificates** can sit on
+*Pending Validation* for a while — usually minutes, up to ~24h. Until the
+status is **Active** there is no certificate to serve and HTTPS fails. If it
+is stuck, confirm the domain's nameservers at your registrar are the two
+Cloudflare gave you; a Universal certificate is only issued once the zone is
+**Active**.
+
+**How to confirm the fix without guessing.** On any machine:
+
+```
+curl -sI https://gazeee.xyz/
+```
+
+- Any `HTTP/2 200` (or even a Cloudflare error page) = TLS now works.
+- Still an SSL error = you are on cause 1, 2 or 4.
+
+And to prove your VPS is not involved, on the VPS:
+
+```
+curl -sI http://localhost:8080/
+```
+
+If that returns `200` while the domain gives an SSL error, the app is healthy
+and the problem is 100% in the Cloudflare settings above.
 
 ## Settings reference
 
@@ -485,6 +574,11 @@ always beats the file.
 
 **Works on the VPS, not on the phone** — firewall. Section 5, and check your
 host's control panel firewall too.
+
+**`ERR_SSL_PROTOCOL_ERROR` on your domain, but `localhost:8080` works** — the
+site is fine; HTTPS is Cloudflare's job and it isn't doing it. Nine times out
+of ten the DNS record is **grey-clouded** instead of orange. Full checklist in
+section 10.7.
 
 **`EADDRINUSE`** — something already uses that port. Find and stop it:
 

@@ -57,7 +57,9 @@ services, the tunnel config, `TRUST_PROXY`, `ALLOWED_ORIGINS` — is automatic.
   script: after it finishes, add a **Public Hostname** on the tunnel pointing
   at `http://localhost:<port>` — saving it creates the proxied DNS record.
 - Logs go to `logs\wolimons.log`, capped at 10 MB with rotation.
-- `nssm.exe` is downloaded into this folder on first use and is gitignored.
+- `nssm.exe` and `cloudflared.exe` are downloaded into this folder on first
+  use and are gitignored. Downloads use curl when present and fall back to
+  PowerShell, so the script works even on Windows images without curl.
 
 ## If something breaks
 

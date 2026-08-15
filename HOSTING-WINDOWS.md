@@ -128,7 +128,7 @@ inbound **TCP 8080** there too. Two separate firewalls, both need the rule.
 Find the VPS's public IP. On the VPS:
 
 ```bat
-curl ifconfig.me
+powershell -NoProfile -Command "(Invoke-WebRequest -UseBasicParsing -Uri 'https://ifconfig.me').Content"
 ```
 
 or just read it from your host's control panel.
@@ -316,19 +316,20 @@ Install cloudflared. Two short lines in an **Administrator** Command Prompt:
 cd C:\
 ```
 
+Download cloudflared as a standalone exe into the site's `windows` folder.
+This one line uses PowerShell, which exists on every Windows — no `curl`
+needed (it is missing on older Windows Server images):
+
 ```bat
-curl -L -o cfd.msi https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.msi
+powershell -NoProfile -Command "[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -UseBasicParsing -Uri 'https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe' -OutFile 'C:\Wolimons\windows\cloudflared.exe'"
 ```
 
-```bat
-msiexec /i C:\cfd.msi /quiet
-```
-
-Then paste the command you copied in step 3. It looks like this, and it is the
-only long thing you have to get onto the VPS:
+Then paste the command you copied in step 3, using the **full path** (no
+installer, no PATH lookup needed). It looks like this, and it is the only
+long thing you have to get onto the VPS:
 
 ```bat
-cloudflared.exe service install eyJhIjoi...
+C:\Wolimons\windows\cloudflared.exe service install eyJhIjoi...
 ```
 
 Pasting a long token into a phone RDP client is miserable. Avoid retyping it:

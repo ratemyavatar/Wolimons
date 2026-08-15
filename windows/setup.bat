@@ -374,14 +374,9 @@ if not exist "%NSSM%" (
   set "NSSMZIP=%TEMP%\nssm.zip"
   set "NSSMDIR=%TEMP%\nssmx"
 
-  curl -L -s -o "!NSSMZIP!" https://nssm.cc/release/nssm-2.24.zip
+  call :download "https://nssm.cc/release/nssm-2.24.zip" "!NSSMZIP!"
   if errorlevel 1 (
     echo   Download failed. Check the VPS has internet access.
-    pause
-    goto menu
-  )
-  if not exist "!NSSMZIP!" (
-    echo   Download failed - no file arrived.
     pause
     goto menu
   )
@@ -523,38 +518,19 @@ rem ===========================================================================
 call :tunnel_hostname
 call :readport
 
-set "CFEXE="
-if exist "!PF64!\cloudflared\cloudflared.exe" set "CFEXE=!PF64!\cloudflared\cloudflared.exe"
-if exist "!PF86!\cloudflared\cloudflared.exe" set "CFEXE=!PF86!\cloudflared\cloudflared.exe"
-if "!CFEXE!"=="" (
-  where cloudflared >nul 2>&1
-  if not errorlevel 1 for /f "delims=" %%c in ('where cloudflared') do set "CFEXE=%%c"
-)
-
-if "!CFEXE!"=="" (
+rem --- cloudflared as a standalone exe next to this script, so nothing ---
+rem --- depends on the PATH or on guessing where an installer put it. ------
+set "CFEXE=%REPO%\windows\cloudflared.exe"
+if not exist "!CFEXE!" (
   echo.
-  echo   Installing cloudflared...
-  curl -L -s -o "%TEMP%\cfd.msi" https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.msi
-  if not exist "%TEMP%\cfd.msi" (
-    echo   Download failed. Check internet access on the VPS.
+  echo   Downloading cloudflared...
+  call :download "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe" "!CFEXE!"
+  if errorlevel 1 (
+    echo   Couldn't download cloudflared. Check internet access on the VPS.
     pause
     goto menu
   )
-  msiexec /i "%TEMP%\cfd.msi" /quiet /norestart
-  timeout /t 10 /nobreak >nul
-  del "%TEMP%\cfd.msi" >nul 2>&1
-
-  if exist "!PF64!\cloudflared\cloudflared.exe" set "CFEXE=!PF64!\cloudflared\cloudflared.exe"
-  if exist "!PF86!\cloudflared\cloudflared.exe" set "CFEXE=!PF86!\cloudflared\cloudflared.exe"
-
-  if "!CFEXE!"=="" (
-    echo   Installed, but cloudflared.exe isn't where expected.
-    echo   Close this window, reopen setup.bat as administrator and
-    echo   try option 4 again.
-    pause
-    goto menu
-  )
-  echo   Installed.
+  echo   Got it.
 )
 
 echo.
@@ -698,39 +674,19 @@ if /i "!ADDWWW!"=="y" set "ORIGINS=https://!HOSTNAME!,https://www.!HOSTNAME!"
 
 call :readport
 
-rem --- cloudflared has to exist before it can take a token. --------------
-set "CFEXE="
-if exist "!PF64!\cloudflared\cloudflared.exe" set "CFEXE=!PF64!\cloudflared\cloudflared.exe"
-if exist "!PF86!\cloudflared\cloudflared.exe" set "CFEXE=!PF86!\cloudflared\cloudflared.exe"
-if "!CFEXE!"=="" (
-  where cloudflared >nul 2>&1
-  if not errorlevel 1 for /f "delims=" %%c in ('where cloudflared') do set "CFEXE=%%c"
-)
-
-if "!CFEXE!"=="" (
+rem --- cloudflared as a standalone exe next to this script, so nothing ---
+rem --- depends on the PATH or on guessing where an installer put it. ------
+set "CFEXE=%REPO%\windows\cloudflared.exe"
+if not exist "!CFEXE!" (
   echo.
-  echo   Installing cloudflared...
-  curl -L -s -o "%TEMP%\cfd.msi" https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.msi
-  if not exist "%TEMP%\cfd.msi" (
-    echo   Download failed. Check internet access on the VPS.
+  echo   Downloading cloudflared...
+  call :download "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe" "!CFEXE!"
+  if errorlevel 1 (
+    echo   Couldn't download cloudflared. Check internet access on the VPS.
     pause
     goto menu
   )
-  msiexec /i "%TEMP%\cfd.msi" /quiet /norestart
-  timeout /t 10 /nobreak >nul
-  del "%TEMP%\cfd.msi" >nul 2>&1
-
-  if exist "!PF64!\cloudflared\cloudflared.exe" set "CFEXE=!PF64!\cloudflared\cloudflared.exe"
-  if exist "!PF86!\cloudflared\cloudflared.exe" set "CFEXE=!PF86!\cloudflared\cloudflared.exe"
-
-  if "!CFEXE!"=="" (
-    echo   Installed, but cloudflared.exe isn't where expected.
-    echo   Close this window, reopen setup.bat as administrator and
-    echo   try option 4 again.
-    pause
-    goto menu
-  )
-  echo   Installed.
+  echo   Got it.
 )
 
 echo.
@@ -867,11 +823,11 @@ if errorlevel 1 (
 
 echo.
 echo   Asking the site if it's alive...
-curl -s -m 10 "http://localhost:!SITEPORT!/healthz"
+call :get "http://localhost:!SITEPORT!/healthz"
 echo.
 echo.
 echo   Storage and admin status:
-curl -s -m 10 "http://localhost:!SITEPORT!/api/status"
+call :get "http://localhost:!SITEPORT!/api/status"
 echo.
 
 sc query Cloudflared 2>nul | findstr /i "RUNNING" >nul
@@ -978,6 +934,7 @@ if exist "%NSSM%" (
 )
 
 set "CFEXE="
+if exist "%REPO%\windows\cloudflared.exe" set "CFEXE=%REPO%\windows\cloudflared.exe"
 if exist "!PF64!\cloudflared\cloudflared.exe" set "CFEXE=!PF64!\cloudflared\cloudflared.exe"
 if exist "!PF86!\cloudflared\cloudflared.exe" set "CFEXE=!PF86!\cloudflared\cloudflared.exe"
 if not "!CFEXE!"=="" (
@@ -993,6 +950,43 @@ echo   Your values are still at proxy\data\wolimons-data.json
 echo.
 pause
 goto menu
+
+rem ===========================================================================
+rem  Download a URL to a file. curl first (Windows 10+), then PowerShell,
+rem  which exists on every Windows since 2008 R2. TLS 1.2 is forced for
+rem  PowerShell: older versions default to TLS 1.0, which GitHub refuses.
+rem  A file that came back empty or missing counts as a failure.
+rem ===========================================================================
+:download
+set "DLURL=%~1"
+set "DLOUT=%~2"
+if exist "%DLOUT%" del "%DLOUT%" >nul 2>&1
+where curl >nul 2>&1
+if not errorlevel 1 (
+  curl -L -s -o "%DLOUT%" "%DLURL%"
+  if exist "%DLOUT%" (
+    for %%A in ("%DLOUT%") do if not "%%~zA"=="0" exit /b 0
+    del "%DLOUT%" >nul 2>&1
+  )
+)
+powershell -NoProfile -Command "[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; try { Invoke-WebRequest -UseBasicParsing -Uri '%DLURL%' -OutFile '%DLOUT%' } catch { exit 1 }" >nul 2>&1
+if exist "%DLOUT%" (
+  for %%A in ("%DLOUT%") do if not "%%~zA"=="0" exit /b 0
+)
+exit /b 1
+
+rem ===========================================================================
+rem  GET a URL and print the body. Used by the health check.
+rem ===========================================================================
+:get
+set "GETURL=%~1"
+where curl >nul 2>&1
+if not errorlevel 1 (
+  curl -s -m 10 "%GETURL%"
+  exit /b 0
+)
+powershell -NoProfile -Command "[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; try { (Invoke-WebRequest -UseBasicParsing -TimeoutSec 10 -Uri '%GETURL%').Content } catch { exit 1 }" 2>nul
+exit /b 0
 
 rem ===========================================================================
 rem  Read PORT back out of .env, defaulting to 8080.

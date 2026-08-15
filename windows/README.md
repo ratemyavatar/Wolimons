@@ -40,12 +40,22 @@ administrator on the VPS — set `$win` to the folder this README is in:
 $win='C:\Users\Administrator\Documents\wolimons\windows'
 
 $u='https://raw.githubusercontent.com/ratemyavatar/Wolimons/arena/019fff2c-wolimons/windows/update.bat'
-(iwr $u -UseBasicParsing).Content -replace "`r`n|`n","`r`n" |
-  Set-Content "$win\update.bat" -NoNewline -Encoding ascii
+$t=(iwr $u -UseBasicParsing).Content
+$nl=[char]13+[char]10
+$t=$t.Replace($nl,[char]10).Replace([char]10,$nl)
+[IO.File]::WriteAllText("$win\update.bat",$t)
 ```
 
-The `-replace` matters: raw GitHub hands out `.bat` files with Unix line
-endings and `cmd.exe` mis-parses those. See `HOSTING-WINDOWS.md` §11.0.
+Check it, because this fails silently:
+
+```powershell
+$b=[IO.File]::ReadAllBytes("$win\update.bat")
+$bad=0; for($i=0;$i -lt $b.Length;$i++){ if($b[$i] -eq 10 -and ($i -eq 0 -or $b[$i-1] -ne 13)){$bad++} }
+if($bad -eq 0){"OK - update.bat is good"}else{"BROKEN - run it again"}
+```
+
+Raw GitHub serves `.bat` files with Unix line endings and `cmd.exe` mis-parses
+those, which is what the conversion is for. See `HOSTING-WINDOWS.md` §11.0.
 
 ## What it asks you
 

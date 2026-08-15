@@ -575,25 +575,41 @@ that is the `snapshots\` folder, which is reference material the site never
 loads.
 
 On the VPS, open PowerShell as administrator. Set `$win` to **your** `windows`
-folder — mine is not necessarily where yours is — then paste the rest as-is:
+folder, then paste the rest as-is:
 
 ```powershell
 $win='C:\Users\Administrator\Documents\wolimons\windows'
 
 $u='https://raw.githubusercontent.com/ratemyavatar/Wolimons/arena/019fff2c-wolimons/windows/update.bat'
-(iwr $u -UseBasicParsing).Content -replace "`r`n|`n","`r`n" |
-  Set-Content "$win\update.bat" -NoNewline -Encoding ascii
+$t=(iwr $u -UseBasicParsing).Content
+$nl=[char]13+[char]10
+$t=$t.Replace($nl,[char]10).Replace([char]10,$nl)
+[IO.File]::WriteAllText("$win\update.bat",$t)
 ```
 
-To check it landed in the right place:
+Then **check it worked**, because the failure here is silent:
 
 ```powershell
-dir "$win\update.bat"
+$b=[IO.File]::ReadAllBytes("$win\update.bat")
+$bad=0; for($i=0;$i -lt $b.Length;$i++){ if($b[$i] -eq 10 -and ($i -eq 0 -or $b[$i-1] -ne 13)){$bad++} }
+if($bad -eq 0){"OK - update.bat is good"}else{"BROKEN - $bad wrong line endings, run the block again"}
 ```
 
-You should see `update.bat` next to `setup.bat`. If PowerShell says the path
-doesn't exist, `$win` is wrong — open the folder that already has `setup.bat`
-in it, click the address bar, and copy what it says.
+It either says `OK` or tells you it's broken. If it's broken, paste the block
+again one line at a time.
+
+> **Why it's written this awkwardly.** The obvious version uses backticks and a
+> `|`, and those get mangled by chat apps, RDP clipboards and web pages —
+> silently. A mangled backtick makes PowerShell match nothing instead of
+> erroring, so it prints no error, writes the file, and leaves the line endings
+> wrong. `cmd.exe` then mis-parses the `.bat` in confusing ways. The version
+> above has no backticks and no pipe, so there is nothing to mangle, and the
+> size check catches it either way.
+
+Don't want to use PowerShell at all? Download the ZIP the normal way and copy
+`windows\update.bat` out of it into your `windows` folder. The ZIP always has
+the right line endings, so there is nothing to check. It is a much bigger
+download, but it is one you cannot get wrong.
 
 After that, updating is option **8** forever — you never download by hand
 again.

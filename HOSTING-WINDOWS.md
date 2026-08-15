@@ -310,11 +310,9 @@ certificate, and it is the only place `8080` still appears.
 
 **Now on the VPS, over RDP:**
 
-Install cloudflared. Two short lines in an **Administrator** Command Prompt:
-
-```bat
-cd C:\
-```
+> The paths below assume the site is at `C:\Wolimons`. If you put it
+> somewhere else — e.g. `C:\Users\Administrator\Downloads\wolimons` — use
+> that path in their place.
 
 Download cloudflared as a standalone exe into the site's `windows` folder.
 This one line uses PowerShell, which exists on every Windows — no `curl`

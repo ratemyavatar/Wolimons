@@ -197,22 +197,65 @@
   /* ------------------------------------------------------------------ */
 
   /*
-   * The Admin link is only put in the More menu when the linked account is
-   * on the owners list in config.js. Hiding it is a courtesy, not a lock -
-   * see the note above that list: this is a static site, so the answer is
-   * decided in the visitor's own browser and /admin re-checks it anyway.
+   * The Admin link is put in the More menu for anyone the backend says has a
+   * rank - owner, value manager or staff - not just the names written into
+   * config.js. Ranks handed out in the admin panel are stored server-side, so
+   * asking /api/me is the only way to see them; the config list is just the
+   * fallback for when the API cannot be reached.
+   *
+   * Hiding the link is a courtesy, not a lock. /admin asks /api/me itself and
+   * every write is checked again on the server.
    */
   const ADMIN_ICON = 'M12 1 3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z'
     + 'm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z';
 
   const moreMenu = document.querySelector('[aria-labelledby="navbarMoreFeaturesDropdown"]');
 
-  function renderAdminEntry() {
+  /* Remembered per name so switching pages does not re-ask every time. */
+  const rankChecks = new Map();
+
+  function hasRank(name) {
+    const key = String(name || '').trim().toLowerCase();
+    if (!key) return Promise.resolve(false);
+    if (rankChecks.has(key)) return rankChecks.get(key);
+
+    const base = window.WOLIMONS_CONFIG?.apiBase || '';
+    const check = fetch(`${base}/api/me?name=${encodeURIComponent(name)}`, {
+      headers: { Accept: 'application/json' },
+    })
+      .then(response => (response.ok ? response.json() : null))
+      .then(payload => {
+        /* A reply without the flags is not this API answering - a sleeping
+         * proxy returns all sorts of things - so fall back rather than
+         * treating it as "no rank". */
+        if (!payload || typeof payload.canSetValues !== 'boolean') {
+          return Boolean(window.WOLIMONS_CONFIG?.isOwner(name));
+        }
+        return Boolean(payload.role);
+      })
+      .catch(() => Boolean(window.WOLIMONS_CONFIG?.isOwner(name)));
+
+    rankChecks.set(key, check);
+    return check;
+  }
+
+  async function renderAdminEntry() {
     if (!moreMenu) return;
-    moreMenu.querySelector('#navbar_more_admin')?.remove();
 
     const linked = window.WolimonsAccount?.get();
-    if (!linked || !window.WOLIMONS_CONFIG?.isOwner(linked.name)) return;
+    if (!linked) {
+      moreMenu.querySelector('#navbar_more_admin')?.remove();
+      return;
+    }
+
+    if (!(await hasRank(linked.name))) {
+      moreMenu.querySelector('#navbar_more_admin')?.remove();
+      return;
+    }
+
+    /* The account may have changed while the check was in flight. */
+    if (window.WolimonsAccount?.get()?.name !== linked.name) return;
+    if (moreMenu.querySelector('#navbar_more_admin')) return;
 
     /* First in the menu, so it is not buried under the feature links. */
     moreMenu.prepend(accountItem('navbar_more_admin', '/admin', 'Admin', ADMIN_ICON));

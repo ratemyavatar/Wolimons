@@ -79,8 +79,29 @@ const HOLDING_ACCOUNTS = (() => {
   }
 })();
 
+/* The same accounts by id, scraped the same way. Ids survive a rename, so
+ * this is the half that keeps working when the name list has gone stale. */
+const HOLDING_ACCOUNT_IDS = (() => {
+  try {
+    const src = fs.readFileSync(
+      path.join(__dirname, '..', 'assets', 'js', 'config.js'), 'utf8');
+    const block = src.match(/const HOLDING_ACCOUNT_IDS\s*=\s*\[([\s\S]*?)\]/);
+    if (!block) return new Set();
+    const ids = [...block[1].matchAll(/\d+/g)]
+      .map(m => Number(m[0]))
+      .filter(id => Number.isSafeInteger(id) && id > 0);
+    return new Set(ids);
+  } catch (error) {
+    return new Set();
+  }
+})();
+
 function isHoldingAccount(name) {
   return HOLDING_ACCOUNTS.has(String(name || '').trim().toLowerCase());
+}
+
+function isHoldingAccountId(id) {
+  return HOLDING_ACCOUNT_IDS.has(Number(id));
 }
 
 function isCrawler(userAgent) {
@@ -169,6 +190,7 @@ async function ownersOf(assetId) {
        * out of the leaderboard - otherwise the ranks this hands to previews
        * would disagree with the board the reader sees. The owners feed carries
        * the name, so this costs no extra request. */
+      if (isHoldingAccountId(id)) return;
       if (isHoldingAccount(row.owner && row.owner.name)) return;
       owners.push(id);
     });
@@ -316,7 +338,9 @@ function buildTags(player, pageUrl) {
   if (player.rank) parts.push(`Rank #${formatNumber(player.rank)}`);
   /* Holding accounts are not ranked, so say why rather than just leaving the
    * rank off and letting the preview imply an ordinary unranked player. */
-  if (isHoldingAccount(player.name)) parts.push('Limited holder account');
+  if (isHoldingAccountId(player.id) || isHoldingAccount(player.name)) {
+    parts.push('Limited holder account');
+  }
 
   const title = `${player.name} - Wolimons`;
   const description = parts.join('  |  ');

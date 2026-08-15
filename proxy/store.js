@@ -134,6 +134,42 @@ function readLocal() {
 
 const key = name => String(name || '').trim().toLowerCase();
 
+/*
+ * The roles committed in data/wolimons-data.json are a floor, not a one-off
+ * seed.
+ *
+ * They used to be copied in only when the live data file did not exist yet.
+ * That looked fine on a fresh machine and then quietly broke every server
+ * that had been running for a while: the moment anything was saved, the live
+ * file existed, so on the next restart the seed was skipped and the roles it
+ * carried were simply gone. The owner and the value team lost the admin panel
+ * without touching anything, because saving a value is what took it away.
+ *
+ * So they are re-applied on every load instead. A name here always has at
+ * least this rank. Anything granted in the panel is kept as-is, and a rank
+ * granted there outranks the file only in the sense that it overwrites it -
+ * the merge below never downgrades what is already stored.
+ */
+function applyBuiltinRoles(target) {
+  const seed = readLocal();
+  if (!seed || !seed.roles || typeof seed.roles !== 'object') return target;
+
+  for (const [name, entry] of Object.entries(seed.roles)) {
+    if (!entry || typeof entry !== 'object') continue;
+    if (!ROLES.includes(entry.role)) continue;
+    const id = key(name);
+    /* Already has a rank from the live file - leave it, it is newer. */
+    if (target.roles[id]) continue;
+    target.roles[id] = {
+      name: String(entry.name || name),
+      role: entry.role,
+      grantedBy: String(entry.grantedBy || ''),
+      grantedAt: Number(entry.grantedAt) || 0,
+    };
+  }
+  return target;
+}
+
 function githubHeaders(extra) {
   return {
     'Accept': 'application/vnd.github+json',
@@ -238,7 +274,7 @@ async function load() {
           raw = readLocal();
           console.log(`[store] ${DATA_FILE} does not exist yet - it will be created on the first save.`);
         }
-        data = normalize(raw);
+        data = applyBuiltinRoles(normalize(raw));
         authoritative = true;
       } else if (GITHUB_TOKEN) {
         const response = await fetch(`${API_ROOT}?ref=${encodeURIComponent(GITHUB_BRANCH)}`, {
@@ -248,11 +284,11 @@ async function load() {
           const payload = await response.json();
           sha = payload.sha || null;
           const text = Buffer.from(payload.content || '', 'base64').toString('utf8');
-          data = normalize(JSON.parse(text));
+          data = applyBuiltinRoles(normalize(JSON.parse(text)));
           authoritative = true;
         } else if (response.status === 404) {
           /* No file yet - the first write creates it. */
-          data = normalize(readLocal());
+          data = applyBuiltinRoles(normalize(readLocal()));
           authoritative = true;
         } else {
           throw new Error(`GitHub read failed (${response.status})`);
@@ -262,9 +298,9 @@ async function load() {
           + `${GITHUB_BRANCH}/${DATA_PATH}`;
         const response = await fetch(raw, { headers: { 'User-Agent': 'wolimons-api' } });
         if (response.ok) {
-          data = normalize(await response.json());
+          data = applyBuiltinRoles(normalize(await response.json()));
         } else {
-          data = normalize(readLocal());
+          data = applyBuiltinRoles(normalize(readLocal()));
         }
         /* Read-only without a token anyway, so there is nothing to protect. */
         authoritative = true;
@@ -274,7 +310,7 @@ async function load() {
       /* Serve the checked-in copy rather than refuse to boot. Writes stay
        * blocked until a real load succeeds - see `authoritative`. */
       console.error('[store] load failed, using the checked-in copy:', error.message);
-      data = normalize(readLocal());
+      data = applyBuiltinRoles(normalize(readLocal()));
       authoritative = false;
       loaded = true;
       if (STORAGE === 'file') {

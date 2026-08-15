@@ -71,10 +71,19 @@
   let pending = null;
 
   /* Terminated-limiteds holding accounts, listed in config.js. They own real
-   * items but were never traded with, so they are not ranked. */
-  function isHoldingAccount(name) {
+   * items but were never traded with, so they are not ranked.
+   *
+   * Checked by id first and name second. The id is the dependable one - it
+   * survives a rename and it is present on every owners row, so a player can
+   * be excluded before their name has been looked up. The name check stays
+   * for rows where the id is somehow missing, and so the list keeps working
+   * if an account is ever added there by name alone. */
+  function isHoldingAccount(player) {
     const CONFIG = window.WOLIMONS_CONFIG;
-    return Boolean(CONFIG && CONFIG.isHoldingAccount && CONFIG.isHoldingAccount(name));
+    if (!CONFIG) return false;
+    const row = (player && typeof player === 'object') ? player : { name: player };
+    if (CONFIG.isHoldingAccountId && CONFIG.isHoldingAccountId(row.id)) return true;
+    return Boolean(CONFIG.isHoldingAccount && CONFIG.isHoldingAccount(row.name));
   }
 
   /* ------------------------------------------------------------------ */
@@ -91,7 +100,7 @@
       /* Filtered on the way out as well: a cache written before an account
        * was added to the list would otherwise keep it on the board until it
        * expired. */
-      return saved.players.filter(player => !isHoldingAccount(player.name));
+      return saved.players.filter(player => !isHoldingAccount(player));
     } catch (error) {
       return null;
     }
@@ -183,7 +192,7 @@
          * a name yet cannot match, but those are backfilled and re-filtered
          * once the scan completes. */
         onProgress(
-          [...players.values()].filter(player => !isHoldingAccount(player.name)),
+          [...players.values()].filter(player => !isHoldingAccount(player)),
           { done, total: assetIds.length },
         );
       }
@@ -216,7 +225,7 @@
      * leaderboard, /players and the Lucky Cat draw all agree. It has to be
      * after the name backfill above - the match is on username, and a row
      * that arrived without a name would slip through otherwise. */
-    roster = roster.filter(player => !isHoldingAccount(player.name));
+    roster = roster.filter(player => !isHoldingAccount(player));
 
     return roster;
   }

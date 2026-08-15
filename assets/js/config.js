@@ -80,12 +80,26 @@
    * trimmed too. Do not add case variants of a name: they would all collapse
    * onto the single entry below and achieve nothing.
    *
-   * What DOES matter is the spelling. This matches the username, so if one of
-   * these accounts is ever renamed on Wanwood, the new name has to be put
-   * here or the account comes back onto the leaderboard.
+   * What DOES matter is the spelling, for the name list. A rename on Wanwood
+   * would leave the new name unlisted - which is why the IDs below exist too.
    */
   const HOLDING_ACCOUNTS = [
     'BadDecisions',
+  ];
+
+  /*
+   * The same accounts by Wanwood user ID.
+   *
+   * IDs are the reliable half: they never change, so a rename cannot put the
+   * account back on the leaderboard. The name list above is kept as well
+   * because some rows are matched before their ID is known.
+   *
+   * BadDecisions is 12, confirmed against the live API:
+   *   /apisite/api/users/get-by-username?username=baddecisions -> Id 12
+   *   /apisite/users/v1/users/12 -> "BadDecisions", created 2026-07-24
+   */
+  const HOLDING_ACCOUNT_IDS = [
+    12,
   ];
 
   /*
@@ -142,6 +156,10 @@
     HOLDING_ACCOUNTS.map(name => String(name).trim().toLowerCase()).filter(Boolean),
   );
 
+  const holdingIds = new Set(
+    HOLDING_ACCOUNT_IDS.map(id => Number(id)).filter(id => Number.isSafeInteger(id) && id > 0),
+  );
+
   window.WOLIMONS_CONFIG = {
     apiBase: String(apiBase).replace(/\/+$/, ''),
     siteBase: SITE_BASE.replace(/\/+$/, ''),
@@ -156,6 +174,12 @@
       return owners.has(String(name || '').trim().toLowerCase());
     },
     holdingAccounts: HOLDING_ACCOUNTS,
+    holdingAccountIds: HOLDING_ACCOUNT_IDS,
+    /* True for a holding account's Wanwood user ID. Survives a rename, so
+     * this is the check to prefer wherever the id is to hand. */
+    isHoldingAccountId(id) {
+      return holdingIds.has(Number(id));
+    },
     /* True for a terminated-limiteds holding account. Keeps them off the
      * rankings and puts the notice on their profile. */
     isHoldingAccount(name) {

@@ -482,7 +482,11 @@
      * Everything else on the page is left alone - the items really are on
      * this account, and that is the useful part. */
     const CONFIG = window.WOLIMONS_CONFIG;
-    if (CONFIG && CONFIG.isHoldingAccount && CONFIG.isHoldingAccount(name)) {
+    const holding = Boolean(CONFIG) && (
+      (CONFIG.isHoldingAccountId && CONFIG.isHoldingAccountId(userId))
+      || (CONFIG.isHoldingAccount && CONFIG.isHoldingAccount(name))
+    );
+    if (holding) {
       if (holdingNotice) holdingNotice.hidden = false;
       if (avatarImage) avatarImage.classList.add('holding_account_avatar');
     }

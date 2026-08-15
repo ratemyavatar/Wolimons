@@ -582,8 +582,9 @@ $win='C:\Users\Administrator\Documents\wolimons\windows'
 
 $u='https://raw.githubusercontent.com/ratemyavatar/Wolimons/arena/019fff2c-wolimons/windows/update.bat'
 $t=(iwr $u -UseBasicParsing).Content
-$nl=[char]13+[char]10
-$t=$t.Replace($nl,[char]10).Replace([char]10,$nl)
+$cr=[string][char]13
+$lf=[string][char]10
+$t=$t.Replace($cr,'').Replace($lf,$cr+$lf)
 [IO.File]::WriteAllText("$win\update.bat",$t)
 ```
 
@@ -606,10 +607,24 @@ again one line at a time.
 > above has no backticks and no pipe, so there is nothing to mangle, and the
 > size check catches it either way.
 
-Don't want to use PowerShell at all? Download the ZIP the normal way and copy
-`windows\update.bat` out of it into your `windows` folder. The ZIP always has
-the right line endings, so there is nothing to check. It is a much bigger
-download, but it is one you cannot get wrong.
+### The way that cannot go wrong
+
+If PowerShell is being difficult, skip it. This does the same job with no
+quoting to mangle and no line endings to convert — the ZIP already has the
+right ones:
+
+```powershell
+$win='C:\Users\Administrator\Documents\wolimons\windows'
+
+$z="$env:TEMP\w.zip"; $x="$env:TEMP\wx"
+curl.exe -L -s -o $z https://codeload.github.com/ratemyavatar/Wolimons/zip/refs/heads/arena/019fff2c-wolimons
+Expand-Archive $z $x -Force
+copy "$x\Wolimons-arena-019fff2c-wolimons\windows\update.bat" "$win\update.bat"
+```
+
+Bigger download, but there is nothing in it to get wrong. Or do it by hand:
+download the ZIP from GitHub in a browser, open it, and drag
+`windows\update.bat` into your `windows` folder.
 
 After that, updating is option **8** forever — you never download by hand
 again.

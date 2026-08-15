@@ -41,8 +41,9 @@ $win='C:\Users\Administrator\Documents\wolimons\windows'
 
 $u='https://raw.githubusercontent.com/ratemyavatar/Wolimons/arena/019fff2c-wolimons/windows/update.bat'
 $t=(iwr $u -UseBasicParsing).Content
-$nl=[char]13+[char]10
-$t=$t.Replace($nl,[char]10).Replace([char]10,$nl)
+$cr=[string][char]13
+$lf=[string][char]10
+$t=$t.Replace($cr,'').Replace($lf,$cr+$lf)
 [IO.File]::WriteAllText("$win\update.bat",$t)
 ```
 

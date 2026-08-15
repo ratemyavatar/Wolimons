@@ -20,8 +20,16 @@ Then work down the menu:
 | **5** | Tells you what is and isn't working |
 | **6** | Changes the admin password |
 | **7** | Removes the services again |
+| **8** | Updates to the latest version |
 
 Do **1**, then **3**, then **4**. Option 2 is just for a quick look.
+
+## Updating later
+
+Option **8**, or right-click `update.bat` → *Run as administrator*. One step,
+about ten seconds. It backs up your values first, then replaces only the code —
+`proxy\data\` (your values, history and roles) and `proxy\.env` (your password)
+are never touched, because neither is in the download.
 
 ## What it asks you
 

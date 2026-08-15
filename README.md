@@ -56,25 +56,45 @@ C:\Wolimons\
 If `C:\Wolimons\index.html` doesn't exist, you've got the folder nesting
 wrong. Go up or down a level until it does.
 
-### If I'm replacing a copy that's already on there
+### If it's already on there and I just want the newest version
 
-Don't paste the new files over the old folder. Old files that aren't in the
-new download just stay behind, and the service carries on pointing at
+Don't download anything. Right-click `C:\Wolimons\windows\update.bat` →
+**Run as administrator** (or `setup.bat` → option **8**). It does the
+download, the copying and the restart itself, in about ten seconds.
+
+Your values are safe. They live in `proxy\data\`, which isn't in the download,
+so there is nothing for an update to overwrite. It copies them to
+`C:\WolimonsBackups\<date>` before it starts anyway.
+
+Only do the long way below if you're moving the site to a different folder or
+a different VPS.
+
+<details>
+<summary>Setting it up somewhere new / moving folders</summary>
+
+Don't just paste new files over the old folder by hand — old files that aren't
+in the new download stay behind, and the service carries on pointing at
 whatever it was set up with, so the site keeps showing the old pages.
-
-Do it this way instead:
 
 1. Run the **old** folder's `setup.bat` as administrator and pick **7** to
    uninstall the services.
-2. Rename the old folder to `C:\Wolimons-old` so nothing is guessing which
+2. Copy `C:\Wolimons\proxy\data\wolimons-data.json` and
+   `C:\Wolimons\proxy\.env` somewhere safe. **These are your values and your
+   password, and they are the only things you can't download again.**
+3. Rename the old folder to `C:\Wolimons-old` so nothing is guessing which
    one is which.
-3. Put the fresh download at `C:\Wolimons`.
-4. Run the **new** `C:\Wolimons\windows\setup.bat` and do **1**, then **3**,
+4. Put the fresh download at `C:\Wolimons`.
+5. Copy those two files back into `C:\Wolimons\proxy\` (the data one goes in
+   `C:\Wolimons\proxy\data\`).
+6. Run the **new** `C:\Wolimons\windows\setup.bat` and do **1**, then **3**,
    then **4**.
-5. Check with **option 5** — it prints which folder it's serving. It should
+7. Check with **option 5** — it prints which folder it's serving. It should
    say `C:\Wolimons\proxy`.
 
-Once the site looks right, delete `C:\Wolimons-old`.
+Once the site looks right and your values are still there, delete
+`C:\Wolimons-old`.
+
+</details>
 
 Also: only ever download from the `arena/019fff2c-wolimons` branch. The
 other branches are old and still have the old pages in them, so mixing files
@@ -154,6 +174,8 @@ usual ones:
 | Site works on VPS, not on phone | Firewall. Option 1 opens it, but the VPS host's own control panel has a separate firewall. |
 | Changed `.env`, nothing happened | Needs a restart. Option 3 reinstalls, or `nssm restart Wolimons`. |
 | Updated the files but the site still shows the old pages | The service is still pointed at the old folder. Run option 5 — it tells you which folder it's actually serving. Fix it with option 7, then 1, then 3, from the new folder. |
+| Want the newest version | Option **8**, or `windows\update.bat` as administrator. Keeps your values. |
+| Values disappeared after updating | You replaced the whole folder instead of using option 8. Put the backup from `C:\WolimonsBackups\` back at `C:\Wolimons\proxy\data\wolimons-data.json` and restart. |
 | Error 521 from Cloudflare | Cloudflare doesn't forward ports. See HOSTING-WINDOWS.md §10.1. |
 | Locked out of admin, says 429 | Too many wrong passwords. Wait 15 min or restart the service. |
 

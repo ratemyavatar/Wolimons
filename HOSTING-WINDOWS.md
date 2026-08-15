@@ -568,6 +568,17 @@ as you don't delete `C:\Wolimons\proxy\data\`, updating is just replacing code.
 > file with no values in it — the server never reads it. Copying it over the
 > real one is the one way to actually lose everything, so don't.
 
+### 11.0 The quick way
+
+Don't do any of this by hand. Right-click **`windows\update.bat`** →
+*Run as administrator*, or press **8** in `setup.bat`. It backs your values up
+to a dated folder, stops the site, fetches the new version (git if you cloned,
+otherwise the ZIP), copies it in without touching `proxy\data\` or
+`proxy\.env`, starts the site again and checks it responded.
+
+The rest of this section is what that script does, for when you want to do it
+yourself or something goes wrong.
+
 ### 11.1 Back up first, always
 
 One minute, and it makes the rest of this risk-free:

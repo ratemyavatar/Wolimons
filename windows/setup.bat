@@ -57,6 +57,7 @@ echo   4  Put it on my Cloudflare domain  (browser or token)
 echo   5  Check that it's working
 echo   6  Change the admin password
 echo   7  Uninstall the services
+echo   8  Update to the latest version
 echo   0  Exit
 echo.
 set "CHOICE="
@@ -69,8 +70,30 @@ if "%CHOICE%"=="4" goto tunnel
 if "%CHOICE%"=="5" goto healthcheck
 if "%CHOICE%"=="6" goto changekey
 if "%CHOICE%"=="7" goto uninstall
+if "%CHOICE%"=="8" goto update
 if "%CHOICE%"=="0" exit /b 0
 goto menu
+
+rem ===========================================================================
+rem  8. Update
+rem
+rem  Handed off to update.bat, which copies itself to TEMP before touching
+rem  anything. The update overwrites this very file, and cmd.exe re-reads a
+rem  .bat as it runs, so updating from inside this script would corrupt it.
+rem ===========================================================================
+:update
+if not exist "%REPO%\windows\update.bat" (
+  cls
+  echo.
+  echo   update.bat is missing from %REPO%\windows\.
+  echo   Grab the latest copy of the repo once by hand, and this option
+  echo   will work from then on.
+  echo.
+  pause
+  goto menu
+)
+start "" "%REPO%\windows\update.bat"
+exit
 
 rem ===========================================================================
 rem  A one-line summary of what is and isn't done yet, so the menu is

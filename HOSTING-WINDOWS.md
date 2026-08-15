@@ -175,10 +175,12 @@ Read this bit properly.
 
 **A short password is a weak password on a public IP.** Once the VPS is
 reachable, anyone in the world can reach the login endpoint, and bots scan for
-exactly this. There is no rate limiting and no lockout in this server, so a
-guessable password with no symbols will eventually be found. For a site only
-you administer, use a long random string instead — you paste it in once and your browser
-remembers it for 12 hours:
+exactly this. The server allows **10 wrong guesses per 15 minutes per IP
+address** and then answers `429` for the rest of the window, which stops
+casual bots dead — but it is a speed bump, not a lock, and a password like
+`wolimons` would still fall to a patient attacker. For a site only you
+administer, use a long random string instead — you paste it in once and your
+browser remembers it for 12 hours:
 
 ```
 ADMIN_KEY=8mQ2vTn6xLpR4wYc9KdF3sHbZ7jUeA5g
@@ -192,11 +194,12 @@ powershell -Command "[guid]::NewGuid().ToString('N')"
 
 Other things worth knowing:
 
-- **Traffic is unencrypted.** Over plain `http://`, the admin password is sent
-  across the network in the clear. That is acceptable on your own LAN; on the
-  public internet it means anyone between your phone and the VPS could read
-  it. Fixing it properly needs a domain name and HTTPS (Caddy is the easiest
-  on Windows — it gets a free certificate automatically).
+- **Traffic is unencrypted on a bare IP.** Over plain `http://`, the admin
+  password is sent across the network in the clear. That is acceptable on your
+  own LAN; on the public internet it means anyone between your phone and the
+  VPS could read it. **Section 10 fixes this** — putting the site behind your
+  Cloudflare domain gives you real HTTPS, free, and is the single biggest
+  security improvement available here.
 - **Signing in survives 12 hours, restarts sign everyone out.** Tokens are
   held in memory only.
 - **Your data lives on the VPS.** With `STORAGE=file` (section 3) values and
@@ -233,6 +236,220 @@ previous contents, rewritten on every save, and saves are atomic — the file is
 written to a temporary name and renamed into place, so a crash or a power cut
 mid-save leaves the old file rather than a truncated one.
 
+## 10. Put it on your Cloudflare domain
+
+This gets you `https://wolimons.example.com/` instead of
+`http://203.0.113.45:8080/` — a real address, a real certificate, no port to
+remember, and your server's IP hidden.
+
+Read section 10.1 first. It is the one thing that catches everybody.
+
+### 10.1 The port trap
+
+Cloudflare's proxy (the **orange cloud**) does **not** change ports. When
+someone visits `https://wolimons.example.com`, Cloudflare connects to **your
+port 443**, not to 8080. The DNS record's port field does not exist, and the
+`:8080` you have been typing plays no part.
+
+Cloudflare's proxy will only talk to these origin ports:
+
+| | Ports |
+|---|---|
+| HTTP | 80, 8080, 8880, 2052, 2082, 2086, 2095 |
+| HTTPS | 443, 2053, 2083, 2087, 2096, 8443 |
+
+So `http://wolimons.example.com` (port 80) → your origin port 80, and
+`https://wolimons.example.com` (port 443) → your origin port 443. Neither one
+lands on 8080 by itself.
+
+That leaves you three honest options:
+
+| | What you do | HTTPS | Firewall ports open | Typing |
+|---|---|---|---|---|
+| **A. Tunnel** | Install `cloudflared` | Yes | **None** | Least |
+| **B. Port 80** | Set `PORT=80` | No | 80 | A little |
+| **C. Origin Rules** | Keep 8080, add a rule | Yes | 8080 | Most |
+
+**Option A is the right answer for your setup**, and it is also the least
+typing on a phone. Sections 10.2–10.4 cover each one; do only one of them.
+
+### 10.2 Option A — Cloudflare Tunnel (recommended)
+
+A tunnel makes an **outbound** connection from your VPS to Cloudflare, and
+traffic comes back down it. Nothing listens on the public internet, so you can
+close 8080 in the firewall entirely. It works even behind NAT or a host that
+won't let you open ports, and Cloudflare handles the certificate.
+
+Most of this is done in your **phone's browser**, not over RDP, which is the
+point — there is very little to type into that tiny window.
+
+**In your phone's browser:**
+
+1. Go to <https://one.dash.cloudflare.com> → **Networks** → **Tunnels**.
+2. **Create a tunnel** → **Cloudflared** → name it `wolimons` → **Save**.
+3. Choose **Windows / 64-bit**. It shows an install command containing a very
+   long `eyJ...` token. **Copy that whole command** — you will paste it once.
+4. Don't run it yet. First finish the tunnel's **Public Hostname** tab:
+   - **Subdomain**: `wolimons` (or blank for the bare domain)
+   - **Domain**: your domain
+   - **Type**: `HTTP`
+   - **URL**: `localhost:8080`
+5. **Save**.
+
+The DNS record is created for you. Note that the URL is `HTTP` and
+`localhost:8080` — that leg is inside your own machine, so it does not need a
+certificate, and it is the only place `8080` still appears.
+
+**Now on the VPS, over RDP:**
+
+Install cloudflared. Two short lines in an **Administrator** Command Prompt:
+
+```bat
+cd C:\
+```
+
+```bat
+curl -L -o cfd.msi https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.msi
+```
+
+```bat
+msiexec /i C:\cfd.msi /quiet
+```
+
+Then paste the command you copied in step 3. It looks like this, and it is the
+only long thing you have to get onto the VPS:
+
+```bat
+cloudflared.exe service install eyJhIjoi...
+```
+
+Pasting a long token into a phone RDP client is miserable. Avoid retyping it:
+copy it into a note or email you can open **inside** the VPS's own browser,
+then copy it there and right-click to paste into Command Prompt. Or run
+`notepad C:\t.txt` on the VPS and use your RDP client's clipboard-send.
+
+That's it. `cloudflared` is now a Windows service that starts with the
+machine, alongside the Wolimons service from section 7. Visit:
+
+```
+https://wolimons.example.com/
+```
+
+**Then tighten up.** With a tunnel, nothing needs to reach 8080 from outside,
+so remove the hole you opened in section 5:
+
+```bat
+netsh advfirewall firewall delete rule name="Wolimons"
+```
+
+And close 8080 in your host's control-panel firewall too. Your VPS now has no
+inbound web port open at all, which is a much better place to be than where
+you started.
+
+To check on it later:
+
+```bat
+sc query cloudflared
+```
+
+### 10.3 Option B — port 80, no tunnel
+
+Simplest to understand, but **no HTTPS**: your admin password still crosses
+the internet in the clear. Only pick this if the tunnel is impossible.
+
+1. In `C:\Wolimons\proxy\.env`, change the port:
+
+   ```
+   PORT=80
+   ```
+
+2. Restart the service:
+
+   ```bat
+   nssm.exe restart Wolimons
+   ```
+
+3. Open port 80 in the firewall (and in your host's control panel):
+
+   ```bat
+   netsh advfirewall firewall add rule name="Wolimons80" dir=in action=allow protocol=TCP localport=80
+   ```
+
+4. In the Cloudflare dashboard → **DNS** → **Add record**:
+   - **Type** `A`, **Name** `wolimons`, **IPv4** your VPS IP
+   - **Proxy status**: orange cloud **on**
+
+5. **SSL/TLS** → **Overview** → set the mode to **Flexible**. Cloudflare then
+   serves HTTPS to visitors and speaks plain HTTP to your origin on port 80.
+
+Be clear-eyed about what Flexible means: the visitor↔Cloudflare leg is
+encrypted, the Cloudflare↔VPS leg is not. It hides the password from your
+phone's wifi but not from the wider internet. Option A encrypts both legs.
+
+### 10.4 Option C — keep 8080, add an Origin Rule
+
+Cloudflare can be told to send traffic to a different origin port. This keeps
+`PORT=8080` and still gives HTTPS to visitors.
+
+1. DNS `A` record with the orange cloud on, as in 10.3 step 4.
+2. **Rules** → **Origin Rules** → **Create rule**:
+   - When: `Hostname equals wolimons.example.com`
+   - Then: **Rewrite to** → **Destination Port** → `8080`
+3. **SSL/TLS** mode: **Flexible** (your origin on 8080 is plain HTTP).
+4. Leave the section 5 firewall rule for 8080 in place.
+
+Same encryption caveat as option B, and more moving parts. It exists mainly
+for when you cannot change the port the app listens on.
+
+### 10.5 After the domain is live
+
+**Tell the server it is behind Cloudflare.** Add this to
+`C:\Wolimons\proxy\.env`:
+
+```
+TRUST_PROXY=1
+```
+
+Restart with `nssm.exe restart Wolimons`. Without it every request looks like
+it comes from Cloudflare, so the sign-in rate limit from section 8 would count
+the entire internet as one visitor and lock you out along with the bots. With
+it, the server reads the real visitor IP from Cloudflare's `CF-Connecting-IP`
+header and limits each one separately.
+
+Only switch it on when something really is in front of the server. On a bare
+public IP that header can be forged by anyone, which would let an attacker
+dodge the limit entirely — which is exactly why it is off by default.
+
+You can confirm it took effect in the startup log:
+
+```
+Trusting CF-Connecting-IP / X-Forwarded-For (behind Cloudflare or a reverse proxy).
+```
+
+**Lock the API to your domain.** Now that there is one real address, stop
+accepting cross-origin calls from anywhere else. In `.env`:
+
+```
+ALLOWED_ORIGINS=https://wolimons.example.com
+```
+
+**Don't stop typing the port on the VPS itself.** `http://localhost:8080/`
+still works there and is the quickest way to tell "the site is broken" apart
+from "Cloudflare is misconfigured". If localhost:8080 works and the domain
+doesn't, the problem is in this section, not in the app.
+
+### 10.6 When the domain doesn't work
+
+| What you see | What it means |
+|---|---|
+| **Error 521** (web server is down) | Cloudflare reached your IP and nothing answered on the port it tried. Almost always the port trap in 10.1 — you are on option B or C and Cloudflare is knocking on 443. |
+| **Error 522** (connection timed out) | A firewall is eating it. Check both the Windows rule *and* your host's control-panel firewall. |
+| **Error 523** (origin unreachable) | The DNS `A` record points at the wrong IP. |
+| **Too many redirects** | SSL/TLS mode is **Full** while the origin only speaks HTTP. Set it to **Flexible**, or use option A. |
+| Site loads, admin sign-in says **429** | The rate limit, working. Either you really did mistype it ten times, or `TRUST_PROXY=1` is missing (10.5). Wait 15 minutes or restart the service to clear it. |
+| Tunnel shows **Down** in the dashboard | `sc query cloudflared` on the VPS. If it isn't running, `sc start cloudflared`. |
+| Changes to `.env` seem ignored | You didn't restart: `nssm.exe restart Wolimons`. |
+
 ## Settings reference
 
 All of these go in `proxy\.env`. A real environment variable, if you set one,
@@ -252,6 +469,9 @@ always beats the file.
 | `UPSTREAM_ORIGIN` | `https://wanwoo.xyz` | Where item/player data comes from. |
 | `ALLOWED_ORIGINS` | any | Sites allowed to call the API cross-origin. |
 | `CACHE_TTL_MS` | 60000 | How long upstream responses are cached. |
+| `TRUST_PROXY` | off | Read the visitor's IP from `CF-Connecting-IP`. Turn on **only** behind Cloudflare or a reverse proxy (section 10.5). |
+| `LOGIN_MAX_ATTEMPTS` | 10 | Wrong admin passwords allowed per IP per window. |
+| `LOGIN_WINDOW_MS` | 900000 | The window, in milliseconds. 15 minutes. |
 
 ## Troubleshooting
 

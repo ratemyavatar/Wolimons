@@ -59,6 +59,77 @@ function validToken(token) {
 }
 
 /* Constant-time compare so the key cannot be guessed a character at a time. */
+/*
+ * Who is asking, for rate limiting.
+ *
+ * Behind Cloudflare (or any reverse proxy) every connection arrives from the
+ * proxy, so req.socket gives one address for the entire internet - rate
+ * limiting on that would lock out everybody at once. CF-Connecting-IP is the
+ * real client, and Cloudflare always sets it and always overwrites whatever
+ * the client sent.
+ *
+ * This is only trusted when TRUST_PROXY is on, because a header is otherwise
+ * trivially forged: an attacker sending a different one each time would get
+ * unlimited attempts. Direct exposure keeps the socket address, which cannot
+ * be faked.
+ */
+const TRUST_PROXY = /^(1|true|yes|on)$/i.test(String(process.env.TRUST_PROXY || ''));
+
+function clientIp(req) {
+  if (TRUST_PROXY) {
+    const cf = req.headers['cf-connecting-ip'];
+    if (cf) return String(cf).trim();
+    const forwarded = req.headers['x-forwarded-for'];
+    /* Left-most entry is the original client. */
+    if (forwarded) return String(forwarded).split(',')[0].trim();
+  }
+  return req.socket?.remoteAddress || 'unknown';
+}
+
+/*
+ * Login rate limiting.
+ *
+ * The admin key is one shared secret with no lockout, so on a public domain
+ * it is worth slowing guessing down to the point where it is useless. Ten
+ * tries per fifteen minutes per IP is generous for a human who has forgotten
+ * their password and hopeless for a bot.
+ *
+ * Only failures count, so getting it right never costs you an attempt.
+ */
+const LOGIN_MAX_ATTEMPTS = Number(process.env.LOGIN_MAX_ATTEMPTS || 10);
+const LOGIN_WINDOW_MS = Number(process.env.LOGIN_WINDOW_MS || 15 * 60 * 1000);
+const loginAttempts = new Map();
+
+function loginBlocked(ip) {
+  const entry = loginAttempts.get(ip);
+  if (!entry) return 0;
+  if (Date.now() > entry.until) {
+    loginAttempts.delete(ip);
+    return 0;
+  }
+  if (entry.count < LOGIN_MAX_ATTEMPTS) return 0;
+  return Math.ceil((entry.until - Date.now()) / 1000);
+}
+
+function noteFailedLogin(ip) {
+  const now = Date.now();
+  const entry = loginAttempts.get(ip);
+  if (!entry || now > entry.until) {
+    loginAttempts.set(ip, { count: 1, until: now + LOGIN_WINDOW_MS });
+    return;
+  }
+  entry.count += 1;
+}
+
+/* Drop expired entries occasionally so a long run of attempts from many
+ * addresses cannot grow the map without bound. */
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, entry] of loginAttempts) {
+    if (now > entry.until) loginAttempts.delete(ip);
+  }
+}, 10 * 60 * 1000).unref();
+
 function keyMatches(candidate) {
   if (!ADMIN_KEY) return false;
   const a = Buffer.from(String(candidate || ''));
@@ -197,10 +268,25 @@ async function handle(req, res, url, readBody) {
         send(res, 503, { ok: false, error: 'The server has no admin key configured.' });
         return true;
       }
+      const ip = clientIp(req);
+      const wait = loginBlocked(ip);
+      if (wait) {
+        const minutes = Math.ceil(wait / 60);
+        res.setHeader('Retry-After', String(wait));
+        send(res, 429, {
+          ok: false,
+          error: `Too many sign-in attempts. Try again in ${minutes} minute${minutes === 1 ? '' : 's'}.`,
+        });
+        return true;
+      }
       if (!keyMatches(payload.key)) {
+        noteFailedLogin(ip);
         send(res, 401, { ok: false, error: 'That admin key was not accepted.' });
         return true;
       }
+      /* A correct key clears the record, so one typo does not count against
+       * you for the next quarter of an hour. */
+      loginAttempts.delete(ip);
       const name = String(payload.name || '').trim();
       const role = name ? await store.roleOf(name) : null;
       send(res, 200, { ok: true, token: issueToken(), expiresIn: TOKEN_TTL_MS, name, role });

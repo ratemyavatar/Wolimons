@@ -465,6 +465,10 @@ server.listen(PORT, '0.0.0.0', () => {
     console.log('No ADMIN_KEY set - the admin panel cannot be signed into.');
   }
 
+  if (/^(1|true|yes|on)$/i.test(String(process.env.TRUST_PROXY || ''))) {
+    console.log('Trusting CF-Connecting-IP / X-Forwarded-For (behind Cloudflare or a reverse proxy).');
+  }
+
   const store = require('./store');
   if (store.config.storage === 'file') {
     console.log(`Saving values to ${store.config.file}`);

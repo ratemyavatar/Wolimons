@@ -183,6 +183,9 @@ same moment won't clobber each other.
 | `GITHUB_REPO` | `ratemyavatar/Wolimons` | which repo holds the data file |
 | `GITHUB_BRANCH` | `main` | which branch to commit to |
 | `DATA_PATH` | `data/wolimons-data.json` | the data file itself |
+| `TRUST_PROXY` | *(off)* | `1` reads the client IP from `CF-Connecting-IP` / `X-Forwarded-For`. Only behind Cloudflare or a reverse proxy |
+| `LOGIN_MAX_ATTEMPTS` | `10` | failed sign-ins allowed per IP per window |
+| `LOGIN_WINDOW_MS` | `900000` | that window, 15 minutes |
 
 Settings can go in a `.env` file next to `server.js` instead of the
 environment — copy `.env.example` to `.env`. It is gitignored. A real
@@ -209,6 +212,21 @@ personal access token scoped to just `Wolimons` is the right choice; a classic
 
 Locking down `ALLOWED_ORIGINS` is worth doing once you know your site's URL, so
 other people can't use your free Render instance as their own proxy.
+
+### Behind Cloudflare or another reverse proxy
+
+Set `TRUST_PROXY=1`. Every request then arrives from the proxy's address, so
+without it the sign-in rate limiter treats the whole internet as a single
+visitor and one bot can lock out the real admin. With it, the real client is
+read from `CF-Connecting-IP` (or the left-most `X-Forwarded-For` entry).
+
+Leave it off when the server is directly reachable: those headers are just
+headers, and anyone can send a fresh one on each request to get unlimited
+password guesses.
+
+See `HOSTING-WINDOWS.md` section 10 for the full walkthrough, including the
+fact that Cloudflare's proxy does **not** translate ports — `https://` reaches
+your origin on 443, never on 8080.
 
 ## Running it locally
 

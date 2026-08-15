@@ -574,14 +574,26 @@ You only need the one file. Don't download the whole 43 MB for this — most of
 that is the `snapshots\` folder, which is reference material the site never
 loads.
 
-On the VPS, open PowerShell as administrator and paste this. It puts
-`update.bat` where it belongs:
+On the VPS, open PowerShell as administrator. Set `$win` to **your** `windows`
+folder — mine is not necessarily where yours is — then paste the rest as-is:
 
 ```powershell
+$win='C:\Users\Administrator\Documents\wolimons\windows'
+
 $u='https://raw.githubusercontent.com/ratemyavatar/Wolimons/arena/019fff2c-wolimons/windows/update.bat'
 (iwr $u -UseBasicParsing).Content -replace "`r`n|`n","`r`n" |
-  Set-Content C:\Wolimons\windows\update.bat -NoNewline -Encoding ascii
+  Set-Content "$win\update.bat" -NoNewline -Encoding ascii
 ```
+
+To check it landed in the right place:
+
+```powershell
+dir "$win\update.bat"
+```
+
+You should see `update.bat` next to `setup.bat`. If PowerShell says the path
+doesn't exist, `$win` is wrong — open the folder that already has `setup.bat`
+in it, click the address bar, and copy what it says.
 
 After that, updating is option **8** forever — you never download by hand
 again.

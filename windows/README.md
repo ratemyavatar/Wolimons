@@ -34,12 +34,14 @@ are never touched, because neither is in the download.
 ### If you don't have update.bat yet
 
 You don't need the whole repo for it, just the one file. PowerShell as
-administrator on the VPS:
+administrator on the VPS — set `$win` to the folder this README is in:
 
 ```powershell
+$win='C:\Users\Administrator\Documents\wolimons\windows'
+
 $u='https://raw.githubusercontent.com/ratemyavatar/Wolimons/arena/019fff2c-wolimons/windows/update.bat'
 (iwr $u -UseBasicParsing).Content -replace "`r`n|`n","`r`n" |
-  Set-Content C:\Wolimons\windows\update.bat -NoNewline -Encoding ascii
+  Set-Content "$win\update.bat" -NoNewline -Encoding ascii
 ```
 
 The `-replace` matters: raw GitHub hands out `.bat` files with Unix line

@@ -161,7 +161,7 @@ if defined USEGIT (
     echo   edited by hand. To throw those edits away and take the new
     echo   version - your values are not tracked by git, so they survive:
     echo.
-    echo       cd /d %REPO%
+    echo       cd /d "%REPO%"
     echo       git reset --hard
     echo       git pull
     echo.

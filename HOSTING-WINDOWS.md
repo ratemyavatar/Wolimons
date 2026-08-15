@@ -607,6 +607,16 @@ again one line at a time.
 > above has no backticks and no pipe, so there is nothing to mangle, and the
 > size check catches it either way.
 
+> **If you are copying these commands out of a chat app, read this first.**
+> Chat apps, Teams, Discord and web pages silently turn URLs into markdown
+> links, so `https://example.com` arrives as `[https://example.com](https://example.com)`.
+> They do it to bare filenames too — `w.zip` becomes a link, because `.zip` is
+> a real domain ending. The result is a string with `http://` inside it, which
+> is not a legal Windows filename, so the command fails in a confusing place
+> or, worse, fails silently. If a command below arrives with square brackets
+> in it, that is what happened. Paste it into Notepad first, delete the
+> brackets and the duplicated URL, then paste into PowerShell.
+
 ### The way that cannot go wrong
 
 If PowerShell is being difficult, skip it. This does the same job with no
@@ -616,9 +626,12 @@ right ones:
 ```powershell
 $win='C:\Users\Administrator\Documents\wolimons\windows'
 
-$z="$env:TEMP\w.zip"; $x="$env:TEMP\wx"
-curl.exe -L -s -o $z https://codeload.github.com/ratemyavatar/Wolimons/zip/refs/heads/arena/019fff2c-wolimons
-Expand-Archive $z $x -Force
+$z="$env:TEMP\wolimons_dl"; $x="$env:TEMP\wx"
+$url='htt'+'ps://codeload.git'+'hub.com/ratemyavatar/Wolimons/zip/refs/heads/arena/019fff2c-wolimons'
+curl.exe -L -s -o $z $url
+if(Test-Path $x){Remove-Item $x -Recurse -Force}
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+[IO.Compression.ZipFile]::ExtractToDirectory($z,$x)
 copy "$x\Wolimons-arena-019fff2c-wolimons\windows\update.bat" "$win\update.bat"
 ```
 

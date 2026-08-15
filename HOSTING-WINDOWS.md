@@ -239,6 +239,8 @@ Google Drive so a copy leaves the machine.
 To restore, stop the server, drop the file back at that path, and start it
 again. To move to a new VPS, copy that one file across.
 
+Updating the site does not touch this file — see section 11.
+
 Two smaller safety nets are already there: `wolimons-data.json.bak` is the
 previous contents, rewritten on every save, and saves are atomic — the file is
 written to a temporary name and renamed into place, so a crash or a power cut
@@ -547,6 +549,91 @@ curl -sI http://localhost:8080/
 If that returns `200` while the domain gives an SSL error, the app is healthy
 and the problem is 100% in the Cloudflare settings above.
 
+## 11. Update the site without losing your values
+
+Short version: **your values are not in the download, so an update cannot
+overwrite them.** Everything staff have typed in lives in two files that only
+exist on the VPS, and neither is in the repo:
+
+| Yours, stays on the VPS | Comes from the download |
+| --- | --- |
+| `proxy\data\wolimons-data.json` — every value, the change history, the roles | everything else: `proxy\`, `assets\`, `css\`, the pages |
+| `proxy\.env` — your admin password, port, domain | `data\wolimons-data.json` — a starter file, empty values |
+
+Both are gitignored, so they are not in the ZIP and not in `git pull`. As long
+as you don't delete `C:\Wolimons\proxy\data\`, updating is just replacing code.
+
+> Don't confuse the two data files. `proxy\data\wolimons-data.json` is the real
+> one the server writes. `data\wolimons-data.json` in the repo root is a starter
+> file with no values in it — the server never reads it. Copying it over the
+> real one is the one way to actually lose everything, so don't.
+
+### 11.1 Back up first, always
+
+One minute, and it makes the rest of this risk-free:
+
+```bat
+xcopy /Y C:\Wolimons\proxy\data\wolimons-data.json C:\WolimonsBackups\before-update\
+xcopy /Y C:\Wolimons\proxy\.env C:\WolimonsBackups\before-update\
+```
+
+### 11.2 With Git (easiest)
+
+```bat
+cd C:\Wolimons
+git pull
+C:\nssm\win64\nssm.exe restart Wolimons
+```
+
+Git will not touch `proxy\data\` or `proxy\.env` — it doesn't track them.
+
+If `git pull` complains that local changes would be overwritten, you've edited
+a file the update also changes. To throw your edits away and take the new
+version: `git reset --hard` then `git pull`. That is safe for your values —
+`reset --hard` only touches tracked files, and your two files aren't tracked.
+
+### 11.3 From the ZIP (no Git)
+
+The trap here is deleting `C:\Wolimons` and extracting fresh — that takes your
+values with it. Extract *over* the top instead:
+
+1. Do the backup in 11.1.
+2. Stop the service so nothing is mid-save:
+   ```bat
+   C:\nssm\win64\nssm.exe stop Wolimons
+   ```
+3. Download the ZIP from the repo's green **Code** button and extract it. You
+   get a folder like `Wolimons-arena-019fff2c-wolimons` with the site inside.
+4. Copy the **contents** of that folder into `C:\Wolimons`, choosing
+   **Replace the files in the destination**. New files land, changed files are
+   overwritten, and `proxy\data\` — which isn't in the ZIP — is left alone.
+5. Start it again:
+   ```bat
+   C:\nssm\win64\nssm.exe start Wolimons
+   ```
+
+Same thing as one command, if you'd rather not drag folders — it copies
+everything except your two files:
+
+```bat
+robocopy "%USERPROFILE%\Downloads\Wolimons-arena-019fff2c-wolimons" C:\Wolimons /E /XD data /XF .env
+```
+
+`/XD data` skips every folder called `data`, so it also skips the starter file
+in the repo root. That one is unused, so it costs you nothing — and it means
+there is no way for this command to reach your real values.
+
+### 11.4 Check it worked
+
+Open the site and look at any item you've valued. If the value is there, you
+kept everything. Also check `/valuechanges` — that history comes out of the
+same file, so if it's intact, nothing was lost.
+
+If the values *are* gone, don't set them again by hand. Stop the service, copy
+your backup back to `C:\Wolimons\proxy\data\wolimons-data.json`, and start it.
+There's also a `wolimons-data.json.bak` sitting next to the real file — the
+contents from the save before last — if you have no backup of your own.
+
 ## Settings reference
 
 All of these go in `proxy\.env`. A real environment variable, if you set one,
@@ -579,6 +666,13 @@ host's control panel firewall too.
 site is fine; HTTPS is Cloudflare's job and it isn't doing it. Nine times out
 of ten the DNS record is **grey-clouded** instead of orange. Full checklist in
 section 10.7.
+
+**All the values vanished after an update** — you replaced the whole
+`C:\Wolimons` folder instead of copying over it, or you copied the repo's
+starter `data\wolimons-data.json` onto the real one. Stop the service, put
+your backup (or `wolimons-data.json.bak`) back at
+`C:\Wolimons\proxy\data\wolimons-data.json`, start it. Section 11 has the
+update steps that don't do this.
 
 **`EADDRINUSE`** — something already uses that port. Find and stop it:
 

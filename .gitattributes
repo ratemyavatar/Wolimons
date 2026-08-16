@@ -3,6 +3,9 @@
 *.bat text eol=crlf
 *.cmd text eol=crlf
 
+# PowerShell scripts go on Windows too, so keep them CRLF for consistency.
+*.ps1 text eol=crlf
+
 # Shell scripts must keep LF, even if someone edits them on Windows.
 *.sh text eol=lf
 

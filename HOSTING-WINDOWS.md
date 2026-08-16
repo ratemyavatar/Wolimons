@@ -574,6 +574,34 @@ You only need the one file. Don't download the whole 43 MB for this — most of
 that is the `snapshots\` folder, which is reference material the site never
 loads.
 
+**The easy way: `windows\get-update.bat`.** Double-click it. It downloads the
+newest `update.bat` into the same folder it is sitting in, so you never type a
+path, and it does the line-ending conversion and the check below for you. It
+keeps your old `update.bat` as a `.bak` and puts it back if the download comes
+out wrong. Administrator is not needed. `get-update.bat all` refreshes
+`setup.bat` as well.
+
+There is a PowerShell version of the same thing, `windows\get-update.ps1`,
+which takes `-All`, `-Branch <name>` and `-To <folder>`:
+
+```powershell
+cd C:\Users\Administrator\Documents\wolimons\windows
+powershell -ExecutionPolicy Bypass -File .\get-update.ps1
+```
+
+If you don't have `get-update.ps1` either, grab it the same way — from inside
+your `windows` folder:
+
+```powershell
+$u='https://raw.githubusercontent.com/ratemyavatar/Wolimons/arena/019fff2c-wolimons/windows/get-update.ps1'
+[IO.File]::WriteAllText("$pwd\get-update.ps1",((iwr $u -UseBasicParsing).Content))
+powershell -ExecutionPolicy Bypass -File .\get-update.ps1
+```
+
+That one is a `.ps1`, not a `.bat`, so its line endings don't matter.
+
+Everything below is the by-hand version, for when you want to do it yourself.
+
 On the VPS, open PowerShell as administrator. Set `$win` to **your** `windows`
 folder, then paste the rest as-is:
 

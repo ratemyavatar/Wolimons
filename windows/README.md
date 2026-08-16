@@ -45,30 +45,44 @@ administrator is stopping and starting the Wolimons service, so:
 
 ### If you don't have update.bat yet
 
-You don't need the whole repo for it, just the one file. PowerShell as
-administrator on the VPS — set `$win` to the folder this README is in:
+You don't need the whole repo for it, just the one file, and there is a script
+that fetches it for you: **`get-update.bat`**.
+
+Put it in the `windows` folder (it is already there if you have the repo) and
+**double-click it**. It downloads the newest `update.bat` into that same
+folder, right next to itself — you never type a path. Administrator is not
+needed.
+
+It keeps your old `update.bat` as a `.bak` first, and it checks the download
+afterwards, because this is the one thing that fails silently: raw GitHub
+serves `.bat` files with Unix line endings and `cmd.exe` mis-parses those, so
+the line endings are converted before it hits the disk. If the check fails it
+puts your old copy back and says so. See `HOSTING-WINDOWS.md` §11.0.
+
+If you want `setup.bat` refreshed too, run it from a prompt as
+`get-update.bat all`.
+
+From PowerShell instead, the same thing with a few more options:
 
 ```powershell
-$win='C:\Users\Administrator\Documents\wolimons\windows'
-
-$u='https://raw.githubusercontent.com/ratemyavatar/Wolimons/arena/019fff2c-wolimons/windows/update.bat'
-$t=(iwr $u -UseBasicParsing).Content
-$cr=[string][char]13
-$lf=[string][char]10
-$t=$t.Replace($cr,'').Replace($lf,$cr+$lf)
-[IO.File]::WriteAllText("$win\update.bat",$t)
+cd C:\Users\Administrator\Documents\wolimons\windows
+powershell -ExecutionPolicy Bypass -File .\get-update.ps1
 ```
 
-Check it, because this fails silently:
+| Option | Does |
+|---|---|
+| `-All` | also refresh `setup.bat` |
+| `-Branch <name>` | take it from a different branch |
+| `-To <folder>` | put it somewhere else instead of next to the script |
+
+**And if you don't have `get-update.bat` either** — one line in PowerShell,
+run it from inside the `windows` folder:
 
 ```powershell
-$b=[IO.File]::ReadAllBytes("$win\update.bat")
-$bad=0; for($i=0;$i -lt $b.Length;$i++){ if($b[$i] -eq 10 -and ($i -eq 0 -or $b[$i-1] -ne 13)){$bad++} }
-if($bad -eq 0){"OK - update.bat is good"}else{"BROKEN - run it again"}
+$u='https://raw.githubusercontent.com/ratemyavatar/Wolimons/arena/019fff2c-wolimons/windows/get-update.ps1'
+[IO.File]::WriteAllText("$pwd\get-update.ps1",((iwr $u -UseBasicParsing).Content))
+powershell -ExecutionPolicy Bypass -File .\get-update.ps1
 ```
-
-Raw GitHub serves `.bat` files with Unix line endings and `cmd.exe` mis-parses
-those, which is what the conversion is for. See `HOSTING-WINDOWS.md` §11.0.
 
 ## What it asks you
 

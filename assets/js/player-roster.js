@@ -230,6 +230,68 @@
     return roster;
   }
 
+  /* ------------------------------------------------------------------ */
+  /* Ranking                                                             */
+  /* ------------------------------------------------------------------ */
+
+  /*
+   * The ranking key, kept here because three pages need the same answer:
+   * /leaderboard numbers the board with it, /players orders its list by it,
+   * and a profile prints the player's position in it. When each of them had
+   * its own copy they could disagree, and the profile had no copy at all -
+   * it read whatever number the leaderboard happened to have left in
+   * sessionStorage, so a profile opened first showed "Unranked" and the same
+   * profile opened after the leaderboard showed a number.
+   *
+   * Value leads and RAP breaks ties, so while values.js is empty every player
+   * scores 0 on value and the order is by RAP; it turns into a real value
+   * ranking the moment values are filled in. The id is the final tiebreak so
+   * two players with identical totals never swap places between renders.
+   */
+  function byRank(a, b) {
+    if (b.value !== a.value) return b.value - a.value;
+    if (b.rap !== a.rap) return b.rap - a.rap;
+    return a.id - b.id;
+  }
+
+  /* Sorted copy, with .rank written onto each row. The rows themselves are
+   * the caller's - numbering them in place is what the leaderboard wants. */
+  function rank(players) {
+    const ordered = [...(players || [])].sort(byRank);
+    ordered.forEach((player, index) => { player.rank = index + 1; });
+    return ordered;
+  }
+
+  /*
+   * One player's real position on the leaderboard, or null.
+   *
+   * Null is a real answer and means "not on the board": someone who owns no
+   * collectibles was never found by the scan, and a holding account is left
+   * out of the rankings on purpose. Neither should be given a number.
+   *
+   * The values table is waited for first, exactly as the leaderboard does,
+   * because a player's Value is the sum of the hand-set values of their
+   * items - ranking before it lands would order everybody on RAP and produce
+   * a number that disagrees with the board.
+   */
+  async function rankOf(userId, options = {}) {
+    const id = Number(userId);
+    if (!Number.isSafeInteger(id) || id <= 0) return null;
+
+    const VALUES = window.WolimonsValues;
+    if (VALUES && VALUES.ready && typeof VALUES.ready.then === 'function') {
+      try {
+        await VALUES.ready;
+      } catch (error) {
+        /* No values is a legitimate state - the board then ranks on RAP. */
+      }
+    }
+
+    const players = await load(options);
+    const found = rank(players).find(player => Number(player.id) === id);
+    return found ? found.rank : null;
+  }
+
   async function attachAvatars(players, size = AVATAR_SIZE) {
     if (!players || !players.length || !API) return players || [];
     const map = await API.fetchUserThumbnails(players.map(player => player.id), size);
@@ -275,6 +337,9 @@
     load,
     attachAvatars,
     clearCache,
+    byRank,
+    rank,
+    rankOf,
     AVATAR_SIZE,
     CACHE_KEY,
     CACHE_TTL_MS,

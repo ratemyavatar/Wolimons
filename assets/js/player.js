@@ -22,6 +22,12 @@
   const BADGES = window.WolimonsBadges;
   const NAME_BADGES = window.WolimonsNameBadges;
   const CHART = window.WolimonsHistoryChart;
+  /* The leaderboard's own roster, so the Rank field is the real rank rather
+   * than a separate calculation that could disagree with the board. */
+  const ROSTER = window.WolimonsRoster;
+  /* Badges the site owner has handed out. Arrives from the backend shortly
+   * after the page, so both badge rows are redrawn when it lands. */
+  const GRANTED = window.WolimonsGrantedBadges;
 
   /* Resale-data is one request per unique item. Inventories are small on this
    * revival, but a whale with 100+ uniques should not open 100 sockets. */
@@ -181,6 +187,10 @@
       items: state.items,
       verified: state.verified,
       siteVerified: state.siteVerified,
+      /* The badges the owner awarded this player, if the table has arrived.
+       * Read fresh each time rather than stored: it lands a moment after the
+       * page does, and the subscription below re-runs this when it lands. */
+      granted: GRANTED ? GRANTED.of(state.name) : [],
     }));
   }
 
@@ -294,14 +304,17 @@
   const state = {
     items: [],
     userId: null,
+    /* The Wanwood username, as the API spells it. Owner-granted badges are
+     * keyed by name rather than id, so the badge row needs it. */
+    name: '',
     verified: false,
     /* True when this profile is the account linked in this browser, i.e.
      * the person proved they own it through /verify. That earns the
      * "Verified" WoliBadge, which is separate from the Verified Checkmark
      * handed to notable people. */
     siteVerified: false,
-    /* null until the leaderboard cache answers; null means "no trophy",
-     * never a guessed rank. */
+    /* Null until the roster has been ranked. Null means "no trophy" and no
+     * number, never a guessed rank. */
     rank: null,
   };
 
@@ -415,20 +428,45 @@
     return linked ? linked.id : null;
   }
 
-  /* The leaderboard already ranks everyone and parks the result in
-   * sessionStorage. If it is still warm, the rank is free; otherwise the
-   * profile simply does not claim one rather than rebuilding the whole board. */
-  function rankFromLeaderboard(userId) {
+  /*
+   * The player's real position on the leaderboard.
+   *
+   * This used to read a 'wolimons_leaderboard_v1' sessionStorage entry that
+   * nothing has ever written, so the answer was always null and every profile
+   * read "Unranked". Now it asks the roster - the same scan the leaderboard
+   * is built from, ordered by the same key - so the number here is the number
+   * on the board, and opening a profile first gives the same answer as
+   * opening the leaderboard first.
+   *
+   * The roster is cached for ten minutes and shared between the pages, so
+   * arriving from /leaderboard or /players costs nothing. Arriving cold means
+   * the scan runs, which is why this is done in the background and the field
+   * is filled in when it lands rather than holding the whole page up.
+   *
+   * Null is a real answer, not a failure: a player who owns no collectibles
+   * is not on the board, and holding accounts are kept off it on purpose.
+   * Both are shown as "Unranked" rather than being given a made-up number.
+   */
+  async function loadRank(userId) {
+    if (!ROSTER || typeof ROSTER.rankOf !== 'function') return;
+
+    setText('player_rank', 'Ranking\u2026');
+    let rank = null;
     try {
-      const raw = window.sessionStorage.getItem('wolimons_leaderboard_v1');
-      if (!raw) return null;
-      const saved = JSON.parse(raw);
-      if (!saved || !Array.isArray(saved.players)) return null;
-      const found = saved.players.find(player => Number(player.id) === userId);
-      return found && found.rank ? found.rank : null;
+      rank = await ROSTER.rankOf(userId);
     } catch (error) {
-      return null;
+      /* Wanwood unreachable. The rest of the profile still loaded from its
+       * own requests, so say the rank is unknown rather than "Unranked",
+       * which would read as a claim that they are not on the board. */
+      setText('player_rank', '-');
+      return;
     }
+
+    setText('player_rank', rank ? `#${rank}` : 'Unranked');
+    state.rank = rank;
+    /* The rank-#1 trophy is one of the name badges, so the row is rebuilt
+     * once the real number is in. */
+    renderNameBadges();
   }
 
   async function load() {
@@ -473,6 +511,7 @@
       || '';
     const name = rawName && rawName !== '?' ? String(rawName).trim() : `User ${userId}`;
 
+    state.name = name;
     renderName(name);
     document.title = `${name} - Wanwood Player Profile - Wolimons`;
 
@@ -525,10 +564,10 @@
       })
       .catch(() => setText('known_previous_names', 'None'));
 
-    const rank = rankFromLeaderboard(userId);
-    setText('player_rank', rank ? `#${rank}` : 'Unranked');
-    state.rank = rank;
-    renderNameBadges();
+    /* Deliberately not awaited: building the roster from scratch takes a
+     * couple of seconds, and the inventory below is the reason people opened
+     * the page. The Rank field fills itself in when the answer arrives. */
+    loadRank(userId);
 
     /* --- inventory ------------------------------------------------- */
 
@@ -704,6 +743,22 @@
     if (linked === state.siteVerified) return;
     state.siteVerified = linked;
     refreshBadges();
+  });
+
+  /*
+   * The owner's badge grants land a moment after the page does, so both rows
+   * that can show one are rebuilt when they arrive: the WoliBadges strip
+   * below the stats, and the icons beside the name on the profile card,
+   * where Certified Wanwoodian appears.
+   *
+   * Guarded on the name being known - the subscription fires immediately on
+   * subscribe, before the profile has loaded, and there is nothing to draw
+   * for a player nobody has looked up yet.
+   */
+  GRANTED?.subscribe(() => {
+    if (!state.name) return;
+    refreshBadges();
+    renderNameBadges();
   });
 
   load();

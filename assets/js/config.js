@@ -41,19 +41,16 @@
   const SITE_BASE = 'https://wanwoo.xyz';
 
   /*
-   * Certified Wanwoodian - the handpicked badge.
+   * Certified Wanwoodian used to be a list of names here.
    *
-   * There is no endpoint for this and there never will be: it is recognition
-   * handed out by the site owner, so the list of recipients is written here
-   * by hand. Names are matched case-insensitively against the Wanwood
-   * username. Add a name to award it; nobody else receives it.
+   * It is not any more. It is one of the badges the site owner hands out in
+   * the admin panel, stored with the values and the roles, and read back by
+   * assets/js/granted-badges.js. Awarding it is now something the owner does
+   * on the site, in a few seconds, instead of a code change and a redeploy.
    *
-   * Kept here rather than inside leaderboard.js so there is one place to
-   * edit, and so anything else that needs to know can read the same list.
+   * Nothing replaced it here on purpose: a second list in the code would only
+   * be another thing to keep in step with the real one.
    */
-  const CERTIFIED_WANWOODIANS = [
-    'Nun',
-  ];
 
   /*
    * Limited holder accounts - kept off the player rankings.
@@ -144,10 +141,6 @@
     /* localStorage can be unavailable in private mode - ignore. */
   }
 
-  const certified = new Set(
-    CERTIFIED_WANWOODIANS.map(name => String(name).trim().toLowerCase()).filter(Boolean),
-  );
-
   const owners = new Set(
     OWNERS.map(name => String(name).trim().toLowerCase()).filter(Boolean),
   );
@@ -163,11 +156,6 @@
   window.WOLIMONS_CONFIG = {
     apiBase: String(apiBase).replace(/\/+$/, ''),
     siteBase: SITE_BASE.replace(/\/+$/, ''),
-    certifiedWanwoodians: CERTIFIED_WANWOODIANS,
-    /* True only for a name on the list above. */
-    isCertifiedWanwoodian(name) {
-      return certified.has(String(name || '').trim().toLowerCase());
-    },
     owners: OWNERS,
     /* True only for a name on the owners list. See the warning above it. */
     isOwner(name) {

@@ -26,10 +26,22 @@ Do **1**, then **3**, then **4**. Option 2 is just for a quick look.
 
 ## Updating later
 
-Option **8**, or right-click `update.bat` → *Run as administrator*. One step,
-about ten seconds. It backs up your values first, then replaces only the code —
-`proxy\data\` (your values, history and roles) and `proxy\.env` (your password)
-are never touched, because neither is in the download.
+Option **8**, or just double-click `update.bat`. One step, about ten seconds.
+It backs up your values first, then replaces only the code — `proxy\data\`
+(your values, history and roles) and `proxy\.env` (your password) are never
+touched, because neither is in the download.
+
+You do **not** have to run it as administrator. The only part that needs
+administrator is stopping and starting the Wolimons service, so:
+
+- **Running as administrator** — it does the whole thing, service restart
+  included, and then checks the site answers on `/healthz`.
+- **Not running as administrator** — it offers to reopen itself as
+  administrator. Say no and it still updates every file; it just leaves the
+  service alone and tells you to restart it yourself afterwards with
+  `net stop Wolimons` then `net start Wolimons`.
+- **No service installed at all** (you run the site with option 2, or by
+  hand) — administrator is never needed and never asked about.
 
 ### If you don't have update.bat yet
 
@@ -75,8 +87,9 @@ services, the tunnel config, `TRUST_PROXY`, `ALLOWED_ORIGINS` — is automatic.
 
 ## Notes
 
-- It must be run as administrator. Services and firewall rules need it, and
-  it says so rather than half-failing later.
+- `setup.bat` must be run as administrator. Services and firewall rules need
+  it, and it says so rather than half-failing later. `update.bat` does not —
+  see "Updating later" above.
 - Re-running is safe. It replaces existing services rather than erroring, and
   asks before overwriting settings (keeping a `.env.old`).
 - **Option 4 uses a Cloudflare Tunnel**, so no inbound port is needed at all.

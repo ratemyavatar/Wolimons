@@ -11,7 +11,8 @@
  *
  *   trophy     rank #1 only, and only where a rank is actually known
  *   verified   the API's own isVerified flag, never granted for existing
- *   certified  the hand-picked Certified Wanwoodian list in config.js
+ *   certified  Certified Wanwoodian, awarded by the site owner in the admin
+ *              panel and read back through assets/js/granted-badges.js
  *
  * A player who is none of those gets an empty row, which is the normal case.
  * Nothing here is derived from value, RAP or inventory - those are WoliBadges
@@ -21,7 +22,6 @@
   'use strict';
 
   const SVG_NS = 'http://www.w3.org/2000/svg';
-  const CONFIG = window.WOLIMONS_CONFIG || {};
 
   const TROPHY_PATH = 'M19 3h-2V2h-2v1H9V2H7v1H5c-1.1 0-2 .9-2 2v3c0 2.21 1.79 4 4 4h.14c.48 1.48 1.68 2.65 3.2 3.06L9 18H7v2h10v-2h-2l-1.34-2.94c1.52-.41 2.72-1.58 3.2-3.06H17c2.21 0 4-1.79 4-4V5c0-1.1-.9-2-2-2zm-2 5h-1.68C14.77 9.8 13.5 11 12 11s-2.77-1.2-3.32-3H7V5h10v3z';
 
@@ -68,9 +68,18 @@
     return badgeWrap(label, image);
   }
 
+  /*
+   * Certified Wanwoodian is one of the badges the owner hands out, so the
+   * answer comes from the grants table rather than from a list in the code.
+   *
+   * It is read live on every call, not captured when this file loads: the
+   * table arrives from the backend a moment after the page does, and pages
+   * subscribe and redraw when it lands. Holding a reference to the module is
+   * fine, but reading the *answer* early would freeze it at "no".
+   */
   function isCertified(name) {
-    return typeof CONFIG.isCertifiedWanwoodian === 'function'
-      && CONFIG.isCertifiedWanwoodian(name);
+    const GRANTED = window.WolimonsGrantedBadges;
+    return Boolean(GRANTED && GRANTED.has(name, 'certified-wanwoodian'));
   }
 
   /*

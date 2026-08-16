@@ -248,11 +248,16 @@
    *                     available }]  (available = copies in existence, or null)
    *   verified     - users/v1/users/{id}.isVerified, Wanwood's own flag
    *   siteVerified - this player proved ownership through /verify
+   *   granted      - badge ids the site owner has awarded this player, from
+   *                  assets/js/granted-badges.js. Carried through rather than
+   *                  read here so this stays a pure function of its input.
    *
    * Everything else is derived so no caller has to agree on how a total is
    * computed.
    */
-  function buildContext({ items = [], verified = false, siteVerified = false } = {}) {
+  function buildContext({
+    items = [], verified = false, siteVerified = false, granted = [],
+  } = {}) {
     const normalized = items.map(item => ({
       id: Number(item.id) || 0,
       name: String(item.name || ''),
@@ -275,6 +280,7 @@
       items: normalized,
       verified: verified === true,
       siteVerified: siteVerified === true,
+      granted: (Array.isArray(granted) ? granted : []).filter(id => BY_ID.has(id)),
       assetTypes,
       totalValue: normalized.reduce((sum, item) => sum + (item.value * item.copies), 0),
       totalRap: normalized.reduce((sum, item) => sum + (item.rap * item.copies), 0),
@@ -291,9 +297,30 @@
   function evaluate(input) {
     const context = input && input.items && input.assetTypes ? input : buildContext(input);
 
+    /*
+     * Badges the owner has handed out to this player.
+     *
+     * The fifteen badges with `earn: null` are the ones whose requirement
+     * happens somewhere a browser cannot check - a Discord tournament, the
+     * owner's own recognition - so they are awarded in the admin panel and
+     * arrive here as a list of ids. The caller passes them in rather than
+     * this file fetching them, so evaluate() stays a pure function of its
+     * input and the rules above are still the only thing that can earn a
+     * badge on merit.
+     */
+    const granted = new Set(
+      Array.isArray(input && input.granted) ? input.granted : [],
+    );
+
     const earned = [];
     LIST.forEach((badge, index) => {
-      if (typeof badge.earn !== 'function') return;
+      /* Handed out by the owner. Only ever true for a badge with no rule -
+       * an earned one cannot be granted, and granting must not be able to
+       * override a rule that says no. */
+      if (typeof badge.earn !== 'function') {
+        if (granted.has(badge.id)) earned.push({ badge, index });
+        return;
+      }
       let ok = false;
       try {
         ok = badge.earn(context) === true;

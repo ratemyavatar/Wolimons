@@ -23,6 +23,12 @@ import vm from 'node:vm';
 
 import { parseCatalog } from './gen-badge-art.mjs';
 
+/* The backend's list of badges the owner may hand out, checked against the
+ * catalog below so the panel and the server cannot disagree about what
+ * exists. */
+const { createRequire } = await import('node:module');
+const store = createRequire(import.meta.url)('../proxy/store.js');
+
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 /* --- the catalog page ------------------------------------------------ */
@@ -76,6 +82,36 @@ badges.LIST.forEach(badge => {
   }
 });
 
+/* --- the badges the owner hands out ---------------------------------- */
+
+/*
+ * A badge with no earn rule is one nothing on the site can settle by itself,
+ * so the owner awards it in the admin panel. The server keeps its own list of
+ * which ids that is - it has to, because it validates what the panel sends -
+ * and if the two ever disagree the symptom is quiet: an owner awards a badge
+ * and the server refuses it, or a badge nobody can earn is also one nobody
+ * can be given, so it silently does not exist.
+ */
+const grantable = new Set(store.GRANTABLE_BADGES);
+const manual = badges.LIST.filter(badge => typeof badge.earn !== 'function');
+
+manual.forEach(badge => {
+  if (!grantable.has(badge.id)) {
+    problems.push(`${badge.id} has no earn rule, so it must be in GRANTABLE_BADGES in proxy/store.js`);
+  }
+});
+
+store.GRANTABLE_BADGES.forEach(id => {
+  const badge = defined.get(id);
+  if (!badge) {
+    problems.push(`proxy/store.js can grant "${id}", which is not a badge in badges.js`);
+    return;
+  }
+  if (typeof badge.earn === 'function') {
+    problems.push(`${id} is earned from the inventory, so it must not be in GRANTABLE_BADGES`);
+  }
+});
+
 if (problems.length) {
   console.error('Badge definitions are out of sync:\n');
   problems.forEach(problem => console.error(`  - ${problem}`));
@@ -84,4 +120,4 @@ if (problems.length) {
 
 const automatic = badges.LIST.filter(badge => typeof badge.earn === 'function').length;
 console.log(`OK - ${catalog.length} badges agree across badges/index.html, badges.js and badge-art.js`);
-console.log(`     ${automatic} awarded automatically, ${catalog.length - automatic} awarded off-site`);
+console.log(`     ${automatic} awarded automatically, ${manual.length} handed out by the owner`);

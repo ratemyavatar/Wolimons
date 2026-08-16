@@ -303,16 +303,12 @@
    * Ranking key. Value leads, RAP breaks ties - so while values.js is empty
    * every player scores 0 on value and the board is ordered by RAP, and it
    * turns into a real value board the moment values are filled in.
+   *
+   * It lives in player-roster.js rather than here because the profile page
+   * needs the identical answer to print a player's rank, and /players orders
+   * its list by it. One definition, so the three pages cannot disagree.
    */
-  const rankKey = player => [player.value, player.rap];
-
-  function byRank(a, b) {
-    const [aValue, aRap] = rankKey(a);
-    const [bValue, bRap] = rankKey(b);
-    if (bValue !== aValue) return bValue - aValue;
-    if (bRap !== aRap) return bRap - aRap;
-    return a.id - b.id;
-  }
+  const byRank = (a, b) => ROSTER.byRank(a, b);
 
   /*
    * The verified flag, for the page being looked at and nothing more.
@@ -417,6 +413,14 @@
     ranked.forEach((player, index) => { player.rank = index + 1; });
     applyFilter({ keepPage });
   }
+
+  /* Certified Wanwoodian is awarded by the owner and arrives from the backend
+   * shortly after the page, so the cards on screen are redrawn when it lands
+   * rather than waiting for a reload. Only a repaint - the ordering does not
+   * depend on badges. */
+  window.WolimonsGrantedBadges?.subscribe(() => {
+    if (ranked.length) renderPage();
+  });
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => { initSearch(); load(); });

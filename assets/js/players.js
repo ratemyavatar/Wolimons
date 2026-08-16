@@ -329,12 +329,12 @@
    * leaderboard ranks by, so the two pages agree about who is above whom.
    * While values.js is empty every player scores 0 on value and the order is
    * by RAP, and it becomes a value ordering the moment values are filled in.
+   *
+   * The comparison itself is in player-roster.js, shared with the leaderboard
+   * and with the rank a profile prints, so there is one definition of "above"
+   * on the whole site instead of three that could drift.
    */
-  function byWorth(a, b) {
-    if (b.value !== a.value) return b.value - a.value;
-    if (b.rap !== a.rap) return b.rap - a.rap;
-    return a.id - b.id;
-  }
+  const byWorth = (a, b) => ROSTER.byRank(a, b);
 
   function applyFilter({ keepPage = false } = {}) {
     const term = searchBox ? searchBox.value.trim().toLowerCase() : '';
@@ -606,6 +606,13 @@
       load();
     });
   }
+
+  /* Owner-granted badges arrive from the backend a moment after the page, so
+   * the cards on screen are repainted when they land. Ordering is unaffected
+   * - a badge is not part of the ranking key. */
+  window.WolimonsGrantedBadges?.subscribe(() => {
+    if (players.length) renderPage();
+  });
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => { initSearch(); initLookup(); load(); });

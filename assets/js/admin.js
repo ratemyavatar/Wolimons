@@ -6,6 +6,7 @@
  *
  *   the greeting      who this browser is signed in as, and what it may do
  *   staff ranks       owners hand out Value Manager and Value Team
+ *   player badges     owners hand out the badges nothing can work out itself
  *   item values       anyone ranked sets value, demand, trend and categories
  *
  * ---------------------------------------------------------------------------
@@ -34,6 +35,10 @@
   const CONFIG = window.WOLIMONS_CONFIG;
   const VALUES = window.WolimonsValues;
   const ROLE_ICONS = window.WolimonsRoleIcons;
+  /* The badge catalog (names, tiers, artwork) and the table of who has been
+   * given what. The panel is the only place the second one is written. */
+  const BADGES = window.WolimonsBadges;
+  const GRANTED = window.WolimonsGrantedBadges;
 
   const API_BASE = (CONFIG && CONFIG.apiBase) || '';
   const TOKEN_KEY = 'wolimons_admin_token_v1';
@@ -49,6 +54,10 @@
     token: readToken(),
     /* The rank editor's pending selection. */
     roleChoice: '',
+    /* Everyone who has been given a badge, and the badge editor's pending
+     * selection. */
+    grants: [],
+    badgeChoice: '',
     /* The item being valued, and the row as it currently reads. */
     item: null,
     demand: '',
@@ -163,6 +172,14 @@
     dom.rolesNotice = document.getElementById('admin_roles_notice');
     dom.rolesList = document.getElementById('admin_roles_list');
 
+    dom.badgesRow = document.getElementById('admin_badges_row');
+    dom.badgeName = document.getElementById('admin_badge_name');
+    dom.badgeChoices = document.getElementById('admin_badge_choices');
+    dom.badgeGive = document.getElementById('admin_badge_give');
+    dom.badgeTake = document.getElementById('admin_badge_take');
+    dom.badgesNotice = document.getElementById('admin_badges_notice');
+    dom.badgesList = document.getElementById('admin_badges_list');
+
     dom.valuesRow = document.getElementById('admin_values_row');
     dom.valueImage = document.getElementById('admin_value_item_image');
     dom.valueName = document.getElementById('admin_value_item_name');
@@ -256,6 +273,9 @@
      * successfully save. */
     if (dom.keyRow) dom.keyRow.classList.toggle('d-none', !(canGrantRoles() || canSetValues()));
     if (dom.rolesRow) dom.rolesRow.classList.toggle('d-none', !canGrantRoles());
+    /* Badges are the owner's to give, so the pane rides with the ranks one
+     * rather than with the value editor. */
+    if (dom.badgesRow) dom.badgesRow.classList.toggle('d-none', !canGrantRoles());
     if (dom.valuesRow) dom.valuesRow.classList.toggle('d-none', !canSetValues());
 
     if (dom.keyHint) {
@@ -372,6 +392,184 @@
       chooseRole('');
     } catch (error) {
       notice(dom.rolesNotice, error.message, 'bad');
+      if (/sign in/i.test(error.message)) {
+        writeToken('');
+        renderPanes();
+      }
+    }
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Player badges                                                       */
+  /* ------------------------------------------------------------------ */
+
+  /*
+   * The badges an owner can hand out are exactly the ones in badges.js with
+   * no earn rule - the fifteen whose requirement happens somewhere a browser
+   * cannot check. Deriving the list rather than repeating it means the panel
+   * can never offer a badge that is actually earned, and cannot fall behind
+   * when the catalog changes.
+   *
+   * The server keeps its own copy of the same list and refuses anything not
+   * on it, so this is convenience, not enforcement.
+   */
+  function grantableBadges() {
+    if (!BADGES || !Array.isArray(BADGES.LIST)) return [];
+    return BADGES.LIST.filter(badge => typeof badge.earn !== 'function');
+  }
+
+  const badgeName = id => {
+    const badge = BADGES && BADGES.get ? BADGES.get(id) : null;
+    return badge ? badge.name : id;
+  };
+
+  /* One chip per badge, using the catalog's filter buttons - the same control
+   * the ranks and categories rows are built from. */
+  function renderBadgeChoices() {
+    if (!dom.badgeChoices) return;
+    dom.badgeChoices.replaceChildren();
+
+    const list = grantableBadges();
+    if (!list.length) {
+      const empty = el('div', 'small py-2', 'The badge catalog failed to load.');
+      empty.style.color = '#7a8288';
+      dom.badgeChoices.appendChild(empty);
+      return;
+    }
+
+    list.forEach(badge => {
+      const button = el('button', 'filter-button btn btn-primary', badge.name);
+      button.type = 'button';
+      button.dataset.badgeValue = badge.id;
+      button.setAttribute('aria-pressed', 'false');
+      button.addEventListener('click', () => {
+        chooseBadge(badge.id === state.badgeChoice ? '' : badge.id);
+      });
+      dom.badgeChoices.appendChild(button);
+    });
+    chooseBadge(state.badgeChoice);
+  }
+
+  function chooseBadge(id) {
+    state.badgeChoice = id || '';
+    if (!dom.badgeChoices) return;
+    dom.badgeChoices.querySelectorAll('[data-badge-value]').forEach(button => {
+      setPressed(button, button.dataset.badgeValue === state.badgeChoice);
+    });
+  }
+
+  /*
+   * One player's row in the list underneath: their name, the badges they
+   * hold, and the artwork for each. Same picker row the roster uses, so the
+   * two lists look like one thing.
+   */
+  function grantRow(entry) {
+    const row = el('div', 'trade_ad_picker_row');
+
+    /* The badge drawings, in the 44px column the item rows use for a
+     * thumbnail. Capped so a player with a dozen badges cannot stretch the
+     * row - the names are listed underneath anyway. */
+    const slot = el('div', 'd-flex align-items-center');
+    slot.style.minWidth = '44px';
+    entry.badges.slice(0, 3).forEach(id => {
+      const icon = BADGES && BADGES.iconNode ? BADGES.iconNode(id) : null;
+      if (!icon) return;
+      icon.setAttribute('title', badgeName(id));
+      slot.appendChild(icon);
+    });
+    row.appendChild(slot);
+
+    const text = el('div', 'flex-grow-1');
+    text.appendChild(el('div', 'text-truncate', entry.name));
+    const names = entry.badges.map(badgeName).join(', ');
+    const sub = el('div', 'small', entry.grantedBy
+      ? `${names} \u00b7 set by ${entry.grantedBy}`
+      : names);
+    sub.style.color = '#7a8288';
+    text.appendChild(sub);
+    row.appendChild(text);
+
+    /* Tapping a row loads the player into the editor above, which is quicker
+     * and safer than retyping a username. */
+    row.style.cursor = 'pointer';
+    row.addEventListener('click', () => {
+      if (dom.badgeName) dom.badgeName.value = entry.name;
+      chooseBadge(entry.badges[0] || '');
+    });
+    return row;
+  }
+
+  function renderGrants() {
+    if (!dom.badgesList) return;
+    dom.badgesList.replaceChildren();
+
+    /* Only players who actually hold something. The server keeps an empty row
+     * behind the scenes to remember a badge being taken back, and that is
+     * bookkeeping rather than something to show. */
+    const rows = state.grants.filter(entry => entry.badges && entry.badges.length);
+    if (!rows.length) {
+      const empty = el('div', 'small py-2', 'Nobody has been given a badge yet.');
+      empty.style.color = '#7a8288';
+      dom.badgesList.appendChild(empty);
+      return;
+    }
+    rows.forEach(entry => dom.badgesList.appendChild(grantRow(entry)));
+  }
+
+  async function loadGrants() {
+    try {
+      const payload = await apiCall('/api/badges');
+      state.grants = Array.isArray(payload.grants) ? payload.grants : [];
+    } catch (error) {
+      state.grants = [];
+      notice(dom.badgesNotice, error.message, 'bad');
+    }
+    renderGrants();
+  }
+
+  /* `granted` false takes the badge back. Both buttons come through here so
+   * the two paths cannot drift apart. */
+  async function saveBadge(granted) {
+    const target = dom.badgeName ? dom.badgeName.value.trim() : '';
+    if (!target) {
+      notice(dom.badgesNotice, 'Type the username you are awarding.', 'bad');
+      return;
+    }
+    if (!state.badgeChoice) {
+      notice(dom.badgesNotice, 'Choose a badge first.', 'bad');
+      return;
+    }
+
+    const label = badgeName(state.badgeChoice);
+    notice(dom.badgesNotice, 'Saving...');
+    try {
+      const payload = await apiCall('/api/badges/set', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: state.account.name,
+          target,
+          badge: state.badgeChoice,
+          granted,
+        }),
+      });
+      state.grants = Array.isArray(payload.grants) ? payload.grants : state.grants;
+      renderGrants();
+
+      /* Pull the public table back so the leaderboard and the profiles in
+       * other tabs agree with what was actually stored. */
+      if (GRANTED && typeof GRANTED.refresh === 'function') await GRANTED.refresh();
+
+      notice(
+        dom.badgesNotice,
+        granted
+          ? `${target} now has ${label}.`
+          : `${target} no longer has ${label}.`,
+        'good',
+      );
+      if (dom.badgeName) dom.badgeName.value = '';
+      chooseBadge('');
+    } catch (error) {
+      notice(dom.badgesNotice, error.message, 'bad');
       if (/sign in/i.test(error.message)) {
         writeToken('');
         renderPanes();
@@ -633,7 +831,10 @@
     showDashboard(account);
     renderPermissions();
     renderPanes();
-    if (canGrantRoles()) loadRoles();
+    if (canGrantRoles()) {
+      loadRoles();
+      loadGrants();
+    }
   }
 
   /* ------------------------------------------------------------------ */
@@ -655,6 +856,11 @@
       });
     });
     dom.roleSave?.addEventListener('click', saveRole);
+
+    /* The chips themselves are wired as they are built, in
+     * renderBadgeChoices() - there is no markup for them until then. */
+    dom.badgeGive?.addEventListener('click', () => saveBadge(true));
+    dom.badgeTake?.addEventListener('click', () => saveBadge(false));
 
     dom.valueChoose?.addEventListener('click', openPicker);
     dom.pickerClose?.addEventListener('click', () => showModal(dom.pickerModal, false));
@@ -719,6 +925,7 @@
     if (!dom.dashboard) return;
     booted = true;
     bind();
+    renderBadgeChoices();
     chooseDemand('');
     chooseTrend('');
     /* Verifying or signing out in another tab flips the gate. */

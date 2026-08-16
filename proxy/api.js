@@ -10,9 +10,11 @@
  *   GET  /api/values                    the whole value table, for values.js
  *   GET  /api/changes?limit=&since=     the value change log, for /valuechanges
  *   GET  /api/roles                     the roster, so the site can show ranks
+ *   GET  /api/badges?name=              badges the owner has handed out
  *   GET  /api/me?name=<username>        what one account is allowed to do
  *   POST /api/login       { key }                    -> owner session token
  *   POST /api/roles/set   { name, role }             owner only
+ *   POST /api/badges/set  { target, badge, granted } owner only
  *   POST /api/values/set  { id, value, ... }         value manager / staff
  *   GET  /api/ads?creatorId=            the trade ad board, newest first
  *   GET  /api/ad?id=<adId>              one ad
@@ -337,6 +339,32 @@ async function handle(req, res, url, readBody) {
       return true;
     }
 
+    /*
+     * Owner-granted badges.
+     *
+     * ?name= asks about one player, which is what a profile does - the page
+     * has to know whether the person being looked at holds Certified
+     * Wanwoodian before it can draw the icon. With no name it returns the
+     * whole table, which is the list the admin panel shows.
+     *
+     * Public either way. Who holds which badge is displayed on the profiles
+     * and on the leaderboard already, so there is nothing here to protect;
+     * only handing them out is restricted, and that is POST /api/badges/set.
+     */
+    if (req.method === 'GET' && route === '/api/badges') {
+      const name = String(url.searchParams.get('name') || '').trim();
+      if (name) {
+        send(res, 200, { ok: true, name, badges: await store.badgesOf(name) });
+        return true;
+      }
+      send(res, 200, {
+        ok: true,
+        grants: await store.badgeGrants(),
+        grantable: store.GRANTABLE_BADGES,
+      });
+      return true;
+    }
+
     if (req.method === 'GET' && route === '/api/me') {
       const name = String(url.searchParams.get('name') || '').trim();
       const role = name ? await store.roleOf(name) : null;
@@ -428,6 +456,44 @@ async function handle(req, res, url, readBody) {
       send(res, 200, {
         ok: true,
         roles: Object.values(updated.roles).sort((a, b) => a.name.localeCompare(b.name)),
+      });
+      return true;
+    }
+
+    /*
+     * Give a player a badge, or take it back. Owners only.
+     *
+     * Deliberately narrower than /api/values/set: setting a value is the
+     * value team's job, but a badge is recognition from the site owner, so
+     * the value managers and staff cannot hand them out.
+     */
+    if (req.method === 'POST' && route === '/api/badges/set') {
+      const payload = readJson(await readBody(req));
+      const auth = await authorize(req, payload, { need: 'owner' });
+      if (!auth.ok) {
+        send(res, auth.status, { ok: false, error: auth.error });
+        return true;
+      }
+
+      const target = String(payload.target || '').trim();
+      if (!target) {
+        send(res, 400, { ok: false, error: 'Name the account you are awarding.' });
+        return true;
+      }
+
+      await store.setBadge({
+        name: target,
+        badge: String(payload.badge || ''),
+        /* Absent means "give it" - the panel sends false to take one back. */
+        granted: payload.granted !== false,
+        grantedBy: auth.name,
+      });
+
+      send(res, 200, {
+        ok: true,
+        name: target,
+        badges: await store.badgesOf(target),
+        grants: await store.badgeGrants(),
       });
       return true;
     }

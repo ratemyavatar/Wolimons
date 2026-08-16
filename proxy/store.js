@@ -128,7 +128,56 @@ const VALUATION_METHODS = ['proof', 'rap'];
  * Capped so one entry cannot bloat the file that is committed on every write. */
 const NOTE_LIMIT = 500;
 
-const EMPTY = { version: 1, updatedAt: 0, roles: {}, values: {}, changes: [], ads: [] };
+/*
+ * Badges the owner hands out by hand.
+ *
+ * Most WoliBadges are earned: assets/js/badges.js works them out from the
+ * player's own inventory, in the browser, and nobody can grant or withhold
+ * one. These fifteen are the exceptions - the ones whose requirement happens
+ * somewhere no browser can check. Winning a Discord tournament, contributing
+ * artwork, being recognised as a Certified Wanwoodian: there is no endpoint
+ * that reports any of it, and there never will be, so somebody has to say so.
+ *
+ * That somebody is the site owner, through the admin panel, and the answer is
+ * stored here with the values and the roles. It used to be a list of names
+ * written into assets/js/config.js, which meant awarding a badge was a code
+ * change and a redeploy.
+ *
+ * The ids are the ones in assets/js/badges.js. tools/check-badges.mjs fails
+ * if this list and that file ever stop agreeing, so a badge cannot be granted
+ * here that the site does not know how to draw.
+ */
+const GRANTABLE_BADGES = [
+  /* Community - earned in the Discord server */
+  'contributor',
+  'sword-fighting-champion',
+  'woli-award-winner',
+  'woli-award-nominee',
+  'event-winner',
+  'game-night-winner',
+  'booster',
+  'woligang',
+  /* Website - recognition handed out on this site */
+  'boundless-trader',
+  'active-trader',
+  'frequent-trader',
+  'trade-advertiser',
+  'verified-checkmark',
+  'certified-wanwoodian',
+  /* Trading - the one copy /luckycat has chosen, which is too expensive to
+   * work out on every profile load */
+  'lucky-cat',
+];
+
+const EMPTY = {
+  version: 1,
+  updatedAt: 0,
+  roles: {},
+  values: {},
+  changes: [],
+  ads: [],
+  badges: {},
+};
 
 let data = structuredClone(EMPTY);
 let sha = null;          /* blob sha of the file as we last saw it */
@@ -192,6 +241,47 @@ function applyBuiltinRoles(target) {
       grantedAt: Number(entry.grantedAt) || 0,
     };
   }
+
+  /*
+   * The same floor for granted badges.
+   *
+   * "Certified Wanwoodian" used to be a name written into config.js, so it
+   * survived every restart by virtue of being in the code. Now it is data,
+   * and data on a fresh server starts empty - which would have quietly taken
+   * the badge off the one account that had it. Seeding it from the committed
+   * file keeps that from happening, on exactly the same terms as the roles
+   * above: a name here always has at least these badges, anything granted in
+   * the panel is kept as-is, and nothing is ever taken away.
+   */
+  if (seed.badges && typeof seed.badges === 'object') {
+    for (const [name, entry] of Object.entries(seed.badges)) {
+      if (!entry || typeof entry !== 'object') continue;
+      const list = Array.isArray(entry.badges) ? entry.badges : [];
+      const wanted = list.filter(badge => GRANTABLE_BADGES.includes(badge));
+      if (!wanted.length) continue;
+
+      const id = key(name);
+      /*
+       * The live file has an opinion about this player - leave it alone.
+       *
+       * This is what makes taking a badge back actually stick. Once the owner
+       * has edited someone, their row exists in the live file, and it stays
+       * authoritative even when it is empty (see normalize, which keeps an
+       * emptied row rather than deleting it, precisely so this check can see
+       * it). Merging the seed back in would put a revoked badge straight back
+       * on the next restart, and the owner would never be able to remove one.
+       */
+      if (target.badges[id]) continue;
+
+      target.badges[id] = {
+        name: String(entry.name || name),
+        badges: wanted,
+        grantedBy: String(entry.grantedBy || ''),
+        grantedAt: Number(entry.grantedAt) || 0,
+      };
+    }
+  }
+
   return target;
 }
 
@@ -280,6 +370,40 @@ function normalize(raw) {
       /* Newest first, which is the order the board wants. */
       .sort((a, b) => b.createdAt - a.createdAt)
       .slice(0, AD_LIMIT);
+  }
+
+  /*
+   * Granted badges, keyed by lowercased username exactly like roles, so a
+   * player found under any capitalisation gets the same answer. Ids the site
+   * does not have a badge for are dropped rather than stored - a typo must
+   * never reach a profile as an icon nobody can draw.
+   */
+  if (raw.badges && typeof raw.badges === 'object') {
+    for (const [name, entry] of Object.entries(raw.badges)) {
+      if (!entry || typeof entry !== 'object') continue;
+      const id = key(name);
+      if (!id) continue;
+
+      const list = Array.isArray(entry.badges) ? entry.badges : [];
+      const badges = [...new Set(list.filter(badge => GRANTABLE_BADGES.includes(badge)))];
+
+      /*
+       * An empty row is kept, not dropped.
+       *
+       * It reads like dead weight, and for the roles table it would be. Here
+       * it is the record of a decision: "the owner has looked at this player
+       * and they hold nothing". applyBuiltinRoles() checks for exactly that
+       * before it seeds anyone, so an empty row is what stops a revoked badge
+       * from being handed back on the next restart. Delete these and taking a
+       * seeded badge away stops working.
+       */
+      out.badges[id] = {
+        name: String(entry.name || name),
+        badges,
+        grantedBy: String(entry.grantedBy || ''),
+        grantedAt: Number(entry.grantedAt) || 0,
+      };
+    }
   }
 
   return out;
@@ -543,6 +667,69 @@ async function roleOf(name) {
   return data.roles[key(name)]?.role || null;
 }
 
+/* ---------------------------------------------------------------------- */
+/* Granted badges                                                          */
+/* ---------------------------------------------------------------------- */
+
+/* Every badge one player has been given, or an empty array. Public - the
+ * profile page asks this for whoever is being looked at. */
+async function badgesOf(name) {
+  await load();
+  const row = data.badges[key(name)];
+  return row ? [...row.badges] : [];
+}
+
+/* The whole table, for the admin panel's list of who has what. */
+async function badgeGrants() {
+  await load();
+  return Object.values(data.badges)
+    .map(row => ({ ...row, badges: [...row.badges] }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/*
+ * Give one player one badge, or take it back.
+ *
+ * A single badge at a time rather than the whole set, so two owners editing
+ * different players cannot overwrite each other, and so the panel never has
+ * to send back a list it might have read before someone else changed it.
+ */
+async function setBadge({ name, badge, granted, grantedBy }) {
+  const clean = String(name || '').trim();
+  if (!clean) throw new Error('A username is required.');
+  if (!GRANTABLE_BADGES.includes(badge)) {
+    throw new Error('That badge is not one the owner hands out.');
+  }
+
+  const id = key(clean);
+  const give = granted !== false;
+
+  return mutate(
+    give
+      ? `Give ${clean} the ${badge} badge on Wolimons`
+      : `Take the ${badge} badge back from ${clean}`,
+    current => {
+      const existing = current.badges[id];
+      const held = new Set(existing ? existing.badges : []);
+
+      if (give) held.add(badge);
+      else held.delete(badge);
+
+      /* Written even when it is now empty - see the note in normalize(). An
+       * empty row is how "the owner took the last one back" is remembered,
+       * and deleting it would let the committed seed re-grant it. */
+      current.badges[id] = {
+        /* Keep the capitalisation the owner typed, so the panel can show the
+         * name back the way it is written on Wanwood. */
+        name: clean,
+        badges: [...held],
+        grantedBy: String(grantedBy || ''),
+        grantedAt: Date.now(),
+      };
+    },
+  );
+}
+
 async function setRole({ name, role, grantedBy }) {
   const clean = String(name || '').trim();
   if (!clean) throw new Error('A username is required.');
@@ -732,10 +919,14 @@ module.exports = {
   CATEGORIES,
   VALUATION_METHODS,
   ROLES,
+  GRANTABLE_BADGES,
   load,
   snapshot,
   roleOf,
   setRole,
+  badgesOf,
+  badgeGrants,
+  setBadge,
   setValue,
   changes,
   ads,

@@ -280,14 +280,17 @@
    * Returns a promise so a caller can tell a failure apart from an empty
    * dataset; the failure is already reported inside the container either way.
    */
-  function render(container, rows, names) {
+  function render(container, rows, names, empty) {
     if (!container) return Promise.resolve(null);
 
     const points = Array.isArray(rows) ? rows.filter(row => row && Number.isFinite(row.time)) : [];
     if (points.length < 2) {
-      message(container, points.length
+      /* The profile page's wording is about a player's items; the item page
+       * passes its own, because "this player's items" is nonsense on a page
+       * about one hat. */
+      message(container, empty || (points.length
         ? 'Not enough sale history yet to draw a chart.'
-        : 'No sale history recorded for this player\u2019s items yet.');
+        : 'No sale history recorded for this player\u2019s items yet.'));
       return Promise.resolve(null);
     }
     points.sort((a, b) => a.time - b.time);

@@ -62,6 +62,7 @@
     item: null,
     demand: '',
     trend: '',
+    method: '',
     categories: new Set(),
     pickerSequence: 0,
   };
@@ -188,7 +189,9 @@
     dom.valueAmount = document.getElementById('admin_value_amount');
     dom.demandChoices = document.getElementById('admin_demand_choices');
     dom.trendChoices = document.getElementById('admin_trend_choices');
+    dom.methodChoices = document.getElementById('admin_method_choices');
     dom.categoryChoices = document.getElementById('admin_category_choices');
+    dom.valueNote = document.getElementById('admin_value_note');
     dom.valueSave = document.getElementById('admin_value_save');
     dom.valuesNotice = document.getElementById('admin_values_notice');
 
@@ -202,8 +205,12 @@
   /* Greeting                                                            */
   /* ------------------------------------------------------------------ */
 
+  /* Every pane the panel can show has to be listed here. The badges row was
+   * missing, so signing out or losing a rank left the Give badge controls on
+   * screen underneath the locked notice. */
   function showLocked(message) {
-    [dom.greetingRow, dom.dashboard, dom.keyRow, dom.rolesRow, dom.valuesRow, dom.profileButton]
+    [dom.greetingRow, dom.dashboard, dom.keyRow, dom.rolesRow, dom.badgesRow,
+      dom.valuesRow, dom.profileButton]
       .forEach(node => node && node.classList.add('d-none'));
     if (dom.locked) dom.locked.classList.remove('d-none');
     if (dom.lockedMessage) dom.lockedMessage.textContent = message;
@@ -599,6 +606,18 @@
     });
   }
 
+  /* How the value was arrived at. The item page prints this under the
+   * valuation heading, and /api/values/set has always accepted it - there was
+   * simply no control here to set it with. */
+  function chooseMethod(method) {
+    state.method = method === 'None' ? '' : (method || '');
+    if (!dom.methodChoices) return;
+    dom.methodChoices.querySelectorAll('[data-method-value]').forEach(button => {
+      const value = button.dataset.methodValue;
+      setPressed(button, state.method ? value === state.method : value === 'None');
+    });
+  }
+
   function renderCategories() {
     if (!dom.categoryChoices) return;
     dom.categoryChoices.querySelectorAll('[data-category-value]').forEach(button => {
@@ -626,6 +645,14 @@
 
     chooseDemand(VALUES ? VALUES.demand(item.id) : '');
     chooseTrend(VALUES ? VALUES.trend(item.id) : '');
+    /* Read defensively: a browser holding an older cached values.js has
+     * neither accessor, and a missing one must not stop the editor filling. */
+    chooseMethod(VALUES && typeof VALUES.method === 'function' ? VALUES.method(item.id) : '');
+    if (dom.valueNote) {
+      dom.valueNote.value = VALUES && typeof VALUES.note === 'function'
+        ? (VALUES.note(item.id) || '')
+        : '';
+    }
 
     state.categories = new Set();
     if (VALUES && typeof VALUES.categories === 'function') {
@@ -663,6 +690,8 @@
           value: amount,
           demand: state.demand || null,
           trend: state.trend || null,
+          method: state.method || null,
+          note: dom.valueNote ? dom.valueNote.value.trim() : '',
           categories: [...state.categories],
         }),
       });
@@ -883,6 +912,9 @@
     dom.trendChoices?.querySelectorAll('[data-trend-value]').forEach(button => {
       button.addEventListener('click', () => chooseTrend(button.dataset.trendValue));
     });
+    dom.methodChoices?.querySelectorAll('[data-method-value]').forEach(button => {
+      button.addEventListener('click', () => chooseMethod(button.dataset.methodValue));
+    });
     dom.categoryChoices?.querySelectorAll('[data-category-value]').forEach(button => {
       button.addEventListener('click', () => {
         const name = button.dataset.categoryValue;
@@ -928,6 +960,7 @@
     renderBadgeChoices();
     chooseDemand('');
     chooseTrend('');
+    chooseMethod('');
     /* Verifying or signing out in another tab flips the gate. */
     ACCOUNT?.subscribe(render);
     render();

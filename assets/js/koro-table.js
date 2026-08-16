@@ -27,8 +27,14 @@
  *         ...
  *       ],
  *       sort: { index: 2, direction: 'asc' },
+ *       onRender: rows => ...,
  *     });
  *     table.setRows(rows);
+ *
+ * `onRender` runs after every redraw with the rows now on screen. Only one
+ * page of rows is in the DOM at a time, so anything that has to reach into the
+ * cells after the fact - filling in avatars, for instance - belongs here
+ * rather than being done once after setRows.
  *
  * `root` is the .koro-dt element. Column N in `columns` lines up with the Nth
  * <th>, and each column says how to draw a cell, what to sort it by and what
@@ -207,6 +213,11 @@
 
       renderHeaders();
       renderPagination(total, pageCount);
+
+      /* Only one page of rows exists at a time, so anything that decorates
+       * them - avatars, for instance - has to run again after every redraw,
+       * not just once when the rows are first handed over. */
+      if (typeof options.onRender === 'function') options.onRender(slice);
     }
 
     /* ------------------------------------------------------------ wiring */

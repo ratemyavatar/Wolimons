@@ -212,20 +212,57 @@
   /* Copy-to-clipboard buttons                                           */
   /* ------------------------------------------------------------------ */
 
+  /*
+   * navigator.clipboard only exists in a secure context. The site is served
+   * over plain HTTP on a LAN address for most of its life, so on the machines
+   * this is actually used from that API is simply absent and every copy button
+   * did nothing at all. The old textarea trick still works everywhere, so it
+   * is used as the fallback rather than leaving the buttons dead.
+   */
+  async function copyText(value) {
+    if (navigator.clipboard && window.isSecureContext) {
+      try {
+        await navigator.clipboard.writeText(value);
+        return true;
+      } catch (error) {
+        /* Refused - fall through and try the old way. */
+      }
+    }
+
+    const holder = document.createElement('textarea');
+    holder.value = value;
+    /* Off-screen but still focusable, and readonly so a phone does not throw
+     * its keyboard up over the page. */
+    holder.setAttribute('readonly', '');
+    holder.style.position = 'fixed';
+    holder.style.top = '-1000px';
+    holder.style.opacity = '0';
+    document.body.appendChild(holder);
+    let copied = false;
+    try {
+      holder.select();
+      holder.setSelectionRange(0, holder.value.length);
+      copied = document.execCommand('copy');
+    } catch (error) {
+      copied = false;
+    }
+    holder.remove();
+    return copied;
+  }
+
   function initCopyButtons() {
     document.querySelectorAll('.copy-id-button').forEach(button => {
       button.addEventListener('click', async () => {
         const value = button.dataset.copyValue;
         if (!value) return;
-        try {
-          await navigator.clipboard.writeText(value);
-        } catch (error) {
-          return; /* Clipboard needs a secure context - nothing to do. */
-        }
+        const copied = await copyText(value);
+
+        /* Say something either way - a button that looks inert is worse than
+         * one that admits it could not do it. */
         const label = button.querySelector('.copy-id-value');
         if (!label) return;
         const original = label.textContent;
-        label.textContent = 'Copied';
+        label.textContent = copied ? 'Copied' : 'Press Ctrl+C';
         setTimeout(() => { label.textContent = original; }, 1200);
       });
     });
@@ -349,23 +386,37 @@
     return el('span', 'text-light', formatNumber(uaid));
   }
 
-  /* Every headshot on the page in one batched request, once the tables are
-   * built. Individual <img> tags are matched by the id stamped on them. */
+  /*
+   * Every headshot on the page in one batched request.
+   *
+   * The tables only keep one page of rows in the DOM at a time, so the <img>
+   * tags are thrown away and rebuilt every time somebody sorts, searches or
+   * turns the page. Resolved URLs are therefore remembered here and re-applied
+   * to whatever rows currently exist, rather than being fetched once and lost
+   * on the first click.
+   */
+  const headshots = new Map();
+
+  function applyHeadshots() {
+    document.querySelectorAll('img[data-player-headshot]').forEach(img => {
+      const url = headshots.get(Number(img.dataset.playerHeadshot));
+      if (url && img.getAttribute('src') !== url) img.src = url;
+    });
+  }
+
   async function paintHeadshots() {
     const images = [...document.querySelectorAll('img[data-player-headshot]')];
     const ids = [...new Set(images.map(img => Number(img.dataset.playerHeadshot)))]
-      .filter(id => Number.isSafeInteger(id) && id > 0);
-    if (!ids.length) return;
-    let urls = new Map();
-    try {
-      urls = await API.fetchUserHeadshots(ids, 48);
-    } catch (error) {
-      return; /* No headshots is a cosmetic loss, not a failure. */
+      .filter(id => Number.isSafeInteger(id) && id > 0 && !headshots.has(id));
+
+    if (ids.length) {
+      try {
+        (await API.fetchUserHeadshots(ids, 48)).forEach((url, id) => headshots.set(id, url));
+      } catch (error) {
+        /* No headshots is a cosmetic loss, not a failure. */
+      }
     }
-    images.forEach(img => {
-      const url = urls.get(Number(img.dataset.playerHeadshot));
-      if (url) img.src = url;
-    });
+    applyHeadshots();
   }
 
   const tables = {};
@@ -374,6 +425,7 @@
     if (!TABLE) return;
 
     tables.all = TABLE.attach(document.querySelector('[data-dt="all_copies_table"]'), {
+      onRender: applyHeadshots,
       sort: { index: 2, direction: 'asc' },
       columns: [
         { className: 'koro-dt-avatar', cell: row => avatarCell(row.userId, row.name) },
@@ -386,6 +438,7 @@
     });
 
     tables.forSale = TABLE.attach(document.querySelector('[data-dt="for_sale_table"]'), {
+      onRender: applyHeadshots,
       sort: { index: 3, direction: 'asc' },
       columns: [
         { className: 'koro-dt-avatar', cell: row => avatarCell(row.userId, row.name) },
@@ -398,6 +451,7 @@
     });
 
     tables.hoards = TABLE.attach(document.querySelector('[data-dt="hoards_table"]'), {
+      onRender: applyHeadshots,
       sort: { index: 2, direction: 'desc' },
       columns: [
         { className: 'koro-dt-avatar', cell: row => avatarCell(row.userId, row.name) },
@@ -453,9 +507,24 @@
    */
   const charts = { drawn: new Set(), data: null };
 
+  /*
+   * Wanwood's price history is extremely thin: resale-data usually answers
+   * with a single dated point, and often with none at all. The chart module
+   * needs two points before it will draw anything, so building every tab out
+   * of priceDataPoints left all four of them showing "Not enough sale history
+   * yet" on every item on the site.
+   *
+   * Each tab is therefore built from whichever real, dated data actually
+   * answers the question it asks. Nothing here invents a number: every point
+   * is either something Wanwood reported or a count of rows it returned.
+   */
+
+  /* The recorded sale prices, plus today's RAP - which is a real figure the
+   * API reports right now, so dating it today is accurate rather than made
+   * up. That is what turns a lone historical point into a drawable line. */
   function historyRows(resale, value) {
     const points = Array.isArray(resale?.priceDataPoints) ? resale.priceDataPoints : [];
-    return points
+    const rows = points
       .map(point => {
         const time = Date.parse(point?.date);
         const rap = toNumber(point?.value);
@@ -464,36 +533,60 @@
       })
       .filter(Boolean)
       .sort((a, b) => a.time - b.time);
+
+    const today = toNumber(resale?.recentAveragePrice);
+    if (today !== null) {
+      const now = Date.now();
+      /* Only if the series does not already end today, so a backend that does
+       * keep a full history is left exactly as it reported it. */
+      const last = rows[rows.length - 1];
+      if (!last || now - last.time > 43200000) rows.push({ time: now, value, rap: today });
+    }
+    return rows;
   }
 
+  /*
+   * Copies in circulation over time.
+   *
+   * Every copy carries the date it was created, so counting them up in date
+   * order is a real history of how the supply grew - far better than the flat
+   * line the price points used to produce. Listings are only known as they
+   * stand today, so that series is drawn flat and labelled as the current
+   * count.
+   */
   function copiesRows(resale, listings, owners) {
-    /* Wanwood reports copies and listings as they stand now, not as a series,
-     * so the only dates available are the ones the price history already
-     * carries. Each of those days gets today's counts, which draws a flat
-     * reference line rather than inventing movement that was never recorded. */
-    const points = Array.isArray(resale?.priceDataPoints) ? resale.priceDataPoints : [];
-    const total = toNumber(resale?.assetStock) ?? owners.length;
-    return points
-      .map(point => {
-        const time = Date.parse(point?.date);
-        if (!Number.isFinite(time)) return null;
-        return { time, value: total, rap: listings.length };
-      })
-      .filter(Boolean)
-      .sort((a, b) => a.time - b.time);
+    const stamps = owners
+      .map(owner => Date.parse(owner.created))
+      .filter(Number.isFinite)
+      .sort((a, b) => a - b);
+    if (!stamps.length) return [];
+
+    const rows = stamps.map((time, index) => ({
+      time,
+      value: index + 1,
+      rap: listings.length,
+    }));
+    /* Carry the last known state to today so the line reaches the right edge
+     * instead of stopping on the day the final copy was handed out. */
+    rows.push({ time: Date.now(), value: stamps.length, rap: listings.length });
+    return rows;
   }
 
+  /* Owners against copies, counted up the same way. */
   function ownershipRows(resale, owners) {
-    const points = Array.isArray(resale?.priceDataPoints) ? resale.priceDataPoints : [];
-    const distinct = new Set(owners.map(owner => owner.userId)).size;
-    return points
-      .map(point => {
-        const time = Date.parse(point?.date);
-        if (!Number.isFinite(time)) return null;
-        return { time, value: distinct, rap: owners.length };
-      })
-      .filter(Boolean)
+    const rows = owners
+      .map(owner => ({ time: Date.parse(owner.created), userId: owner.userId }))
+      .filter(row => Number.isFinite(row.time))
       .sort((a, b) => a.time - b.time);
+    if (!rows.length) return [];
+
+    const seen = new Set();
+    const out = rows.map((row, index) => {
+      seen.add(row.userId);
+      return { time: row.time, value: seen.size, rap: index + 1 };
+    });
+    out.push({ time: Date.now(), value: seen.size, rap: rows.length });
+    return out;
   }
 
   /*
@@ -506,9 +599,6 @@
    * truth about it.
    */
   function valueRows(resale, value, changes) {
-    const points = Array.isArray(resale?.priceDataPoints) ? resale.priceDataPoints : [];
-    if (!points.length) return [];
-
     /* Value edits for this item, oldest first. */
     const edits = (Array.isArray(changes) ? changes : [])
       .filter(change => change && change.field === 'value' && Number.isFinite(change.at))
@@ -524,35 +614,63 @@
       return current;
     };
 
-    return points
-      .map(point => {
-        const time = Date.parse(point?.date);
-        const rap = toNumber(point?.value);
-        if (!Number.isFinite(time)) return null;
-        return { time, value: valueAt(time), rap: rap ?? 0 };
-      })
-      .filter(Boolean)
-      .sort((a, b) => a.time - b.time);
+    /*
+     * The dates worth plotting: every recorded sale, every value edit, and
+     * today. Keying off the change log rather than the price series means an
+     * item whose value has moved still draws its steps even when Wanwood has
+     * no price history for it at all.
+     */
+    const points = Array.isArray(resale?.priceDataPoints) ? resale.priceDataPoints : [];
+    const rapAt = new Map();
+    points.forEach(point => {
+      const time = Date.parse(point?.date);
+      const rap = toNumber(point?.value);
+      if (Number.isFinite(time) && rap !== null) rapAt.set(time, rap);
+    });
+
+    const today = Date.now();
+    const currentRap = toNumber(resale?.recentAveragePrice);
+    if (currentRap !== null) rapAt.set(today, currentRap);
+
+    const stamps = new Set([...rapAt.keys(), ...edits.map(edit => edit.at)]);
+    if (edits.length) stamps.add(today);
+    if (stamps.size < 2) return [];
+
+    /* Between recorded sales the RAP is simply the last one reported. */
+    const sortedRap = [...rapAt.entries()].sort((a, b) => a[0] - b[0]);
+    const rapFor = when => {
+      let last = 0;
+      sortedRap.forEach(([time, rap]) => { if (time <= when) last = rap; });
+      return last;
+    };
+
+    return [...stamps]
+      .sort((a, b) => a - b)
+      .map(time => ({ time, value: valueAt(time), rap: rapFor(time) }));
   }
 
   const CHART_PANES = {
     history_chart_container: {
       div: 'history_chart_div',
       rows: d => historyRows(d.resale, d.value),
+      empty: 'Wanwood has not recorded any sales of this item yet.',
     },
     value_chart_container: {
       div: 'value_chart_div',
       rows: d => valueRows(d.resale, d.value, d.changes),
+      empty: 'This item\u2019s value has not been changed yet, so there is nothing to plot.',
     },
     copies_chart_container: {
       div: 'copies_chart_div',
       rows: d => copiesRows(d.resale, d.listings, d.owners),
       names: { value: 'Copies', rap: 'Listed for sale', axis: 'Copies' },
+      empty: 'No copies of this item have a visible owner.',
     },
     ownership_chart_container: {
       div: 'ownership_chart_div',
       rows: d => ownershipRows(d.resale, d.owners),
       names: { value: 'Owners', rap: 'Copies held', axis: 'Players' },
+      empty: 'No copies of this item have a visible owner.',
     },
   };
 
@@ -568,7 +686,7 @@
     const container = document.getElementById(spec.div);
     if (!container) return;
     charts.drawn.add(pane);
-    CHART.render(container, spec.rows(charts.data), spec.names);
+    CHART.render(container, spec.rows(charts.data), spec.names, spec.empty);
   }
 
   function initCharts(data) {
@@ -968,7 +1086,21 @@
      * the 30-day window a live feed would give. Blank when either half is
      * missing rather than shown as a zero that means "unknown".
      */
-    const created = Date.parse(info?.Created || detail?.created || '');
+    /*
+     * When the item came into existence.
+     *
+     * Wanwood's productinfo does not carry a created date - the backend's
+     * marketplace/productinfo builds its reply by hand and simply leaves the
+     * field out. Every copy does carry the date it was created, though, so
+     * the oldest of those is when the item first entered circulation. That is
+     * a real recorded date rather than a guess, and it is what makes Date
+     * Created and Avg Daily Sales show something instead of a dash.
+     */
+    const ownerStamps = owners
+      .map(owner => Date.parse(owner.created))
+      .filter(Number.isFinite);
+    const created = Date.parse(info?.Created || detail?.created || '')
+      || (ownerStamps.length ? Math.min(...ownerStamps) : NaN);
     if (sales !== null && Number.isFinite(created)) {
       const days = Math.max(1, (Date.now() - created) / 86400000);
       setText('avg-daily-sales', (sales / days).toFixed(2));

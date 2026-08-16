@@ -18,7 +18,7 @@
 
   const {
     TAG_BY_SLUG, TAG_DESCRIPTIONS, tagArt, VALUES, el, formatNumber,
-    itemHref, relativeTime, utcTimestamp, loadAds,
+    itemHref, relativeTime, utcTimestamp, loadAd,
     items, creators, resolveItems, resolveCreators, itemIdsIn,
     itemName, itemRap, itemThumb, sideNode,
   } = CORE;
@@ -240,14 +240,14 @@
 
   async function load() {
     const wanted = requestedId();
-    const ad = wanted ? loadAds().find(row => row.id === wanted) : null;
+    const ad = wanted ? await loadAd(wanted) : null;
     if (!ad) {
       showMissing();
       return;
     }
 
-    /* Draw once with what is on disk, then again once names, thumbnails and
-     * RAP have come back - the same two-pass render the board does. */
+    /* Draw once with what the server sent, then again once names, thumbnails
+     * and RAP have come back - the same two-pass render the board does. */
     render(ad);
     await Promise.all([
       resolveItems(itemIdsIn([ad])),

@@ -103,7 +103,20 @@ const CHANGE_FIELDS = ['value', 'demand', 'trend'];
  * oldest fall off the end. */
 const CHANGE_LIMIT = Number(process.env.CHANGE_LIMIT || 2000);
 
-const EMPTY = { version: 1, updatedAt: 0, roles: {}, values: {}, changes: [] };
+/* Trade ads. The board is ours, not Wanwood's - Wanwood has no trade ad
+ * service - so the ads live here with the values, in the same JSON file, and
+ * every visitor reads the same list. How many to keep in total, and how many
+ * any one player may have up at once so a single poster cannot fill it. */
+const AD_LIMIT = Number(process.env.AD_LIMIT || 500);
+const ADS_PER_USER = Number(process.env.ADS_PER_USER || 10);
+
+/* The ten request tags. Kept in step with tradeads-core.js on the client -
+ * the server has to know them to reject a slot that is neither a real item
+ * nor a real tag. */
+const AD_TAGS = ['any', 'demand', 'rares', 'rap', 'wishlist', 'robux',
+  'upgrade', 'downgrade', 'adds', 'projecteds'];
+
+const EMPTY = { version: 1, updatedAt: 0, roles: {}, values: {}, changes: [], ads: [] };
 
 let data = structuredClone(EMPTY);
 let sha = null;          /* blob sha of the file as we last saw it */
@@ -246,7 +259,65 @@ function normalize(raw) {
       .slice(0, CHANGE_LIMIT);
   }
 
+  if (Array.isArray(raw.ads)) {
+    out.ads = raw.ads
+      .map(normalizeAd)
+      .filter(Boolean)
+      /* Newest first, which is the order the board wants. */
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .slice(0, AD_LIMIT);
+  }
+
   return out;
+}
+
+/*
+ * One slot of an ad: either a real catalog item or one of the request tags.
+ * Anything else becomes an empty slot rather than being trusted through.
+ */
+function normalizeAdSlot(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  if (raw.kind === 'tag') {
+    return AD_TAGS.includes(raw.slug) ? { kind: 'tag', slug: raw.slug } : null;
+  }
+  const id = Number(raw.id);
+  if (!Number.isSafeInteger(id) || id <= 0) return null;
+  /* The name is only a label for the first paint; the client looks the real
+   * one up. Capped so a long string cannot be smuggled into the file. */
+  const name = typeof raw.name === 'string' ? raw.name.trim().slice(0, 120) : '';
+  return { kind: 'item', id, name };
+}
+
+function normalizeAdSide(raw) {
+  const list = Array.isArray(raw) ? raw : [];
+  return [0, 1, 2, 3].map(index => normalizeAdSlot(list[index]));
+}
+
+function normalizeAd(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+
+  const id = String(raw.id || '').trim().slice(0, 64);
+  const creatorId = Number(raw.creatorId);
+  const creatorName = typeof raw.creatorName === 'string' ? raw.creatorName.trim() : '';
+  if (!id) return null;
+  if (!Number.isSafeInteger(creatorId) || creatorId <= 0) return null;
+  if (!creatorName) return null;
+
+  const offer = normalizeAdSide(raw.offer);
+  const request = normalizeAdSide(raw.request);
+  /* An ad with nothing on a side is not an ad. */
+  if (!offer.some(Boolean) || !request.some(Boolean)) return null;
+
+  const createdAt = Number(raw.createdAt) || 0;
+
+  return {
+    id,
+    creatorId,
+    creatorName: creatorName.slice(0, 60),
+    createdAt: createdAt || Date.now(),
+    offer,
+    request,
+  };
 }
 
 /*
@@ -548,6 +619,72 @@ async function setValue({ id, value, demand, trend, categories, rare, updatedBy 
   });
 }
 
+/* ---------------------------------------------------------------------- */
+/* Trade ads                                                               */
+/* ---------------------------------------------------------------------- */
+
+/*
+ * Every ad on the board, newest first. `creatorId` narrows it to one player,
+ * which is all /playertrades wants.
+ */
+async function ads({ creatorId = 0 } = {}) {
+  await load();
+  const wanted = Number(creatorId) || 0;
+  return (data.ads || [])
+    .filter(ad => !wanted || ad.creatorId === wanted)
+    .map(ad => structuredClone(ad));
+}
+
+async function adById(adId) {
+  await load();
+  const wanted = String(adId || '');
+  const found = (data.ads || []).find(ad => ad.id === wanted);
+  return found ? structuredClone(found) : null;
+}
+
+/*
+ * Post an ad. The caller has already proven it controls `creatorId` - see the
+ * note on /api/ads in api.js - so the checks here are about the shape of the
+ * ad and about one player not being able to bury the board.
+ */
+async function addAd(raw) {
+  const ad = normalizeAd({ ...raw, createdAt: Date.now() });
+  if (!ad) {
+    throw new Error('An ad needs a creator, something offered and something wanted.');
+  }
+
+  await load();
+  const mine = (data.ads || []).filter(row => row.creatorId === ad.creatorId);
+  if (mine.length >= ADS_PER_USER) {
+    throw new Error(`You already have ${ADS_PER_USER} ads up. Delete one first.`);
+  }
+
+  await mutate(`Add trade ad ${ad.id}`, current => {
+    current.ads = [ad, ...(current.ads || [])].slice(0, AD_LIMIT);
+  });
+  return ad;
+}
+
+/*
+ * Delete an ad. Only its author may, so the id of whoever is asking is
+ * required and has to match.
+ */
+async function removeAd({ id, creatorId }) {
+  const wanted = String(id || '');
+  const asker = Number(creatorId) || 0;
+  if (!wanted) throw new Error('Which ad?');
+
+  await load();
+  const ad = (data.ads || []).find(row => row.id === wanted);
+  if (!ad) throw new Error('That ad no longer exists.');
+  if (ad.creatorId !== asker) throw new Error('That is not your ad.');
+
+  await mutate(`Delete trade ad ${wanted}`, current => {
+    current.ads = (current.ads || []).filter(row => row.id !== wanted);
+  });
+  return ad;
+}
+
 /*
  * The change log, newest first.
  *
@@ -575,6 +712,12 @@ module.exports = {
   setRole,
   setValue,
   changes,
+  ads,
+  adById,
+  addAd,
+  removeAd,
+  AD_LIMIT,
+  ADS_PER_USER,
   CHANGE_FIELDS,
   CHANGE_LIMIT,
   config: {

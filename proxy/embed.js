@@ -378,6 +378,97 @@ function applyTags(html, tags) {
 }
 
 /*
+ * ---------------------------------------------------------------------------
+ * Item previews
+ *
+ * Same idea as the player preview below, for /item/?id=<assetId>. Value,
+ * demand and trend are ours (they live in the store, hand-set by staff); the
+ * name, RAP and thumbnail come from Wanwood.
+ * ---------------------------------------------------------------------------
+ */
+async function itemSummary(assetId) {
+  const key = `item:${assetId}`;
+  const hit = cache.get(key);
+  if (hit && Date.now() - hit.at < EMBED_TTL_MS) return hit.data;
+
+  const [info, resale, thumbs] = await Promise.all([
+    getJson(`/apisite/api/marketplace/productinfo?assetId=${assetId}`).catch(() => null),
+    getJson(`/apisite/economy/v1/assets/${assetId}/resale-data`).catch(() => null),
+    getJson(`/apisite/thumbnails/v1/assets?assetIds=${assetId}&size=420x420&format=Png`)
+      .catch(() => null),
+  ]);
+
+  const name = String(info?.Name || '').trim();
+  /* No name means the id is not a real item - better no preview than a card
+   * that says "undefined". */
+  if (!name) return null;
+
+  /* Our own numbers. A store that will not load must not take the page down. */
+  let value = 0;
+  let demand = null;
+  let trend = null;
+  try {
+    const data = await store.snapshot();
+    const row = data?.values?.[String(assetId)];
+    if (row) {
+      value = Number(row.value) || 0;
+      demand = row.demand || null;
+      trend = row.trend || null;
+    }
+  } catch (_) { /* leave them unset */ }
+
+  const image = (Array.isArray(thumbs?.data) && thumbs.data[0]?.imageUrl)
+    || `${UPSTREAM}/Thumbs/Asset.ashx?width=420&height=420&assetId=${assetId}`;
+
+  const data = {
+    id: assetId,
+    name,
+    rap: Number(resale?.recentAveragePrice) || 0,
+    value,
+    demand,
+    trend,
+    image,
+  };
+  cache.set(key, { at: Date.now(), data });
+  return data;
+}
+
+function buildItemTags(item, pageUrl) {
+  /* Value first: it is the reason the site exists. Price is deliberately
+   * never shown - see the note in values.js. */
+  const parts = [
+    `Value ${item.value ? formatNumber(item.value) : '-'}`,
+    `RAP ${formatNumber(item.rap)}`,
+  ];
+  if (item.demand) parts.push(`Demand ${item.demand}`);
+  if (item.trend) parts.push(`Trend ${item.trend}`);
+
+  return {
+    title: `${item.name} - Wolimons`,
+    description: parts.join('  |  '),
+    image: item.image,
+    url: pageUrl,
+  };
+}
+
+async function itemEmbed(html, url, userAgent) {
+  try {
+    if (!isCrawler(userAgent)) return null;
+
+    const assetId = Number(url.searchParams.get('id') || url.searchParams.get('assetId'));
+    if (!Number.isSafeInteger(assetId) || assetId <= 0) return null;
+
+    const item = await itemSummary(assetId);
+    if (!item) return null;
+
+    return applyTags(html, buildItemTags(item, `${url.origin}/item/?id=${assetId}`));
+  } catch (error) {
+    console.error('[embed] item failed:', error.message);
+    return null;
+  }
+}
+
+/*
  * Returns rewritten HTML, or null to let the normal page be served.
  * Never throws: a preview is never worth failing a page load over.
  */
@@ -400,4 +491,6 @@ async function playerEmbed(html, url, userAgent) {
   }
 }
 
-module.exports = { playerEmbed, isCrawler, playerSummary, formatNumber, escapeAttr };
+module.exports = {
+  playerEmbed, itemEmbed, isCrawler, playerSummary, itemSummary, formatNumber, escapeAttr,
+};

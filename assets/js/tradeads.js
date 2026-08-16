@@ -21,7 +21,7 @@
    * agree on the tag list, the storage format and how a card is drawn. */
   const {
     TAGS, TAG_BY_SLUG, tagArt, VALUES, el, formatNumber,
-    relativeTime, loadAds, saveAds, normalizeAd,
+    relativeTime, loadAds, postAd: postAdToServer, deleteAd: deleteAdOnServer,
     items, creators, resolveItems, resolveCreators, itemIdsIn,
     sideTotals, adCard, showModal, debounce, createFilterPanel,
   } = CORE;
@@ -242,38 +242,41 @@
       return;
     }
 
-    const ad = normalizeAd({
-      id: `${account.id}-${Date.now()}`,
-      creatorId: account.id,
+    notice('Posting...');
+    const result = await postAdToServer({
       creatorName: account.name,
-      createdAt: Date.now(),
       offer: state.composer.offer,
       request: state.composer.request,
     });
-    if (!ad) {
-      notice('That ad could not be saved.');
+
+    if (!result.ok || !result.ad) {
+      /* The server's own wording - it knows whether this was the ad limit,
+       * a lapsed verification or something being down. */
+      notice(result.error || 'That ad could not be posted.');
       return;
     }
 
-    state.ads.unshift(ad);
-    if (!saveAds(state.ads)) {
-      state.ads.shift();
-      notice('This browser refused to save the ad - storage may be full or blocked.');
-      return;
-    }
-
+    /* Straight onto the board rather than waiting for a re-read. */
+    state.ads.unshift(result.ad);
     clearComposer();
     state.page = 0;
-    await resolveCreators([ad.creatorId]);
+    await resolveCreators([result.ad.creatorId]);
     renderBoard();
   }
 
-  function deleteAd(adId) {
+  async function deleteAd(adId) {
     const account = ACCOUNT.get();
     const ad = state.ads.find(row => row.id === adId);
+    /* The server checks this too - this is just not sending a doomed call. */
     if (!ad || !account || account.id !== ad.creatorId) return;
+
+    const result = await deleteAdOnServer(adId);
+    if (!result.ok) {
+      notice(result.error || 'That ad could not be deleted.');
+      return;
+    }
+
     state.ads = state.ads.filter(row => row.id !== adId);
-    saveAds(state.ads);
     renderBoard();
   }
 
@@ -501,7 +504,7 @@
   /* ------------------------------------------------------------------ */
 
   async function reload() {
-    state.ads = loadAds();
+    state.ads = await loadAds();
     renderBoard();
 
     const itemIds = itemIdsIn(state.ads);

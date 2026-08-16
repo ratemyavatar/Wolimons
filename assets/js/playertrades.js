@@ -183,9 +183,9 @@
       return;
     }
 
-    /* One creator's ads, newest first - loadAds() already holds every ad in
-     * this browser, so this is a filter rather than a second read. */
-    state.ads = loadAds().filter(ad => Number(ad.creatorId) === state.userId);
+    /* One creator's ads, newest first. The server does the filtering, so
+     * this page never pulls down the whole board to show one player's. */
+    state.ads = await loadAds({ creatorId: state.userId });
 
     /* The ads carry the name they were posted under; the API is asked for the
      * current one, but the page never waits on it to draw. */

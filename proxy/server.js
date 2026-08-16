@@ -271,6 +271,12 @@ async function serveStatic(req, res, url) {
         html = rewritten;
         embedded = true;
       }
+    } else if (url.pathname === '/item/' || url.pathname === '/item/index.html') {
+      const rewritten = await embed.itemEmbed(html, url, req.headers['user-agent']);
+      if (rewritten) {
+        html = rewritten;
+        embedded = true;
+      }
     }
 
     const body = Buffer.from(html, 'utf8');

@@ -310,8 +310,45 @@
       return;
     }
 
-    ACCOUNT.set({ id: candidate.id, name: candidate.name, phrase: pending.phrase });
+    /*
+     * The browser is satisfied. Now ask the server to satisfy itself, while
+     * the phrase is still in the description: it re-reads the profile and
+     * signs a token saying who it found. That token is what lets this
+     * account post trade ads, which are the one thing here that other
+     * people see and so the one thing the server cannot take on trust.
+     *
+     * A failure is not fatal. The account still links and the whole site
+     * works; only posting an ad would ask them back here.
+     */
+    let identity = null;
+    try {
+      identity = await claimIdentity(candidate.id, pending.phrase);
+    } catch (error) {
+      identity = null;
+    }
+
+    ACCOUNT.set({
+      id: candidate.id,
+      name: candidate.name,
+      phrase: pending.phrase,
+      token: identity?.token || '',
+      tokenExpiresAt: identity?.expiresAt || 0,
+    });
     showVerified(candidate);
+  }
+
+  /*
+   * Trade the proven phrase for a signed identity token. Returns null when
+   * the server cannot be reached or will not issue one.
+   */
+  async function claimIdentity(userId, phrase) {
+    const response = await fetch(`${API.API_BASE}/api/identity`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, phrase }),
+    });
+    const payload = await response.json().catch(() => null);
+    return payload && payload.ok ? payload : null;
   }
 
   function showVerified(player) {

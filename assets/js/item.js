@@ -42,6 +42,7 @@
   const VALUES = {
     get: id => (typeof RAW_VALUES.get === 'function' ? Number(RAW_VALUES.get(id)) || 0 : 0),
     demand: id => (typeof RAW_VALUES.demand === 'function' ? RAW_VALUES.demand(id) : null),
+    trend: id => (typeof RAW_VALUES.trend === 'function' ? RAW_VALUES.trend(id) : null),
     categories: id => (typeof RAW_VALUES.categories === 'function'
       ? (RAW_VALUES.categories(id) || [])
       : []),
@@ -426,6 +427,10 @@
     const demand = VALUES.demand(id);
     setText('demand', demand);
     setText('demand-2', demand);
+    /* Trend is the same story - hand-set in values.js, blank until then. */
+    const trend = VALUES.trend(id);
+    setText('trend', trend);
+    setText('trend-2', trend);
     renderValueVsRap(value, rap);
 
     /* More info ----------------------------------------------------- */

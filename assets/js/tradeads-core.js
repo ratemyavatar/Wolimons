@@ -4,19 +4,21 @@
  * ---------------------------------------------------------------------------
  * WHERE THE ADS LIVE
  * ---------------------------------------------------------------------------
- * They live in this browser, in localStorage, and nowhere else.
+ * On the Wolimons server, in the same store the item values live in.
  *
- * Wanwood has no trade ad service. There is no endpoint to post an ad to and
- * none to read other players' ads from - the backend simply does not have the
- * feature, so there is nothing for Wolimons to call. Rather than invent a
- * server that does not exist, or fill the board with made-up ads, the pages
- * are honest about it: you can write ads, they persist on this device, and
- * the board shows exactly what you wrote. Nobody else's ads appear, because
- * there is no way for them to arrive. The detail page is the same story: an
- * ad only opens on the device that posted it.
+ * Wanwood has no trade ad service - there is no endpoint to post an ad to and
+ * none to read other players' ads from - so the board is ours. Ads go to
+ * /api/ads and everybody reads the same list, which is the only way a board
+ * makes any sense: you see other people's ads and they see yours.
  *
- * If Wanwood ever grows the endpoints, `loadAds` and `saveAds` below are the
- * only two functions that need to change - both pages read through them.
+ * Posting is gated on the account link. The server will not take a browser's
+ * word for who is posting, because an ad carries a name that other people
+ * will trade against; it re-reads the Wanwood profile description during
+ * /verify and issues a signed token, and that token is what /api/ads/post
+ * wants. Deleting is the same, and only an ad's author may delete it.
+ *
+ * `loadAds`, `postAd` and `deleteAd` below are the only places that talk to
+ * the server - both pages read through them.
  *
  * ---------------------------------------------------------------------------
  * WHAT IS IN HERE
@@ -36,7 +38,10 @@
 
   const API = window.WanwoodAPI;
 
-  const STORAGE_KEY = 'wolimons_trade_ads_v1';
+  const ACCOUNT = window.WolimonsAccount;
+
+  /* Where the board is. Same origin as everything else the site calls. */
+  const API_BASE = (API && API.API_BASE) || '';
   const MAX_ADS = 200;
 
   /* The ten request tags, in the snapshot's order. A request slot holds
@@ -150,31 +155,92 @@
    * Only ids and names are stored - thumbnails, RAP and Value are looked up
    * fresh on every render so nothing ever serves stale numbers.
    */
-  function loadAds() {
-    let raw = null;
+  /*
+   * Every ad on the board, newest first, or one player's with { creatorId }.
+   *
+   * Returns [] when the server cannot be reached. An empty board reads as
+   * "no ads", which is wrong but harmless; the alternative is a page that
+   * will not draw at all. The callers show their own notice.
+   */
+  async function loadAds({ creatorId = 0 } = {}) {
+    const query = creatorId ? `?creatorId=${encodeURIComponent(creatorId)}` : '';
     try {
-      raw = window.localStorage.getItem(STORAGE_KEY);
+      const response = await fetch(`${API_BASE}/api/ads${query}`, {
+        headers: { Accept: 'application/json' },
+      });
+      if (!response.ok) return [];
+      const payload = await response.json();
+      if (!payload || !payload.ok || !Array.isArray(payload.ads)) return [];
+      /* Normalised again on the way in: the server is the authority on what
+       * it stored, but the renderers still want a guaranteed shape. */
+      return payload.ads.map(normalizeAd).filter(Boolean);
     } catch (error) {
       return [];
     }
-    if (!raw) return [];
-    let parsed = null;
-    try {
-      parsed = JSON.parse(raw);
-    } catch (error) {
-      return [];
-    }
-    if (!Array.isArray(parsed)) return [];
-    return parsed.map(normalizeAd).filter(Boolean);
   }
 
-  function saveAds(ads) {
+  /* One ad by id, or null. */
+  async function loadAd(adId) {
+    if (!adId) return null;
     try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(ads.slice(0, MAX_ADS)));
-      return true;
+      const response = await fetch(`${API_BASE}/api/ad?id=${encodeURIComponent(adId)}`, {
+        headers: { Accept: 'application/json' },
+      });
+      if (!response.ok) return null;
+      const payload = await response.json();
+      return payload && payload.ok ? normalizeAd(payload.ad) : null;
     } catch (error) {
-      return false;
+      return null;
     }
+  }
+
+  /*
+   * The identity token proving which account is acting. Absent when the
+   * browser has no linked account, or the token has run out.
+   */
+  function identityToken() {
+    return ACCOUNT && typeof ACCOUNT.getToken === 'function' ? ACCOUNT.getToken() : '';
+  }
+
+  /*
+   * Both writes answer the same shape - { ok, ad?, error? } - so the pages
+   * can show the server's own wording rather than guessing at what failed.
+   */
+  async function send(path, body) {
+    const token = identityToken();
+    if (!token) {
+      return {
+        ok: false,
+        error: 'Link your Wanwood account on the verify page first.',
+      };
+    }
+    try {
+      const response = await fetch(`${API_BASE}${path}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(body),
+      });
+      const payload = await response.json().catch(() => null);
+      if (!payload) return { ok: false, error: 'The server did not answer properly.' };
+      return payload;
+    } catch (error) {
+      return { ok: false, error: 'Could not reach the server. Try again in a moment.' };
+    }
+  }
+
+  /* Post an ad. The creator comes from the token, not from here. */
+  async function postAd({ creatorName, offer, request }) {
+    const result = await send('/api/ads/post', { creatorName, offer, request });
+    if (result.ok && result.ad) result.ad = normalizeAd(result.ad);
+    return result;
+  }
+
+  /* Delete one of your own ads. */
+  async function deleteAd(adId) {
+    return send('/api/ads/delete', { id: adId });
   }
 
   function normalizeSlot(raw) {
@@ -714,7 +780,6 @@
   }
 
   window.WolimonsTradeAds = {
-    STORAGE_KEY,
     MAX_ADS,
     TAGS,
     TAG_BY_SLUG,
@@ -728,7 +793,10 @@
     relativeTime,
     utcTimestamp,
     loadAds,
-    saveAds,
+    loadAd,
+    postAd,
+    deleteAd,
+    identityToken,
     normalizeAd,
     items,
     creators,

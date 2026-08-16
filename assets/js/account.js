@@ -10,6 +10,14 @@
  * Because the claim is only ever as good as the browser holding it, the
  * record lives in localStorage and carries the phrase it was proven with,
  * so a stale claim can be re-checked rather than trusted forever.
+ *
+ * One thing does need the server's word for it. Trade ads are posted to
+ * Wolimons and shown to everybody, so the server cannot simply believe a
+ * browser that says "I am player N" - it re-reads the profile description
+ * itself and hands back a signed token saying who it found. That token is
+ * kept here alongside the account, and getToken() returns it while it is
+ * still good. Everything else on the site is a public read and needs none
+ * of this.
  */
 (() => {
   'use strict';
@@ -59,18 +67,40 @@
       name,
       phrase: typeof row.phrase === 'string' ? row.phrase : '',
       verifiedAt: Number(row.verifiedAt) || 0,
+      token: typeof row.token === 'string' ? row.token : '',
+      tokenExpiresAt: Number(row.tokenExpiresAt) || 0,
     };
   }
 
-  function set({ id, name, phrase = '' }) {
+  function set({ id, name, phrase = '', token = '', tokenExpiresAt = 0 }) {
     const userId = Number(id);
     const userName = String(name || '').trim();
     if (!Number.isSafeInteger(userId) || userId <= 0 || !userName) return null;
-    const row = { id: userId, name: userName, phrase, verifiedAt: Date.now() };
+    const row = {
+      id: userId,
+      name: userName,
+      phrase,
+      verifiedAt: Date.now(),
+      token: String(token || ''),
+      tokenExpiresAt: Number(tokenExpiresAt) || 0,
+    };
     write(ACCOUNT_KEY, row);
     clearPending();
     notify();
     return row;
+  }
+
+  /*
+   * The server-issued identity token, or '' when there is not a usable one.
+   *
+   * Treated as expired a minute early so a token cannot lapse between the
+   * check and the request it is being used for.
+   */
+  function getToken() {
+    const account = get();
+    if (!account || !account.token) return '';
+    if (!account.tokenExpiresAt) return account.token;
+    return Date.now() < account.tokenExpiresAt - 60000 ? account.token : '';
   }
 
   function clear() {
@@ -185,6 +215,7 @@
     get,
     set,
     clear,
+    getToken,
     isLinked,
     getPending,
     setPending,

@@ -14,6 +14,11 @@
  *   POST /api/login       { key }                    -> owner session token
  *   POST /api/roles/set   { name, role }             owner only
  *   POST /api/values/set  { id, value, ... }         value manager / staff
+ *   GET  /api/ads?creatorId=            the trade ad board, newest first
+ *   GET  /api/ad?id=<adId>              one ad
+ *   POST /api/identity    { userId, phrase }         -> player identity token
+ *   POST /api/ads/post    { creatorName, offer, request }   identity token
+ *   POST /api/ads/delete  { id }                     identity token, author only
  *
  * ---------------------------------------------------------------------------
  * HOW ACCESS IS DECIDED
@@ -148,6 +153,96 @@ function keyMatches(candidate) {
   const b = Buffer.from(ADMIN_KEY);
   if (a.length !== b.length) return false;
   return crypto.timingSafeEqual(a, b);
+}
+
+/* ---------------------------------------------------------------------- */
+/* Player identity, for trade ads                                          */
+/* ---------------------------------------------------------------------- */
+
+/*
+ * Posting an ad is not a staff action - any player may do it - so the admin
+ * key is the wrong gate entirely. What has to be proven is narrower: that
+ * whoever is posting really is the Wanwood account the ad will be signed
+ * with. Otherwise anyone could post ads as anyone.
+ *
+ * The proof is the one /verify already uses: a one-time phrase written into
+ * the player's Wanwood profile description, which only that player can edit.
+ * POST /api/identity re-reads the description here on the server, and if the
+ * phrase is there, hands back a token that says "this browser is user N".
+ *
+ * The token is signed rather than remembered. A stored table would be emptied
+ * by every restart, and /verify tells players to take the phrase back out of
+ * their description once they are done - so they would have no way to get a
+ * new token without going through the whole dance again. Signing means the
+ * server can check a token it has never seen before, and nothing about a
+ * player has to be kept on disk.
+ */
+const IDENTITY_TTL_MS = Number(process.env.IDENTITY_TTL_MS || 30 * 24 * 60 * 60 * 1000);
+
+/*
+ * The signing secret. ADMIN_KEY is reused when it is set so tokens survive a
+ * restart; the derivation means the key itself is never recoverable from a
+ * token. With no key set we fall back to a random secret, which works but
+ * signs everyone out on restart - noted in /api/status.
+ */
+const IDENTITY_SECRET = ADMIN_KEY
+  ? crypto.createHash('sha256').update(`wolimons-identity:${ADMIN_KEY}`).digest()
+  : crypto.randomBytes(32);
+
+const UPSTREAM = (process.env.UPSTREAM_ORIGIN || 'https://wanwoo.xyz').replace(/\/+$/, '');
+const IDENTITY_TIMEOUT_MS = Number(process.env.UPSTREAM_TIMEOUT_MS || 20000);
+
+function signIdentity(userId, expiresAt) {
+  const body = `${userId}.${expiresAt}`;
+  const mac = crypto.createHmac('sha256', IDENTITY_SECRET).update(body).digest('base64url');
+  return `${body}.${mac}`;
+}
+
+/*
+ * Returns the user id a token vouches for, or 0. Never throws on a malformed
+ * token - a bad token is simply not a token.
+ */
+function readIdentity(token) {
+  const parts = String(token || '').split('.');
+  if (parts.length !== 3) return 0;
+
+  const [rawId, rawExpiry, mac] = parts;
+  const expected = crypto
+    .createHmac('sha256', IDENTITY_SECRET)
+    .update(`${rawId}.${rawExpiry}`)
+    .digest('base64url');
+
+  const a = Buffer.from(mac);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length) return 0;
+  if (!crypto.timingSafeEqual(a, b)) return 0;
+
+  const expiresAt = Number(rawExpiry);
+  if (!Number.isFinite(expiresAt) || Date.now() > expiresAt) return 0;
+
+  const userId = Number(rawId);
+  return Number.isSafeInteger(userId) && userId > 0 ? userId : 0;
+}
+
+/*
+ * The player's Wanwood profile, read here rather than taken from the client.
+ * users/v1/users/{id} is the only endpoint carrying the description.
+ */
+async function fetchProfile(userId) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), IDENTITY_TIMEOUT_MS);
+  try {
+    const response = await fetch(`${UPSTREAM}/apisite/users/v1/users/${userId}`, {
+      headers: { Accept: 'application/json' },
+      signal: controller.signal,
+    });
+    if (!response.ok) return null;
+    return await response.json();
+  } catch (error) {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 function bearer(req) {
@@ -360,6 +455,113 @@ async function handle(req, res, url, readBody) {
         item: updated.values[String(Number(payload.id))],
         updatedAt: updated.updatedAt,
       });
+      return true;
+    }
+
+    /* ------------------------------------------------------- trade ads */
+
+    if (req.method === 'GET' && route === '/api/ads') {
+      /* The whole board, or one player's ads with ?creatorId=. Public: the
+       * point of the board is that everybody sees the same one. */
+      const rows = await store.ads({ creatorId: url.searchParams.get('creatorId') || 0 });
+      send(res, 200, { ok: true, ads: rows, limit: store.ADS_PER_USER });
+      return true;
+    }
+
+    if (req.method === 'GET' && route === '/api/ad') {
+      const ad = await store.adById(url.searchParams.get('id') || '');
+      if (!ad) {
+        send(res, 404, { ok: false, error: 'That ad no longer exists.' });
+        return true;
+      }
+      send(res, 200, { ok: true, ad });
+      return true;
+    }
+
+    /*
+     * Prove control of a Wanwood account and get an identity token back.
+     * The phrase has to be in the profile description at the moment this is
+     * called - the server reads it from Wanwood itself and does not take the
+     * client's word for any of it.
+     */
+    if (req.method === 'POST' && route === '/api/identity') {
+      const payload = readJson(await readBody(req));
+      const userId = Number(payload.userId);
+      const phrase = String(payload.phrase || '').trim();
+
+      if (!Number.isSafeInteger(userId) || userId <= 0) {
+        send(res, 400, { ok: false, error: 'A user id is required.' });
+        return true;
+      }
+      /* Short phrases are not proof of anything - a two-character string
+       * could be in a description by accident. */
+      if (phrase.length < 8) {
+        send(res, 400, { ok: false, error: 'A verification phrase is required.' });
+        return true;
+      }
+
+      const profile = await fetchProfile(userId);
+      if (!profile) {
+        send(res, 502, { ok: false, error: 'Wanwood could not be reached. Try again.' });
+        return true;
+      }
+
+      const description = String(profile.description || '');
+      if (!description.toLowerCase().includes(phrase.toLowerCase())) {
+        send(res, 403, {
+          ok: false,
+          error: 'That phrase is not in the profile description.',
+        });
+        return true;
+      }
+
+      const expiresAt = Date.now() + IDENTITY_TTL_MS;
+      send(res, 200, {
+        ok: true,
+        userId,
+        name: String(profile.name || '').trim(),
+        token: signIdentity(userId, expiresAt),
+        expiresAt,
+      });
+      return true;
+    }
+
+    if (req.method === 'POST' && route === '/api/ads/post') {
+      const payload = readJson(await readBody(req));
+      /* The creator is whoever the token says, never whoever the body says. */
+      const creatorId = readIdentity(bearer(req));
+      if (!creatorId) {
+        send(res, 401, {
+          ok: false,
+          error: 'Verify your Wanwood account again before posting.',
+        });
+        return true;
+      }
+
+      const ad = await store.addAd({
+        id: `${creatorId}-${Date.now()}`,
+        creatorId,
+        creatorName: payload.creatorName,
+        offer: payload.offer,
+        request: payload.request,
+      });
+      send(res, 200, { ok: true, ad });
+      return true;
+    }
+
+    if (req.method === 'POST' && route === '/api/ads/delete') {
+      const payload = readJson(await readBody(req));
+      const creatorId = readIdentity(bearer(req));
+      if (!creatorId) {
+        send(res, 401, {
+          ok: false,
+          error: 'Verify your Wanwood account again before deleting.',
+        });
+        return true;
+      }
+
+      await store.removeAd({ id: payload.id, creatorId });
+      send(res, 200, { ok: true, id: String(payload.id) });
       return true;
     }
 

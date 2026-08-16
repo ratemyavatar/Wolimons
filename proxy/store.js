@@ -116,6 +116,18 @@ const ADS_PER_USER = Number(process.env.ADS_PER_USER || 10);
 const AD_TAGS = ['any', 'demand', 'rares', 'rap', 'wishlist', 'robux',
   'upgrade', 'downgrade', 'adds', 'projecteds'];
 
+/*
+ * How an item was valued. The item page prints one of these beside the
+ * explanation the snapshot carries: a proof-based item is priced off its
+ * recent trades and offers, a RAP-based one simply tracks its RAP. Null means
+ * nobody has said, which is the state every item starts in.
+ */
+const VALUATION_METHODS = ['proof', 'rap'];
+
+/* The value team's free-text note about an item, shown in the Valuation tab.
+ * Capped so one entry cannot bloat the file that is committed on every write. */
+const NOTE_LIMIT = 500;
+
 const EMPTY = { version: 1, updatedAt: 0, roles: {}, values: {}, changes: [], ads: [] };
 
 let data = structuredClone(EMPTY);
@@ -225,6 +237,8 @@ function normalize(raw) {
         categories: Array.isArray(entry.categories)
           ? [...new Set(entry.categories.filter(name => CATEGORIES.includes(name)))]
           : [],
+        method: VALUATION_METHODS.includes(entry.method) ? entry.method : null,
+        note: typeof entry.note === 'string' ? entry.note.slice(0, NOTE_LIMIT) : '',
         updatedBy: String(entry.updatedBy || ''),
         updatedAt: Number(entry.updatedAt) || 0,
       };
@@ -553,7 +567,7 @@ async function setRole({ name, role, grantedBy }) {
   );
 }
 
-async function setValue({ id, value, demand, trend, categories, rare, updatedBy }) {
+async function setValue({ id, value, demand, trend, categories, rare, method, note, updatedBy }) {
   const assetId = Number(id);
   if (!Number.isSafeInteger(assetId) || assetId <= 0) throw new Error('A valid item id is required.');
 
@@ -567,6 +581,8 @@ async function setValue({ id, value, demand, trend, categories, rare, updatedBy 
     demand: existing?.demand ?? null,
     trend: existing?.trend ?? null,
     categories: existing?.categories ? [...existing.categories] : [],
+    method: existing?.method ?? null,
+    note: existing?.note ?? '',
     updatedBy: String(updatedBy || ''),
     updatedAt: Date.now(),
   };
@@ -589,6 +605,15 @@ async function setValue({ id, value, demand, trend, categories, rare, updatedBy 
    * gem lights up with no extra plumbing. */
   if (rare === true && !next.categories.includes('rare')) next.categories.push('rare');
   if (rare === false) next.categories = next.categories.filter(name => name !== 'rare');
+
+  /* Valuation method and note. Both are optional and both accept an explicit
+   * clear - '' or null - so a value manager can take a note back down again. */
+  if (method !== undefined) {
+    next.method = VALUATION_METHODS.includes(method) ? method : null;
+  }
+  if (note !== undefined) {
+    next.note = typeof note === 'string' ? note.trim().slice(0, NOTE_LIMIT) : '';
+  }
 
   /*
    * What actually changed, for /valuechanges.
@@ -705,6 +730,7 @@ module.exports = {
   DEMANDS,
   TRENDS,
   CATEGORIES,
+  VALUATION_METHODS,
   ROLES,
   load,
   snapshot,

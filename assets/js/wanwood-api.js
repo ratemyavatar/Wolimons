@@ -217,9 +217,15 @@
         rows.forEach(row => {
           const id = Number(row.assetId ?? row.id);
           if (!Number.isSafeInteger(id)) return;
+          /* Two shapes are in the wild: a pair of booleans, or the array form
+           * the catalog endpoints use. Reading both means a page gets the
+           * right ribbon whichever one this deployment happens to answer
+           * with, instead of quietly falling back to "not limited". */
+          const list = Array.isArray(row.itemRestrictions) ? row.itemRestrictions : [];
+          const isLimitedUnique = Boolean(row.isLimitedUnique) || list.includes('LimitedUnique');
           restrictionCache.set(id, {
-            isLimited: Boolean(row.isLimited) || Boolean(row.isLimitedUnique),
-            isLimitedUnique: Boolean(row.isLimitedUnique),
+            isLimited: Boolean(row.isLimited) || isLimitedUnique || list.includes('Limited'),
+            isLimitedUnique,
           });
         });
       } catch (error) {

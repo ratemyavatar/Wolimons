@@ -58,6 +58,8 @@
   const DEMANDS = ['High', 'Decent', 'Low', 'Terrible'];
   const TRENDS = ['Raising', 'Stable', 'Lowering', 'Unstable', 'Fluctuating'];
   const CATEGORIES = ['rare', 'projected', 'tablet', 'unobtainable', 'hoarded'];
+  /* Proof-based or RAP-based, the two ways an item gets its value. */
+  const METHODS = ['proof', 'rap'];
 
   const row = id => {
     const entry = ITEMS[Number(id)];
@@ -98,9 +100,11 @@
   /*
    * Fold the server's reply into ITEMS.
    *
-   * Rows arrive as { value, demand, trend, categories, updatedBy, updatedAt }.
-   * The extra fields are harmless - row() only reads the first four - and
-   * updatedBy is worth keeping so the admin panel can show who set what.
+   * Rows arrive as { value, demand, trend, categories, method, note,
+   * updatedBy, updatedAt } and are stored whole, so every accessor above -
+   * including method() and note(), which the item page's Valuation tab
+   * reads - sees exactly what the server holds. updatedBy is worth keeping
+   * so the admin panel can show who set what.
    */
   const absorb = payload => {
     const values = payload && payload.values;
@@ -200,6 +204,7 @@
     DEMANDS,
     TRENDS,
     CATEGORIES,
+    METHODS,
 
     /* Value for an asset id. Always a number; 0 when unset. */
     get(id) {
@@ -219,6 +224,25 @@
     /* Hand-set trend, or null. */
     trend(id) {
       return oneOf(row(id).trend, TRENDS);
+    },
+
+    /*
+     * How the item was valued: 'proof' when its price comes from real trades
+     * and offers, 'rap' when it simply tracks RAP. Null until the value team
+     * says which - the item page then prints neither claim rather than
+     * guessing one.
+     */
+    method(id) {
+      return oneOf(row(id).method, METHODS);
+    },
+
+    /*
+     * The value team's note about this item, shown on the item page under the
+     * valuation method. Empty string when nobody has written one.
+     */
+    note(id) {
+      const raw = row(id).note;
+      return typeof raw === 'string' ? raw.trim() : '';
     },
 
     /*

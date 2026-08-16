@@ -26,301 +26,322 @@
         <div id="left_gutter"></div>
         <div id="page_content_body">
 
-            <!-- Title row ------------------------------------------------ -->
-            <div class="container-fluid px-0" style="max-width: 1138px; margin-top: 6px;">
-                <div class="d-flex mx-3">
-                    <div class="d-flex justify-content-start flex-wrap">
-                        <h1 class="page_title mb-0" data-item-field="name">&nbsp;</h1>
-                        <div class="d-flex flex-wrap">
-                            <div class="item_acronym" data-item-field="acronym" hidden></div>
-                            <div class="text-white d-flex flex-nowrap text-nowrap" style="font-size: 1.35em; font-weight: 400; line-height: 1.6;">
-                                <div class="item_flag" data-item-field="flag" hidden></div>
-                            </div>
+          <!-- Title row. The snapshot's: name, acronym chip, flags, and the
+               link out to the item on Wanwood. -->
+          <div class="container-fluid px-0" style="max-width: 1138px; margin-top: 6px;">
+            <div class="d-flex mx-3">
+              <div class="d-flex justify-content-start flex-wrap">
+                <h1 class="page_title mb-0" data-item-field="name">&nbsp;</h1>
+                <div class="d-flex flex-wrap">
+                  <div class="item_acronym" data-item-field="acronym" hidden></div>
+                  <div class="flex-nowrap text-nowrap item_flag align-items-center" data-item-field="flag" hidden></div>
+                </div>
+              </div>
+              <a class="mr-2 my-auto ml-2" data-item-field="wanwood-link" href="/catalog" aria-label="View on Wanwood" title="View on Wanwood" target="_blank" rel="noopener"><div class="item_roblox_page_link_icon"><svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false" style="vertical-align:-1em;" viewBox="0 0 16 16"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8.25 2.75h-5.5v10.5h10.5v-5.5m0-5-5.5 5.5m3-6.5h3.5v3.5"></path></svg></div></a>
+            </div>
+          </div>
+
+          <!-- Subtitle and the item's own action buttons. Value Changes and
+               Trade Ads are filtered to this item, as in the snapshot. -->
+          <div class="container-fluid px-0" style="max-width: 1138px;">
+            <div class="d-flex justify-content-between mx-3 flex-wrap">
+              <h2 class="my-auto pt-2 pt-sm-1 d-block mr-2" data-item-field="subtitle" style="color: #5bc0de; font-size: 1.45em; font-weight: 300;">Wanwood Limited</h2>
+              <div class="d-flex flex-wrap">
+                <a class="btn btn-flat-light-blue-sm shadow rounded-pill mt-2 mt-sm-1 mr-2" href="/valuechanges" data-item-field="value-changes-link" role="button" style="max-height: 32px;"><span class="d-inline-block text-nowrap button_icon_svg"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m19 8-4 4h3a6 6 0 0 1-6 6 5.9 5.9 0 0 1-2.8-.7l-1.5 1.5A8 8 0 0 0 12 20a8 8 0 0 0 8-8h3M6 12a6 6 0 0 1 6-6c1 0 2 .3 2.8.7l1.5-1.5A8 8 0 0 0 12 4a8 8 0 0 0-8 8H1l4 4 4-4" fill="currentColor"></path></svg></span><span class="text-nowrap">Value Changes</span></a>
+                <a class="btn btn-flat-light-blue-sm shadow rounded-pill mt-2 mt-sm-1 mr-2" href="/trades" data-item-field="trade-ads-link" role="button" style="max-height: 32px;"><span class="d-inline-block text-nowrap button_icon_svg"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="m10.4 3 1.9-1.8 6.3 6.3-1.8 1.9a2.7 2.7 0 0 0-3.4.3l-.8.8c-.9 1-1 2.3-.3 3.4l-1.9 1.8L8 13.3l-2.8 2.8c-.4.4-3.3 2.7-3.8 2.3s1.9-3.4 2.3-3.8l2.8-2.8-2.4-2.4 1.8-1.9c1 .7 2.5.6 3.4-.3l.8-.8c1-.9 1-2.3.3-3.4z" fill="currentColor"></path></svg></span><span class="text-nowrap">Trade Ads</span></a>
+                <a class="btn btn-flat-light-blue-sm shadow rounded-pill mt-2 mt-sm-1" href="/tradecalculator" role="button" style="max-height: 32px;"><span class="d-inline-block text-nowrap button_icon_svg"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M7 2h10a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zm0 2v4h10V4H7zm0 6v2h2v-2H7zm4 0v2h2v-2h-2zm4 0v2h2v-2h-2zm-8 4v2h2v-2H7zm4 0v2h2v-2h-2zm4 0v2h2v-2h-2zm-8 4v2h2v-2H7zm4 0v2h2v-2h-2zm4 0v2h2v-2h-2z" fill="currentColor"></path></svg></span><span class="text-nowrap">Trade Calculator</span></a>
+              </div>
+            </div>
+          </div>
+
+          <!-- Load failure. Not in the snapshot - a captured page never fails -
+               so this is kept from the item page it replaces. -->
+          <div class="container-fluid px-0" style="max-width: 1138px;">
+            <div class="mx-3 mt-3 alert alert-danger py-2 px-3" data-item-field="error" role="alert" hidden style="background-color:#3c2a2c;border-color:#5a3a3d;color:#e6b7bb;"></div>
+          </div>
+
+          <!-- Main card: thumbnail plus the three stat tabs. -->
+          <div class="container-fluid px-0" style="max-width: 1138px; margin-top: 12px;">
+            <div class="row bg-primary shadow mx-0 mx-sm-3">
+              <div class="d-none d-sm-block col-12 col-sm-6 col-md-5 col-lg-4 col-xl-3 bg-primary px-0"><img class="img-responsive img-fluid rounded m-3 shadow-sm" data-item-field="thumbnail" src="/assets/Wolimonslogoo.png" width="420" height="420" alt="Item thumbnail" fetchpriority="high" decoding="async" style="background-color: #33383e; width: 250px; height: 250px; max-height: 250px; max-width: 250px; object-fit: contain;"></div>
+              <div class="d-block d-sm-none col-12 bg-primary px-0 text-center"><img class="img-responsive img-fluid rounded m-3 shadow-sm" data-item-field="thumbnail" src="/assets/Wolimonslogoo.png" width="420" height="420" alt="Item thumbnail" fetchpriority="high" decoding="async" style="background-color: #33383e; width: 250px; height: 250px; max-height: 250px; max-width: 250px; object-fit: contain;"></div>
+              <div class="col-12 col-sm-6 col-md-7 col-lg-8 col-xl-9 bg-primary px-0" data-tabs>
+                <ul class="nav nav-tabs nav-fill nav-justified ml-xl-5">
+                  <li class="nav-item"><a class="nav-link rounded-0 active" href="#stats-pane-overview" data-toggle="tab">Overview</a></li>
+                  <li class="nav-item"><a class="nav-link rounded-0" href="#stats-pane-valuation" data-toggle="tab">Valuation</a></li>
+                  <li class="nav-item"><a class="nav-link rounded-0" href="#stats-pane-more-info" data-toggle="tab">More Info</a></li>
+                </ul>
+                <div class="tab-content clearfix">
+
+                  <div class="tab-pane active" id="stats-pane-overview">
+                    <div class="d-flex justify-content-around">
+                      <div><div class="d-flex"><div class="mt-3 mt-sm-2 mt-md-3 pt-sm-1 pt-md-1"><svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false" width="2em" height="2em" style="-ms-transform: rotate(360deg); -webkit-transform: rotate(360deg); transform: rotate(360deg);" preserveAspectRatio="xMidYMid meet" viewBox="0 0 62 62"><g transform="matrix(1.72008,0,0,1.72008,-22.3238,-22.3379)"><path d="M14.066,24.577C16.139,22.766 19.327,24.693 19.142,27.299L17.873,27.125C17.873,27.125 16.701,24.219 15.025,25.72C13.349,27.222 15.577,29.121 17.302,31.107C19.026,33.092 20.857,35.243 20.857,35.243L27.212,42.547L31,47.818L26.273,43.293L19.956,35.989L13.495,28.559C13.157,28.065 12.976,27.479 12.978,26.881C12.978,25.956 13.4,25.128 14.061,24.581L14.066,24.577ZM41.114,27.9C40.827,27.674 40.51,27.491 40.17,27.357L40.145,27.348C38.02,26.335 35.395,25.304 32.696,24.438L32.221,24.306C30.073,23.484 27.367,22.659 24.598,21.999L24.122,21.903C23.735,21.793 23.331,21.75 22.929,21.778L22.94,21.777C22.727,21.777 22.727,21.864 22.727,21.893L22.184,23.482C22.184,23.482 23.318,24.973 31.097,27.608C38.876,30.243 40.687,29.759 40.687,29.759L41.23,28.17C41.23,28.17 41.375,28.093 41.114,27.899L41.114,27.9ZM32.938,22.766C35.582,23.657 37.539,24.374 38.983,24.945L40.92,19.133C41.53,17.341 35.301,15.326 35.301,15.326C35.301,15.326 29.14,13.136 28.52,14.928L26.534,20.799C28.055,21.225 30.099,21.855 32.87,22.795L32.938,22.766ZM38.75,37.084C38.75,37.084 35.427,42.683 32.744,43.216C32.744,43.216 32.066,43.526 30.496,38.643C28.927,33.761 29.663,33.625 29.663,33.625C32.162,32.502 38.12,35.127 38.12,35.127L39.777,34.604C39.777,34.604 43.1,28.995 45.783,28.462C45.783,28.462 46.461,28.162 48.021,33.034C49.581,37.907 48.854,38.053 48.854,38.053C46.355,39.176 40.397,36.551 40.397,36.551L38.75,37.084Z" style="fill:#7a8288;fill-rule:nonzero;"></path></g></svg></div><div class="mx-2 mt-2 pt-1"><h6 class="card-subtitle mt-1 text-muted stat-header">Type</h6><h5 class="card-title mb-1 text-light text-truncate stat-data" data-item-field="type">&nbsp;</h5></div></div><div class="d-flex"><div class="mt-3 mt-sm-2 mt-md-3 pt-sm-1 pt-md-1"><svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false" width="2em" height="2em" style="-ms-transform: rotate(360deg); -webkit-transform: rotate(360deg); transform: rotate(360deg);" preserveAspectRatio="xMidYMid meet" viewBox="0 0 24 24"><path d="M12 2c5.5 0 10 4.5 10 10s-4.5 10-10 10S2 17.5 2 12 6.5 2 12 2zm0 2c-4.4 0-8 3.6-8 8s3.6 8 8 8 8-3.6 8-8-3.6-8-8-8zm4.9 3.1c1.3 1.2 2.1 3 2.1 4.9 0 1.9-.9 3.6-2.1 4.9-1.2 1.3-3 2.1-4.9 2.1-1.9 0-3.6-.9-4.9-2.1C5.8 15.7 5 13.9 5 12h7V5c1.9 0 3.7.8 4.9 2.1z" fill="#7A8288"></path></svg></div><div class="mx-2 mt-2 pt-1" title="Number of copies whose owner is visible"><h6 class="card-subtitle mt-1 text-muted stat-header">Available Copies</h6><h5 class="card-title mb-1 text-light text-truncate stat-data" data-item-field="available-copies">&nbsp;</h5></div></div><div class="d-flex"><div class="mt-3 mt-sm-2 mt-md-3 pt-sm-1 pt-md-1"><svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false" width="2em" height="2em" style="-ms-transform: rotate(360deg); -webkit-transform: rotate(360deg); transform: rotate(360deg);" preserveAspectRatio="xMidYMid meet" viewBox="0 0 24 24"><path d="M12 2c5.5 0 10 4.5 10 10s-4.5 10-10 10S2 17.5 2 12 6.5 2 12 2zm0 2c-4.4 0-8 3.6-8 8s3.6 8 8 8 8-3.6 8-8-3.6-8-8-8zm7 8h-7V5c1.9 0 3.6.9 4.9 2.1 1.3 1.2 2.1 3 2.1 4.9z" fill="#7A8288"></path></svg></div><div class="mx-2 mt-2 pt-1" title="Number of copies still available to buy directly from Wanwood"><h6 class="card-subtitle mt-1 text-muted stat-header">Copies Remaining</h6><h5 class="card-title mb-1 text-light text-truncate stat-data" data-item-field="remaining">&nbsp;</h5></div></div><div class="d-flex"><div class="mt-3 mt-sm-2 mt-md-3 pt-sm-1 pt-md-1"><svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false" width="2em" height="2em" style="-ms-transform: rotate(360deg); -webkit-transform: rotate(360deg); transform: rotate(360deg);" preserveAspectRatio="xMidYMid meet" viewBox="0 0 100 100"><path d="M46.05 60.163H31.923c-.836 0-1.513.677-1.513 1.513V83.61c0 .836.677 1.513 1.513 1.513H46.05c.836 0 1.512-.677 1.512-1.513V61.675c0-.836-.677-1.512-1.512-1.512z" fill="#7A8288"></path><path d="M68.077 14.878H53.95c-.836 0-1.513.677-1.513 1.513v67.218c0 .836.677 1.513 1.513 1.513h14.127c.836 0 1.513-.677 1.513-1.513V16.391c0-.836-.677-1.513-1.513-1.513z" fill="#7A8288"></path><path d="M90.217 35.299H76.09c-.836 0-1.513.677-1.513 1.513v46.797c0 .836.677 1.513 1.513 1.513h14.126c.836 0 1.513-.677 1.513-1.513V36.812c0-.835-.677-1.513-1.512-1.513z" fill="#7A8288"></path><path d="M23.91 35.299H9.783c-.836 0-1.513.677-1.513 1.513v46.797c0 .836.677 1.513 1.513 1.513H23.91c.836 0 1.513-.677 1.513-1.513V36.812c0-.835-.677-1.513-1.513-1.513z" fill="#7A8288"></path></svg></div><div class="mx-2 mt-2 pt-1" title="Average number of times this item sells each day, over its recorded history"><h6 class="card-subtitle mt-1 text-muted stat-header">Avg Daily Sales</h6><h5 class="card-title mb-1 text-light text-truncate stat-data" data-item-field="avg-daily-sales">&nbsp;</h5></div></div></div>
+                      <div><div class="d-flex"><div class="mt-3 mt-sm-2 mt-md-3 pt-sm-1 pt-md-1"><svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false" width="2em" height="2em" style="-ms-transform: rotate(360deg); -webkit-transform: rotate(360deg); transform: rotate(360deg);" preserveAspectRatio="xMidYMid meet" viewBox="0 0 512 512"><path d="M416 64H257.6L76.5 251.6c-8 8-12.3 18.5-12.5 29-.3 11.3 3.9 22.6 12.5 31.2l123.7 123.6c8 8 20.8 12.5 28.8 12.5s22.8-3.9 31.4-12.5L448 256V96l-32-32zm-30.7 102.7c-21.7 6.1-41.3-10-41.3-30.7 0-17.7 14.3-32 32-32 20.7 0 36.8 19.6 30.7 41.3-2.9 10.3-11.1 18.5-21.4 21.4z" fill="#7A8288"></path></svg></div><div class="mx-2 mt-2 pt-1"><h6 class="card-subtitle mt-1 text-muted stat-header">Acronym</h6><h5 class="card-title mb-1 text-light text-truncate stat-data" data-item-field="acronym-2">&nbsp;</h5></div></div><div class="d-flex"><div class="mt-3 mt-sm-2 mt-md-3 pt-sm-1 pt-md-1"><svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false" width="2em" height="2em" style="-ms-transform: rotate(360deg); -webkit-transform: rotate(360deg); transform: rotate(360deg);" preserveAspectRatio="xMidYMid meet" viewBox="0 0 32 32"><path d="M23 24c-3.6 0-5.03-4.176-6.413-8.214C15.277 11.958 13.92 8 11 8a3.44 3.44 0 0 0-3.053 2.321L6.05 9.684C6.101 9.534 7.321 6 11 6c4.35 0 6.012 4.855 7.48 9.138C19.689 18.667 20.83 22 23 22a3.44 3.44 0 0 0 3.053-2.321l1.896.637C27.899 20.466 26.679 24 23 24z" fill="#7A8288"></path><path d="M4 28V17h2v-2H4V2H2v26a2 2 0 0 0 2 2h26v-2z" fill="#7A8288"></path><path d="M8 15h2v2H8z" fill="#7A8288"></path><path d="M12 15h2v2h-2z" fill="#7A8288"></path><path d="M20 15h2v2h-2z" fill="#7A8288"></path><path d="M24 15h2v2h-2z" fill="#7A8288"></path><path d="M28 15h2v2h-2z" fill="#7A8288"></path></svg></div><div class="mx-2 mt-2 pt-1" title="The item's new RAP if it sells for the currently listed Best Price"><h6 class="card-subtitle mt-1 text-muted stat-header">RAP After Sale</h6><h5 class="card-title mb-1 text-light text-truncate stat-data" data-item-field="rap-after-sale">&nbsp;</h5></div></div><div class="d-flex"><div class="mt-3 mt-sm-2 mt-md-3 pt-sm-1 pt-md-1"><svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false" width="2em" height="2em" style="-ms-transform: rotate(360deg); -webkit-transform: rotate(360deg); transform: rotate(360deg);" preserveAspectRatio="xMidYMid meet" viewBox="0 0 24 24"><path d="M5 4h14a3 3 0 0 1 3 3v4h-7v-1H9v1H2V7a3 3 0 0 1 3-3zm6 7h2v2h-2v-2zm-9 1h7v1l2 2h2l2-2v-1h7v8H2v-8z" fill="#7A8288"></path></svg></div><div class="mx-2 mt-2 pt-1" title="Percent of available copies that are owned by a player that has more than one copy of the item"><h6 class="card-subtitle mt-1 text-muted stat-header">Hoarded</h6><h5 class="card-title mb-1 text-light text-truncate stat-data" data-item-field="hoarded-pct">&nbsp;</h5></div></div><div class="d-flex"><div class="mt-3 mt-sm-2 mt-md-3 pt-sm-1 pt-md-1"><svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false" width="2em" height="2em" style="-ms-transform: rotate(360deg); -webkit-transform: rotate(360deg); transform: rotate(360deg);" preserveAspectRatio="xMidYMid meet" viewBox="0 0 512 512"><path d="M222.2 188.1L97.8 64 64 97.8l124.1 124.1 34.1-33.8zM316 64l49 49L64 414.2 97.8 448 399 147l49 49V64H316zm7.9 225.8l-33.8 33.8 75.1 75.1L316 448h132V316l-49 49-75.1-75.2z" fill="#7A8288"></path></svg></div><div class="mx-2 mt-2 pt-1"><h6 class="card-subtitle mt-1 text-muted stat-header">Trend</h6><h5 class="card-title mb-1 text-light text-truncate stat-data" data-item-field="trend">&nbsp;</h5></div></div></div>
+                    </div>
+                    <div class="pb-2 d-block d-sm-none"></div>
+                  </div>
+
+                  <!-- Valuation. The snapshot's method explainer and note box,
+                       plus the editor a value manager sees. -->
+                  <div class="tab-pane" id="stats-pane-valuation">
+                    <div class="ml-3 d-flex justify-content-around">
+                      <div>
+                        <div class="d-flex">
+                          <div class="mt-3 mt-sm-2 mt-md-3 pt-sm-1 pt-md-1" title="Valued items are assigned their value by one of two methods, Proof-Based or RAP-Based. Proof-based items are valued based on their recent completed trades, offers, and other factors. RAP-Based items are valued based on their recent RAP."><span><svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false" width="2em" height="2em" style="-ms-transform: rotate(360deg); -webkit-transform: rotate(360deg); transform: rotate(360deg);" preserveAspectRatio="xMidYMid meet" viewBox="0 0 24 24"><path d="M7 7V3a1 1 0 0 1 1-1h13a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-4v3.993c0 .556-.449 1.007-1.007 1.007H3.007A1.006 1.006 0 0 1 2 20.993l.003-12.986C2.003 7.451 2.452 7 3.01 7H7zm2 0h6.993C16.549 7 17 7.449 17 8.007V15h3V4H9v3zM4.003 9L4 20h11V9H4.003z" fill="#7a8288"></path></svg></span></div>
+                          <div class="mx-2 mt-2 pt-0 pt-md-1">
+                            <h6 class="card-subtitle mt-1 text-muted stat-header">Valuation Method</h6>
+                            <h5 class="card-title mb-1 text-light text-truncate stat-data" data-item-field="valuation-method">&nbsp;</h5>
+                            <div class="mr-3" data-item-field="valuation-blurb"></div>
+                            <div class="mt-2 mr-3 p-2" data-item-field="valuation-note-box" hidden style="background:#26292d;border-left:3px solid #0084dd;border-radius:3px;color:#aaa;"><strong style="color:#ddd;">Note:</strong> <span data-item-field="valuation-note"></span></div>
+                            <div class="mt-2 mr-3 small" data-item-field="valuation-credit" style="color:#7a8288;"></div>
+                          </div>
                         </div>
+                      </div>
+                      <div>
+                        <div class="d-flex"><div class="mx-2 mt-2 pt-1" title="How the Value above compares with the current RAP"><h6 class="card-subtitle mt-1 text-muted stat-header">Value vs RAP</h6><h5 class="card-title mb-1 text-light text-truncate stat-data" data-item-field="value-vs-rap">&nbsp;</h5></div></div>
+                        <div class="d-flex"><div class="mx-2 mt-2 pt-1" title="The account that created the item"><h6 class="card-subtitle mt-1 text-muted stat-header">Creator</h6><h5 class="card-title mb-1 text-light text-truncate stat-data" data-item-field="creator">&nbsp;</h5></div></div>
+                      </div>
                     </div>
-                    <a class="mr-2 my-auto" data-item-field="wanwood-link" href="/catalog" aria-label="View on Wanwood" title="View on Wanwood" target="_blank" rel="noopener"><div class="item_roblox_page_link_icon"><svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false" style="vertical-align:-1em;" viewBox="0 0 16 16"><path fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8.25 2.75h-5.5v10.5h10.5v-5.5m0-5-5.5 5.5m3-6.5h3.5v3.5"></path></svg></div></a>
-                </div>
-            </div>
 
-            <!-- Subtitle + actions --------------------------------------- -->
-            <div class="container-fluid px-0" style="max-width: 1138px;">
-                <div class="d-flex justify-content-between mx-3 flex-wrap">
-                    <h2 class="my-auto pt-2 pt-sm-1 d-block mr-2" data-item-field="subtitle" style="color: #5bc0de; font-size: 1.45em; font-weight: 300;">Wanwood Limited</h2>
-                    <div class="d-flex flex-wrap">
-                        <a class="btn btn-flat-light-blue-sm shadow rounded-pill mt-2 mt-sm-1 mr-2" href="/trades" role="button" style="max-height: 32px;"><span class="d-inline-block text-nowrap button_icon_svg"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="m10.4 3 1.9-1.8 6.3 6.3-1.8 1.9a2.7 2.7 0 0 0-3.4.3l-.8.8c-.9 1-1 2.3-.3 3.4l-1.9 1.8L8 13.3l-2.8 2.8c-.4.4-3.3 2.7-3.8 2.3s1.9-3.4 2.3-3.8l2.8-2.8-2.4-2.4 1.8-1.9c1 .7 2.5.6 3.4-.3l.8-.8c1-.9 1-2.3.3-3.4z" fill="currentColor"></path></svg></span><span class="text-nowrap">Trade Ads</span></a>
-                        <a class="btn btn-flat-light-blue-sm shadow rounded-pill mt-2 mt-sm-1 mr-2" href="/valuechanges" role="button" style="max-height: 32px;"><span class="d-inline-block text-nowrap button_icon_svg"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m19 8-4 4h3a6 6 0 0 1-6 6 5.9 5.9 0 0 1-2.8-.7l-1.5 1.5A8 8 0 0 0 12 20a8 8 0 0 0 8-8h3M6 12a6 6 0 0 1 6-6c1 0 2 .3 2.8.7l1.5-1.5A8 8 0 0 0 12 4a8 8 0 0 0-8 8H1l4 4 4-4" fill="currentColor"></path></svg></span><span class="text-nowrap">Value Changes</span></a>
-                        <a class="btn btn-flat-light-blue-sm shadow rounded-pill mt-2 mt-sm-1" href="/tradecalculator" role="button" style="max-height: 32px;"><span class="d-inline-block text-nowrap button_icon_svg"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M7 2h10a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zm0 2v4h10V4H7zm0 6v2h2v-2H7zm4 0v2h2v-2h-2zm4 0v2h2v-2h-2zm-8 4v2h2v-2H7zm4 0v2h2v-2h-2zm4 0v2h2v-2h-2zm-8 4v2h2v-2H7zm4 0v2h2v-2h-2zm4 0v2h2v-2h-2z" fill="currentColor"></path></svg></span><span class="text-nowrap">Trade Calculator</span></a>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Load failure --------------------------------------------- -->
-            <div class="container-fluid px-0" style="max-width: 1138px;">
-                <div class="mx-3 mt-3 alert alert-danger py-2 px-3" data-item-field="error" role="alert" hidden style="background-color:#3c2a2c;border-color:#5a3a3d;color:#e6b7bb;"></div>
-            </div>
-
-            <!-- Main card ------------------------------------------------- -->
-            <div class="container-fluid px-0" style="max-width: 1138px; margin-top: 12px;">
-                <div class="row bg-primary shadow mx-0 mx-sm-3">
-                    <div class="d-none d-sm-block col-12 col-sm-6 col-md-5 col-lg-4 col-xl-3 bg-primary px-0">
-                        <img class="img-responsive img-fluid rounded m-3 shadow-sm" data-item-field="thumbnail" src="/assets/Wolimonslogoo.png" height="420" width="420" alt="Item thumbnail" decoding="async" style="background-color: #33383e; width: 250px; height: 250px; max-height: 250px; max-width: 250px; object-fit: contain;">
-                    </div>
-                    <div class="d-block d-sm-none col-12 bg-primary px-0 text-center">
-                        <img class="img-responsive img-fluid rounded m-3 shadow-sm" data-item-field="thumbnail" src="/assets/Wolimonslogoo.png" height="420" width="420" alt="Item thumbnail" decoding="async" style="background-color: #33383e; width: 250px; height: 250px; max-height: 250px; max-width: 250px; object-fit: contain;">
-                    </div>
-                    <div class="col-12 col-sm-6 col-md-7 col-lg-8 col-xl-9 bg-primary px-0" data-tabs>
-                        <ul class="nav nav-tabs nav-fill nav-justified ml-xl-5">
-                            <li class="nav-item"><a class="nav-link rounded-0 active" href="#stats-pane-overview" data-toggle="tab">Overview</a></li>
-                            <li class="nav-item"><a class="nav-link rounded-0" href="#stats-pane-valuation" data-toggle="tab">Valuation</a></li>
-                            <li class="nav-item"><a class="nav-link rounded-0" href="#stats-pane-more-info" data-toggle="tab">More Info</a></li>
-                        </ul>
-                        <div class="tab-content clearfix">
-
-                            <div class="tab-pane active" id="stats-pane-overview">
-                                <div class="d-none d-md-block d-lg-none" style="padding-bottom: 5px;"></div>
-                                <div class="d-flex justify-content-around">
-                                    <div class="ml-3 ml-sm-0">
-                                        <div class="d-flex">
-                                            <div class="mx-2 mt-2 pt-1">
-                                                <h6 class="card-subtitle mt-1 text-muted stat-header" title="Hat, Hair, Face, Gear, Back, etc.">Type</h6>
-                                                <h5 class="card-title mb-1 text-light text-truncate stat-data" data-item-field="type">&nbsp;</h5>
-                                            </div>
-                                        </div>
-                                        <div class="d-flex">
-                                            <div class="mx-2 mt-2 pt-1">
-                                                <h6 class="card-subtitle mt-1 text-muted stat-header" title="Total number of copies of this item that exist">Total Copies</h6>
-                                                <h5 class="card-title mb-1 text-light text-truncate stat-data" data-item-field="total-copies">&nbsp;</h5>
-                                            </div>
-                                        </div>
-                                        <div class="d-flex">
-                                            <div class="mx-2 mt-2 pt-1">
-                                                <h6 class="card-subtitle mt-1 text-muted stat-header" title="Number of copies still available to buy directly from Wanwood">Copies Remaining</h6>
-                                                <h5 class="card-title mb-1 text-light text-truncate stat-data" data-item-field="remaining">&nbsp;</h5>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <div class="d-flex">
-                                            <div class="mx-2 mt-2 pt-1">
-                                                <h6 class="card-subtitle mt-1 text-muted stat-header" title="Total number of resale transactions recorded for this item">Sales</h6>
-                                                <h5 class="card-title mb-1 text-light text-truncate stat-data" data-item-field="sales">&nbsp;</h5>
-                                            </div>
-                                        </div>
-                                        <div class="d-flex">
-                                            <div class="mx-2 mt-2 pt-1">
-                                                <h6 class="card-subtitle mt-1 text-muted stat-header" title="Number of copies currently listed for sale by private sellers">Sellers</h6>
-                                                <h5 class="card-title mb-1 text-light text-truncate stat-data" data-item-field="sellers">&nbsp;</h5>
-                                            </div>
-                                        </div>
-                                        <div class="d-flex">
-                                            <div class="mx-2 mt-2 pt-1">
-                                                <h6 class="card-subtitle mt-1 text-muted stat-header" title="The account that created the item">Creator</h6>
-                                                <h5 class="card-title mb-1 text-light text-truncate stat-data" data-item-field="creator">&nbsp;</h5>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="pb-2 d-block d-sm-none"></div>
-                            </div>
-
-                            <div class="tab-pane" id="stats-pane-valuation">
-                                <div class="d-none d-md-block d-lg-none" style="padding-bottom: 5px;"></div>
-                                <div class="d-flex justify-content-around">
-                                    <div class="ml-3 ml-sm-0">
-                                        <div class="d-flex">
-                                            <div class="mx-2 mt-2 pt-1">
-                                                <h6 class="card-subtitle mt-1 text-muted stat-header" title="Community-assigned worth of the item. Set by hand, never fetched from an API">Value</h6>
-                                                <h5 class="card-title mb-1 text-truncate stat-data" style="color:#4db7d6;" data-item-field="value">&nbsp;</h5>
-                                            </div>
-                                        </div>
-                                        <div class="d-flex">
-                                            <div class="mx-2 mt-2 pt-1">
-                                                <h6 class="card-subtitle mt-1 text-muted stat-header" title="Recent Average Price - an average of the recent sale prices">RAP</h6>
-                                                <h5 class="card-title mb-1 text-light text-truncate stat-data" data-item-field="rap">&nbsp;</h5>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <div class="d-flex">
-                                            <div class="mx-2 mt-2 pt-1">
-                                                <h6 class="card-subtitle mt-1 text-muted stat-header" title="Desirability of the item among traders">Demand</h6>
-                                                <h5 class="card-title mb-1 text-light text-truncate stat-data" data-item-field="demand">&nbsp;</h5>
-                                            </div>
-                                        </div>
-                                        <div class="d-flex">
-                                            <div class="mx-2 mt-2 pt-1">
-                                                <h6 class="card-subtitle mt-1 text-muted stat-header" title="Which way the value has been moving">Trend</h6>
-                                                <h5 class="card-title mb-1 text-light text-truncate stat-data" data-item-field="trend">&nbsp;</h5>
-                                            </div>
-                                        </div>
-                                        <div class="d-flex">
-                                            <div class="mx-2 mt-2 pt-1">
-                                                <h6 class="card-subtitle mt-1 text-muted stat-header" title="How the Value above compares with the current RAP">Value vs RAP</h6>
-                                                <h5 class="card-title mb-1 text-light text-truncate stat-data" data-item-field="value-vs-rap">&nbsp;</h5>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="mx-3 mb-3 mt-1 small" style="color:#8c9095;">Value is a community appraisal, not a price. It stays at 0 until it is set by hand in <span class="no-wrap">assets/js/values.js</span>.</div>
-                            </div>
-
-                            <div class="tab-pane" id="stats-pane-more-info">
-                                <div class="d-none d-md-block d-lg-none" style="padding-bottom: 5px;"></div>
-                                <div class="d-flex justify-content-around">
-                                    <div class="ml-3 ml-sm-0">
-                                        <div class="d-flex">
-                                            <div class="mx-2 mt-2 pt-1">
-                                                <h6 class="card-subtitle mt-1 text-muted stat-header" title="The item's ID on Wanwood">Item ID</h6>
-                                                <h5 class="card-title mb-1 text-light stat-data d-flex align-items-center">
-                                                    <button class="copy-id-button copy-id-inline" type="button" data-item-field="copy-id" data-copy-value="" title="Copy Item ID" aria-label="Copy Item ID"><span class="copy-id-value" data-item-field="id">&nbsp;</span><span class="copy-id-icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M16 1H4a2 2 0 0 0-2 2v14h2V3h12V1zm3 4H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2zm0 16H8V7h11v14z" fill="currentColor"></path></svg></span></button>
-                                                </h5>
-                                            </div>
-                                        </div>
-                                        <div class="d-flex">
-                                            <div class="mx-2 mt-2 pt-1">
-                                                <h6 class="card-subtitle mt-1 text-muted stat-header" title="Whether Wanwood is still selling copies of this item directly">Sold By Wanwood</h6>
-                                                <h5 class="card-title mb-1 text-light text-truncate stat-data" data-item-field="for-sale">&nbsp;</h5>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <div class="d-flex">
-                                            <div class="mx-2 mt-2 pt-1">
-                                                <h6 class="card-subtitle mt-1 text-muted stat-header" title="Lowest price currently listed by a private seller">Best Price</h6>
-                                                <h5 class="card-title mb-1 text-light text-truncate stat-data" data-item-field="best-price-2">&nbsp;</h5>
-                                            </div>
-                                        </div>
-                                        <div class="d-flex">
-                                            <div class="mx-2 mt-2 pt-1">
-                                                <h6 class="card-subtitle mt-1 text-muted stat-header">&nbsp;</h6>
-                                                <h5 class="card-title mb-1 text-light stat-data"><a class="about-item-more-info-link" href="#about-this-item">More details</a></h5>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="pb-2 d-block d-sm-none"></div>
-                            </div>
-
+                    <!-- The value team's editor. Hidden for everyone else; the
+                         controls are the admin panel's, reused as they are. -->
+                    <div class="mx-3 mb-3 mt-2" data-item-field="editor" hidden>
+                      <div class="p-3" style="background-color: #2e3337; border-radius: 3px;">
+                        <div class="d-flex flex-wrap align-items-center">
+                          <div class="stat-textbox-title-small" style="color: #adadad;">Edit this item</div>
+                          <div class="small ml-auto" data-item-field="editor-who" style="color: #7a8288;"></div>
                         </div>
-                    </div>
-                </div>
-            </div>
 
-            <!-- Headline value stats -------------------------------------- -->
-            <div class="container-fluid px-0" style="max-width: 1138px;">
-                <div class="mx-0 mx-sm-3 mt-3 value-stats-grid">
-                    <div class="d-flex value-stat-box bg-primary" title="Lowest listed selling price of the item by a private seller">
-                        <div class="value_svg_container"><span class="value_svg"><svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill-rule="evenodd" clip-rule="evenodd" stroke-linejoin="round" stroke-miterlimit="2"><path d="M19.6656 5.2204c1.3099.7457 2.1183 2.1261 2.1183 3.62v6.3192c0 1.4938-.8084 2.873-2.1183 3.62l-5.5487 3.1601c-1.3098.747-2.9254.747-4.2352 0L4.333 18.7795c-1.3098-.7469-2.117-2.126-2.117-3.62V8.8405c0-1.4939.8072-2.8743 2.117-3.62l5.5487-3.1602c1.3098-.747 2.9254-.747 4.2352 0l5.5487 3.1602ZM10.6241 3.495l-5.4032 3.077c-.8512.485-1.3746 1.3804-1.3746 2.3505v6.1551c0 .969.5234 1.8655 1.3746 2.3506l5.4032 3.077a2.7813 2.7813 0 0 0 2.7505 0l5.4032-3.077c.8512-.485 1.3758-1.3816 1.3758-2.3506v-6.155c0-.9702-.5246-1.8656-1.3758-2.3506l-5.4032-3.077a2.7813 2.7813 0 0 0-2.7505 0Zm2.5047 1.7195 4.2633 2.4278c.6996.3981 1.13 1.1342 1.13 1.9318v4.8556c0 .7963-.4304 1.5324-1.13 1.9306l-4.2633 2.429a2.285 2.285 0 0 1-2.2589 0l-4.2633-2.429c-.6984-.3982-1.1289-1.1343-1.1289-1.9306V9.574c0-.7976.4305-1.5337 1.1289-1.9318l4.2633-2.4278a2.285 2.285 0 0 1 2.2589 0ZM9.554 14.415h4.892V9.5885H9.554v4.8266Z" fill="#7a8288"></path></svg></span></div>
-                        <div><div class="value-stat-header">Best Price</div><div class="value-stat-data" data-item-field="best-price">&nbsp;</div></div>
-                    </div>
-                    <div class="d-flex value-stat-box bg-primary" title="An average of the recent sales prices">
-                        <div class="value_svg_container"><span class="value_svg"><svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false" viewBox="0 0 490 490" fill-rule="evenodd" clip-rule="evenodd" stroke-linejoin="round" stroke-miterlimit="2"><path d="M460 459.96v-26.875l-402.601.04L56.875 30 30 30.027 30.551 460 460 459.96Z" fill="#7a8288" fill-rule="nonzero"></path><path d="M341.3208 373.4443c-53.3779 0-74.5808-61.9184-95.0868-121.7906-19.4236-56.7585-39.5441-115.4446-82.8396-115.4446-20.6394 1.2158-38.5803 14.8569-45.2674 34.414l-28.1272-9.445c.7562-2.224 18.8454-54.6234 73.3946-54.6234 64.4984 0 89.1412 71.986 110.9075 135.491 17.926 52.3251 34.844 101.7442 67.019 101.7442 20.6394-1.2158 38.5803-14.8569 45.2674-34.414l28.1123 9.445c-.7413 2.224-18.8305 54.6234-73.3798 54.6234Z" fill="#7a8288" fill-rule="nonzero"></path><path fill="#7a8288" fill-rule="nonzero" d="M128.1227 225.6867h30.6256v30.6256h-30.6256zM66.123 225.6867h31v30.6256h-31zM189.374 225.6867h30.6255v30.6256H189.374zM303.7533 225.6867h30.6256v30.6256h-30.6256zM365.0045 225.6867h30.6256v30.6256h-30.6256zM426.2557 225.6867h30.6256v30.6256h-30.6256z"></path></svg></span></div>
-                        <div><div class="value-stat-header">RAP</div><div class="value-stat-data" data-item-field="rap-2">&nbsp;</div></div>
-                    </div>
-                    <div class="d-flex value-stat-box bg-primary" title="Community appraisal of an item's worth. Set by hand, never fetched">
-                        <div class="value_svg_container"><span class="value_svg"><svg viewBox="0 0 490 490" xmlns="http://www.w3.org/2000/svg" fill-rule="evenodd" clip-rule="evenodd" stroke-linejoin="round" stroke-miterlimit="2"><path d="M460 459.9596v-26.875l-402.6011.0404L56.875 30 30 30.0272 30.5511 460 460 459.9596Z" fill="#7a8288" fill-rule="nonzero"></path><path d="M164.822 222.652 74.555 352.456l25.143 17.487 72.995-104.936 143.753 97.54 101.844-169.8-25.388-17.227-86.057 143.509-142.023-96.377Z" fill="#7a8288" fill-rule="nonzero"></path></svg></span></div>
-                        <div><div class="value-stat-header">Value</div><div class="value-stat-data" data-item-field="value-2">&nbsp;</div></div>
-                    </div>
-                    <div class="d-flex value-stat-box bg-primary" title="Desirability of the item - how frequently it is traded">
-                        <div class="value_svg_container"><span class="value_svg"><svg viewBox="0 0 12 12" xmlns="http://www.w3.org/2000/svg" fill-rule="evenodd" clip-rule="evenodd" stroke-linejoin="round" stroke-miterlimit="2"><path d="M5.0795.7363c-1.3619 0-2.4818 1.12-2.4818 2.4818 0 1.362 1.12 2.4819 2.4818 2.4819 1.362 0 2.4818-1.12 2.4818-2.4819 0-1.3619-1.1199-2.4818-2.4818-2.4818Zm-3.097 5.5841h-.0042c-.6815 0-1.242.5605-1.242 1.241 0 1.0495.5171 1.8406 1.3247 2.3556.7952.5067 1.8676.7466 3.0185.7466.5926 0 1.1644-.0631 1.6877-.1944l-1.1355-1.242c-.7548-.8241-.728-2.1136.06-2.9068H1.9814h.001Zm6.5085.6225-.3888-.306a1.4856 1.4856 0 0 0-.9183-.3175c-.8149 0-1.485.67-1.485 1.485 0 .3722.1386.73.3899 1.004l2.1737 2.3764a.311.311 0 0 0 .2285.1013.3116.3116 0 0 0 .2296-.1013l2.1736-2.3764a1.485 1.485 0 0 0 .391-1.004c0-.815-.6712-1.485-1.486-1.485-.332 0-.6557.1117-.9173.3174l-.391.3061Z" fill="#7a8288" fill-rule="nonzero"></path></svg></span></div>
-                        <div><div class="value-stat-header">Demand</div><div class="value-stat-data" data-item-field="demand-2">&nbsp;</div></div>
-                    </div>
-                </div>
-            </div>
+                        <div class="d-flex flex-wrap mt-2">
+                          <div class="filter-range-pair flex-column mr-4 ml-0">
+                            <div class="stat-textbox-title-small" style="color: #adadad;">Value</div>
+                            <div class="d-flex">
+                              <input class="filter-text-box form-control filter-textbox-small" data-item-field="editor-value" type="text" inputmode="numeric" placeholder="0">
+                            </div>
+                          </div>
+                        </div>
 
-            <!-- Ownership -------------------------------------------------- -->
-            <div class="container-fluid px-0" style="max-width: 1138px;">
-                <div class="mx-3 mt-4"><h2 class="section_header">Ownership</h2></div>
-                <div class="mx-0 mx-sm-3 mt-2 ownership-stats-grid">
-                    <div class="ownership-stat-box bg-primary" title="Total number of copies of this item that exist">
-                        <div class="value-stat-header">Total Copies</div>
-                        <div class="value-stat-data" data-item-field="total-copies-2">&nbsp;</div>
-                    </div>
-                    <div class="ownership-stat-box bg-primary" title="Number of copies still available to buy directly from Wanwood">
-                        <div class="value-stat-header">Copies Remaining</div>
-                        <div class="value-stat-data" data-item-field="remaining-2">&nbsp;</div>
-                    </div>
-                    <div class="ownership-stat-box bg-primary" title="Number of copies currently listed for sale by private sellers">
-                        <div class="value-stat-header">Copies For Sale</div>
-                        <div class="value-stat-data" data-item-field="sellers-2">&nbsp;</div>
-                    </div>
-                    <div class="ownership-stat-box bg-primary" title="Total number of resale transactions recorded for this item">
-                        <div class="value-stat-header">Sales</div>
-                        <div class="value-stat-data" data-item-field="sales-2">&nbsp;</div>
-                    </div>
-                    <div class="ownership-stat-box bg-primary" title="Number of distinct players with a copy listed for sale">
-                        <div class="value-stat-header">Distinct Sellers</div>
-                        <div class="value-stat-data" data-item-field="distinct-sellers">&nbsp;</div>
-                    </div>
-                    <div class="ownership-stat-box bg-primary" title="Highest price currently listed by a private seller">
-                        <div class="value-stat-header">Highest Ask</div>
-                        <div class="value-stat-data" data-item-field="highest-ask">&nbsp;</div>
-                    </div>
-                </div>
-            </div>
+                        <div class="stat-textbox-title-small mt-2" style="color: #adadad;">Demand</div>
+                        <div class="d-flex flex-wrap" data-item-field="editor-demand">
+                          <button class="filter-button btn btn-primary" data-demand-value="High" type="button" aria-pressed="false">High</button>
+                          <button class="filter-button btn btn-primary" data-demand-value="Decent" type="button" aria-pressed="false">Decent</button>
+                          <button class="filter-button btn btn-primary" data-demand-value="Low" type="button" aria-pressed="false">Low</button>
+                          <button class="filter-button btn btn-primary" data-demand-value="Terrible" type="button" aria-pressed="false">Terrible</button>
+                          <button class="filter-button btn btn-primary" data-demand-value="None" type="button" aria-pressed="false">Unassigned</button>
+                        </div>
 
-            <!-- Sellers ---------------------------------------------------- -->
-            <div class="container-fluid px-0" style="max-width: 1138px;">
-                <div class="owner_lists_section_header mx-3"><h2 class="section_header">Copies For Sale</h2></div>
-                <div class="mx-0 mx-sm-3 mt-2 bg-primary px-2 py-3">
+                        <div class="stat-textbox-title-small mt-2" style="color: #adadad;">Trend</div>
+                        <div class="d-flex flex-wrap" data-item-field="editor-trend">
+                          <button class="filter-button btn btn-primary" data-trend-value="Raising" type="button" aria-pressed="false">Raising</button>
+                          <button class="filter-button btn btn-primary" data-trend-value="Stable" type="button" aria-pressed="false">Stable</button>
+                          <button class="filter-button btn btn-primary" data-trend-value="Lowering" type="button" aria-pressed="false">Lowering</button>
+                          <button class="filter-button btn btn-primary" data-trend-value="Unstable" type="button" aria-pressed="false">Unstable</button>
+                          <button class="filter-button btn btn-primary" data-trend-value="Fluctuating" type="button" aria-pressed="false">Fluctuating</button>
+                          <button class="filter-button btn btn-primary" data-trend-value="None" type="button" aria-pressed="false">Unassigned</button>
+                        </div>
+
+                        <div class="stat-textbox-title-small mt-2" style="color: #adadad;">Valuation method</div>
+                        <div class="d-flex flex-wrap" data-item-field="editor-method">
+                          <button class="filter-button btn btn-primary" data-method-value="proof" type="button" aria-pressed="false">Proof-Based</button>
+                          <button class="filter-button btn btn-primary" data-method-value="rap" type="button" aria-pressed="false">RAP-Based</button>
+                          <button class="filter-button btn btn-primary" data-method-value="None" type="button" aria-pressed="false">Unassigned</button>
+                        </div>
+
+                        <div class="stat-textbox-title-small mt-2" style="color: #adadad;">Categories</div>
+                        <div class="d-flex flex-wrap" data-item-field="editor-categories">
+                          <button class="filter-button btn btn-primary" data-category-value="rare" type="button" aria-pressed="false">Rare</button>
+                          <button class="filter-button btn btn-primary" data-category-value="projected" type="button" aria-pressed="false">Projected</button>
+                          <button class="filter-button btn btn-primary" data-category-value="tablet" type="button" aria-pressed="false">Tablet</button>
+                          <button class="filter-button btn btn-primary" data-category-value="unobtainable" type="button" aria-pressed="false">Unobtainable</button>
+                          <button class="filter-button btn btn-primary" data-category-value="hoarded" type="button" aria-pressed="false">Hoarded</button>
+                        </div>
+
+                        <div class="stat-textbox-title-small mt-2" style="color: #adadad;">Note</div>
+                        <div class="input-group mt-1">
+                          <input class="form-control form-control-lg rounded-0 shadow border-0" data-item-field="editor-note" style="background-color: #eee;" type="text" maxlength="500" placeholder="Shown on this page under the valuation method">
+                        </div>
+
+                        <div class="mt-3">
+                          <input class="btn btn-flat-light-blue shadow" data-item-field="editor-save" type="submit" value="Save item">
+                        </div>
+                        <div class="mt-2 small" data-item-field="editor-notice" style="color: #7a8288;"></div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="tab-pane" id="stats-pane-more-info">
+                    <div class="d-flex justify-content-around">
+                      <div><div class="d-flex"><div class="mx-2 mt-2 pt-1" title="Number of copies listed for sale by private sellers"><h6 class="card-subtitle mt-1 text-muted stat-header">Sellers</h6><h5 class="card-title mb-1 text-light text-truncate stat-data" data-item-field="sellers">&nbsp;</h5></div></div><div class="d-flex"><div class="mx-2 mt-2 pt-1" title="Original price of the item while it was still being sold"><h6 class="card-subtitle mt-1 text-muted stat-header">Original Price</h6><h5 class="card-title mb-1 text-light text-truncate stat-data" data-item-field="original-price">&nbsp;</h5></div></div><div class="d-flex"><div class="mx-2 mt-2 pt-1" title="Whether Wanwood is still selling copies of this item directly"><h6 class="card-subtitle mt-1 text-muted stat-header">Sold By Wanwood</h6><h5 class="card-title mb-1 text-light text-truncate stat-data" data-item-field="for-sale">&nbsp;</h5></div></div><div class="d-flex"><div class="mx-2 mt-2 pt-1"><h6 class="card-subtitle mt-1 text-muted stat-header">Item ID</h6><h5 class="card-title mb-1 text-light stat-data d-flex align-items-center"><button class="copy-id-button copy-id-inline" type="button" data-item-field="copy-id" data-copy-value="" title="Copy Item ID" aria-label="Copy Item ID"><span class="copy-id-value" data-item-field="id">&nbsp;</span><span class="copy-id-icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M16 1H4a2 2 0 0 0-2 2v14h2V3h12V1zm3 4H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2zm0 16H8V7h11v14z" fill="currentColor"></path></svg></span></button></h5></div></div></div>
+                      <div><div class="d-flex"><div class="mx-2 mt-2 pt-1" title="Total number of resale transactions recorded for this item"><h6 class="card-subtitle mt-1 text-muted stat-header">Sales</h6><h5 class="card-title mb-1 text-light text-truncate stat-data" data-item-field="sales">&nbsp;</h5></div></div><div class="d-flex"><div class="mx-2 mt-2 pt-1" title="Lowest price currently listed by a private seller"><h6 class="card-subtitle mt-1 text-muted stat-header">Best Price</h6><h5 class="card-title mb-1 text-light text-truncate stat-data" data-item-field="best-price-2">&nbsp;</h5></div></div><div class="d-flex"><div class="mx-2 mt-2 pt-1"><h6 class="card-subtitle mt-1 text-muted stat-header">Total Copies</h6><h5 class="card-title mb-1 text-light text-truncate stat-data" data-item-field="total-copies">&nbsp;</h5></div></div><div class="d-flex"><div class="mx-2 mt-2 pt-1" title="Number of distinct players with a copy listed for sale"><h6 class="card-subtitle mt-1 text-muted stat-header">Distinct Sellers</h6><h5 class="card-title mb-1 text-light text-truncate stat-data" data-item-field="distinct-sellers">&nbsp;</h5></div></div><div class="d-flex"><div class="mx-2 mt-2 pt-1" title="Highest price currently listed by a private seller"><h6 class="card-subtitle mt-1 text-muted stat-header">Highest Ask</h6><h5 class="card-title mb-1 text-light text-truncate stat-data" data-item-field="highest-ask">&nbsp;</h5></div></div><div class="d-flex"><div class="mx-2 mt-2 pt-1" title="When the item was created on Wanwood"><h6 class="card-subtitle mt-1 text-muted stat-header">Date Created</h6><h5 class="card-title mb-1 text-light text-truncate stat-data" data-item-field="date-created">&nbsp;</h5></div></div><div class="d-flex"><div class="mx-2 mt-2 pt-1"><h6 class="card-subtitle mt-1 text-muted stat-header">&nbsp;</h6><h5 class="card-title mb-1 stat-data"><a class="about-item-more-info-link" href="#about-this-item" style="color:#4db7d6;">More details <svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false" width="0.85em" height="0.85em" preserveAspectRatio="xMidYMid meet" viewBox="0 0 24 24" style="vertical-align:-0.1em;"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z" fill="#4db7d6"></path></svg></a></h5></div></div></div>
+                    </div>
+                  </div>
+
+                </div>
+                <div class="pb-2 d-block d-sm-none"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- The four headline figures. -->
+          <div class="container-fluid px-0" style="max-width: 1138px;">
+            <div class="mx-0 mx-sm-3 mt-3 value-stats-grid">
+              <div class="d-flex value-stat-box bg-primary" title="Lowest listed selling price of the item by a private seller"><div class="value_svg_container my-auto"><span class="value_svg"><svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill-rule="evenodd" clip-rule="evenodd" stroke-linejoin="round" stroke-miterlimit="2"><path d="M19.6656 5.2204c1.3099.7457 2.1183 2.1261 2.1183 3.62v6.3192c0 1.4938-.8084 2.873-2.1183 3.62l-5.5487 3.1601c-1.3098.747-2.9254.747-4.2352 0L4.333 18.7795c-1.3098-.7469-2.117-2.126-2.117-3.62V8.8405c0-1.4939.8072-2.8743 2.117-3.62l5.5487-3.1602c1.3098-.747 2.9254-.747 4.2352 0l5.5487 3.1602ZM10.6241 3.495l-5.4032 3.077c-.8512.485-1.3746 1.3804-1.3746 2.3505v6.1551c0 .969.5234 1.8655 1.3746 2.3506l5.4032 3.077a2.7813 2.7813 0 0 0 2.7505 0l5.4032-3.077c.8512-.485 1.3758-1.3816 1.3758-2.3506v-6.155c0-.9702-.5246-1.8656-1.3758-2.3506l-5.4032-3.077a2.7813 2.7813 0 0 0-2.7505 0Zm2.5047 1.7195 4.2633 2.4278c.6996.3981 1.13 1.1342 1.13 1.9318v4.8556c0 .7963-.4304 1.5324-1.13 1.9306l-4.2633 2.429a2.285 2.285 0 0 1-2.2589 0l-4.2633-2.429c-.6984-.3982-1.1289-1.1343-1.1289-1.9306V9.574c0-.7976.4305-1.5337 1.1289-1.9318l4.2633-2.4278a2.285 2.285 0 0 1 2.2589 0ZM9.554 14.415h4.892V9.5885H9.554v4.8266Z" fill="#7a8288"></path></svg></span></div><div><div class="value-stat-header">Best Price</div><div class="value-stat-data" data-item-field="best-price">&nbsp;</div></div></div>
+              <div class="d-flex value-stat-box bg-primary" title="(Recent Average Price) An average of the recent sales prices for an item"><div class="value_svg_container my-auto"><span class="value_svg"><svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false" viewBox="0 0 490 490" fill-rule="evenodd" clip-rule="evenodd" stroke-linejoin="round" stroke-miterlimit="2"><path d="M460 459.96v-26.875l-402.601.04L56.875 30 30 30.027 30.551 460 460 459.96Z" fill="#7a8288" fill-rule="nonzero"></path><path d="M341.3208 373.4443c-53.3779 0-74.5808-61.9184-95.0868-121.7906-19.4236-56.7585-39.5441-115.4446-82.8396-115.4446-20.6394 1.2158-38.5803 14.8569-45.2674 34.414l-28.1272-9.445c.7562-2.224 18.8454-54.6234 73.3946-54.6234 64.4984 0 89.1412 71.986 110.9075 135.491 17.926 52.3251 34.844 101.7442 67.019 101.7442 20.6394-1.2158 38.5803-14.8569 45.2674-34.414l28.1123 9.445c-.7413 2.224-18.8305 54.6234-73.3798 54.6234Z" fill="#7a8288" fill-rule="nonzero"></path><path fill="#7a8288" fill-rule="nonzero" d="M128.1227 225.6867h30.6256v30.6256h-30.6256zM66.123 225.6867h31v30.6256h-31zM189.374 225.6867h30.6255v30.6256H189.374zM303.7533 225.6867h30.6256v30.6256h-30.6256zM365.0045 225.6867h30.6256v30.6256h-30.6256zM426.2557 225.6867h30.6256v30.6256h-30.6256z"></path></svg></span></div><div><div class="value-stat-header">RAP</div><div class="value-stat-data" data-item-field="rap">&nbsp;</div></div></div>
+              <div class="d-flex value-stat-box bg-primary" title="Wolimons' value is an appraisal of an item's worth based on previous transactions. May differ from current market trends"><div class="value_svg_container my-auto"><span class="value_svg"><svg viewBox="0 0 490 490" xmlns="http://www.w3.org/2000/svg" fill-rule="evenodd" clip-rule="evenodd" stroke-linejoin="round" stroke-miterlimit="2"><path d="M460 459.9596v-26.875l-402.6011.0404L56.875 30 30 30.0272 30.5511 460 460 459.9596Z" fill="#7a8288" fill-rule="nonzero"></path><path d="M164.822 222.652 74.555 352.456l25.143 17.487 72.995-104.936 143.753 97.54 101.844-169.8-25.388-17.227-86.057 143.509-142.023-96.377Z" fill="#7a8288" fill-rule="nonzero"></path></svg></span></div><div><div class="value-stat-header">Value</div><div class="value-stat-data" data-item-field="value">&nbsp;</div></div></div>
+              <div class="d-flex value-stat-box bg-primary" title="Wolimons' demand is an appraisal of an item's desirability and how frequently it is traded or sold. May differ from current market trends"><div class="value_svg_container my-auto"><span class="value_svg"><svg viewBox="0 0 12 12" xmlns="http://www.w3.org/2000/svg" fill-rule="evenodd" clip-rule="evenodd" stroke-linejoin="round" stroke-miterlimit="2"><path d="M5.0795.7363c-1.3619 0-2.4818 1.12-2.4818 2.4818 0 1.362 1.12 2.4819 2.4818 2.4819 1.362 0 2.4818-1.12 2.4818-2.4819 0-1.3619-1.1199-2.4818-2.4818-2.4818Zm-3.097 5.5841h-.0042c-.6815 0-1.242.5605-1.242 1.241 0 1.0495.5171 1.8406 1.3247 2.3556.7952.5067 1.8676.7466 3.0185.7466.5926 0 1.1644-.0631 1.6877-.1944l-1.1355-1.242c-.7548-.8241-.728-2.1136.06-2.9068H1.9814h.001Zm6.5085.6225-.3888-.306a1.4856 1.4856 0 0 0-.9183-.3175c-.8149 0-1.485.67-1.485 1.485 0 .3722.1386.73.3899 1.004l2.1737 2.3764a.311.311 0 0 0 .2285.1013.3116.3116 0 0 0 .2296-.1013l2.1736-2.3764a1.485 1.485 0 0 0 .391-1.004c0-.815-.6712-1.485-1.486-1.485-.332 0-.6557.1117-.9173.3174l-.391.3061Z" fill="#7a8288" fill-rule="nonzero"></path></svg></span></div><div><div class="value-stat-header">Demand</div><div class="value-stat-data" data-item-field="demand">&nbsp;</div></div></div>
+            </div>
+          </div>
+
+          <!-- Charts. The tab strip is the snapshot's; every pane is drawn by
+               the profile page's chart module, so the item page and the player
+               page render the same Highstock chart. -->
+          <div class="container-fluid px-0" style="max-width: 1138px;">
+            <div class="mx-3 mt-4"><h2 class="section_header">Charts</h2></div>
+            <div class="mx-0 mx-sm-3 mt-2">
+              <ul class="nav nav-tabs nav-fill nav-justified" id="chart_tabs" role="tablist" data-tabs>
+                <li class="nav-item" role="presentation"><a class="nav-link active rounded-0" id="history_chart_tab" href="#history_chart_container" role="tab" data-toggle="tab">History</a></li>
+                <li class="nav-item" role="presentation"><a class="nav-link rounded-0" id="value_chart_tab" href="#value_chart_container" role="tab" data-toggle="tab">Value</a></li>
+                <li class="nav-item" role="presentation"><a class="nav-link rounded-0" id="copies_chart_tab" href="#copies_chart_container" role="tab" data-toggle="tab">Copies</a></li>
+                <li class="nav-item" role="presentation"><a class="nav-link rounded-0" id="ownership_chart_tab" href="#ownership_chart_container" role="tab" data-toggle="tab">Ownership</a></li>
+              </ul>
+              <div class="tab-content clearfix" id="chart_tabsContent" style="margin-top: 1px;">
+                <div class="tab-pane active item_page_chart_container" id="history_chart_container" role="tabpanel"><div class="item_chart_inner" id="history_chart_div"></div></div>
+                <div class="tab-pane item_page_chart_container" id="value_chart_container" role="tabpanel"><div class="item_chart_inner" id="value_chart_div"></div></div>
+                <div class="tab-pane item_page_chart_container" id="copies_chart_container" role="tabpanel"><div class="item_chart_inner" id="copies_chart_div"></div></div>
+                <div class="tab-pane item_page_chart_container" id="ownership_chart_container" role="tabpanel"><div class="item_chart_inner" id="ownership_chart_div"></div></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Ownership. Six boxes, straight from the snapshot. -->
+          <div class="container-fluid px-0" style="max-width: 1138px;">
+            <div class="mx-3 mt-4"><h2 class="section_header">Ownership</h2></div>
+            <div class="mx-0 mx-sm-3 mt-2 ownership-stats-grid">
+              <div class="ownership-stat-box bg-primary" title="Total number of copies, even including those which are hidden by owners with private inventories"><div class="value-stat-header">Total Copies</div><div class="value-stat-data" data-item-field="total-copies-2">&nbsp;</div></div>
+              <div class="ownership-stat-box bg-primary" title="Number of copies whose owner is visible"><div class="value-stat-header">Available Copies</div><div class="value-stat-data" data-item-field="available-copies-2">&nbsp;</div></div>
+              <div class="ownership-stat-box bg-primary" title="Copies with no visible owner (hidden by private inventories or deleted)"><div class="value-stat-header">Hidden Copies</div><div class="value-stat-data" data-item-field="hidden-copies">&nbsp;</div></div>
+              <div class="ownership-stat-box bg-primary" title="Total number of players which own at least one copy of the item (excluding those with private inventories)"><div class="value-stat-header">Owners</div><div class="value-stat-data" data-item-field="owners">&nbsp;</div></div>
+              <div class="ownership-stat-box bg-primary" title="Number of available copies owned by players that have more than one copy of the item"><div class="value-stat-header">Hoarded Copies</div><div class="value-stat-data" data-item-field="hoarded-copies">&nbsp;</div></div>
+              <div class="ownership-stat-box bg-primary" title="Percent of available copies that are owned by a player that has more than one copy of the item"><div class="value-stat-header">Percent Hoarded</div><div class="value-stat-data" data-item-field="hoarded-pct-2">&nbsp;</div></div>
+            </div>
+          </div>
+
+          <!-- Owner lists. The snapshot's three tabs and its sortable,
+               searchable, paged table; the "Copies For Sale" tab is the one
+               the previous item page had, kept because Wanwood does list
+               resellers and the snapshot's site does not show them. -->
+          <div class="container-fluid px-0" style="max-width: 1138px;">
+            <div class="owner_lists_section_header mx-3 mt-4"><h2 class="section_header">Owner Lists</h2></div>
+            <div class="mx-0 mx-sm-3 mt-2 mb-4">
+              <ul class="nav nav-tabs nav-fill nav-justified" id="owner_list_tabs" role="tablist" data-tabs>
+                <li class="nav-item" role="presentation"><a class="nav-link rounded-0 active" href="#all_copies_table_container" role="tab" data-toggle="tab">All Copies</a></li>
+                <li class="nav-item" role="presentation"><a class="nav-link rounded-0" href="#for_sale_table_container" role="tab" data-toggle="tab">Copies For Sale</a></li>
+                <li class="nav-item" role="presentation"><a class="nav-link rounded-0" href="#hoards_table_container" role="tab" data-toggle="tab">Hoards</a></li>
+              </ul>
+              <div class="tab-content px-2 bg-primary owner_lists_grid" id="owner_list_tabsContent">
+
+                <div class="tab-pane pt-3 pb-1 active" id="all_copies_table_container" role="tabpanel">
+                  <div class="koro-dt" data-dt="all_copies_table">
+                    <div class="d-flex justify-content-between align-items-center flex-wrap koro-dt-controls">
+                      <label class="koro-dt-length">Show <select class="custom-select custom-select-sm" data-dt-length>
+                        <option value="10" selected>10</option><option value="25">25</option><option value="50">50</option><option value="100">100</option>
+                      </select> entries</label>
+                      <label class="koro-dt-search">Search:<input type="search" class="form-control form-control-sm" data-dt-search value=""></label>
+                    </div>
                     <div class="owners-table-scroll">
-                        <table class="table table-striped table-hover table-sm owners-table mb-0">
-                            <thead><tr><th>Seller</th><th>Serial</th><th class="text-right">Price</th><th>UAID</th></tr></thead>
-                            <tbody data-item-field="sellers-table"></tbody>
-                        </table>
+                      <table class="table table-sm owners-table koro-dt-table">
+                        <thead><tr><th class="koro-dt-avatar"></th><th class="sorting" data-dt-col="1">Player</th><th class="sorting_asc" data-dt-col="2">Serial</th><th class="sorting" data-dt-col="3">Owned Since</th><th class="sorting" data-dt-col="4">UAID</th><th class="">Trading</th></tr></thead>
+                        <tbody data-dt-body data-dt-empty="Nobody visible owns a copy of this item."></tbody>
+                      </table>
                     </div>
-                </div>
-            </div>
-
-            <!-- Recent price history --------------------------------------- -->
-            <div class="container-fluid px-0" style="max-width: 1138px;" data-item-field="history-section" hidden>
-                <div class="mx-3 mt-4"><h2 class="section_header">Recent Price History</h2></div>
-                <div class="mx-0 mx-sm-3 mt-2 bg-primary px-2 py-3">
-                    <div class="owners-table-scroll" style="min-height:0;">
-                        <table class="table table-striped table-hover table-sm owners-table mb-0">
-                            <thead><tr><th>Date</th><th class="text-right">Average Price</th><th class="text-right">Sales</th></tr></thead>
-                            <tbody data-item-field="history-table"></tbody>
-                        </table>
+                    <div class="d-flex justify-content-between align-items-center flex-wrap koro-dt-footer">
+                      <div class="koro-dt-info" data-dt-info></div>
+                      <ul class="pagination pagination-sm mb-0" data-dt-pages></ul>
                     </div>
+                  </div>
                 </div>
-            </div>
 
-            <!-- More limiteds ---------------------------------------------- -->
-            <div class="container-fluid px-0" style="max-width: 1138px;">
-                <div class="d-flex justify-content-between mx-3 flex-wrap mt-4">
-                    <h2 class="section_header">More Wanwood Limiteds</h2>
-                    <a class="btn btn-flat-light-blue-sm rounded-pill" href="/catalog" role="button" style="width: 132px; max-height: 32px;"><span class="text-nowrap">View All</span></a>
-                </div>
-                <div class="mx-3 mt-2 gen_items_slider_outer_container">
-                    <div class="koro_slider"><div class="koro_slider_track" id="latest_limiteds_track"></div></div>
-                </div>
-            </div>
-
-            <!-- About ------------------------------------------------------ -->
-            <div class="container-fluid px-0 about-item-anchor-target" id="about-this-item" style="max-width: 1138px;">
-                <div class="mx-sm-3 mt-4">
-                    <h2 class="section_header mb-2">About This Item</h2>
-                    <div class="about-item-card px-3 py-3">
-                        <div class="about-item-kicker mb-2">Overview</div>
-                        <p class="about-item-overview mb-0" data-item-field="about-overview">&nbsp;</p>
-                        <div class="about-item-divider" data-item-field="about-description-divider" hidden></div>
-                        <div class="about-item-kicker mb-2" data-item-field="about-description-kicker" hidden>Wanwood Description</div>
-                        <div class="about-item-description" data-item-field="about-description" hidden></div>
-                        <div class="about-item-divider"></div>
-                        <div class="about-item-kicker mb-2">Identifiers</div>
-                        <div class="about-item-facts">
-                            <button class="about-item-fact copy-id-button" type="button" data-item-field="copy-id" data-copy-value="" title="Copy Asset ID" aria-label="Copy Asset ID"><span class="about-item-fact-label">Asset ID:</span><span class="about-item-fact-value copy-id-value" data-item-field="id">&nbsp;</span><span class="copy-id-icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M16 1H4a2 2 0 0 0-2 2v14h2V3h12V1zm3 4H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2zm0 16H8V7h11v14z" fill="currentColor"></path></svg></span></button>
-                            <button class="about-item-fact copy-id-button" type="button" data-item-field="copy-link" data-copy-value="" title="Copy page link" aria-label="Copy page link"><span class="about-item-fact-label">Page:</span><span class="about-item-fact-value copy-id-value" data-item-field="page-link">&nbsp;</span><span class="copy-id-icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M16 1H4a2 2 0 0 0-2 2v14h2V3h12V1zm3 4H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2zm0 16H8V7h11v14z" fill="currentColor"></path></svg></span></button>
-                        </div>
+                <div class="tab-pane pt-3 pb-1" id="for_sale_table_container" role="tabpanel">
+                  <div class="koro-dt" data-dt="for_sale_table">
+                    <div class="d-flex justify-content-between align-items-center flex-wrap koro-dt-controls">
+                      <label class="koro-dt-length">Show <select class="custom-select custom-select-sm" data-dt-length>
+                        <option value="10" selected>10</option><option value="25">25</option><option value="50">50</option><option value="100">100</option>
+                      </select> entries</label>
+                      <label class="koro-dt-search">Search:<input type="search" class="form-control form-control-sm" data-dt-search value=""></label>
                     </div>
+                    <div class="owners-table-scroll">
+                      <table class="table table-sm owners-table koro-dt-table">
+                        <thead><tr><th class="koro-dt-avatar"></th><th class="sorting" data-dt-col="1">Seller</th><th class="sorting" data-dt-col="2">Serial</th><th class="sorting_asc" data-dt-col="3">Price</th><th class="sorting" data-dt-col="4">UAID</th><th class="">Trading</th></tr></thead>
+                        <tbody data-dt-body data-dt-empty="Nobody is selling a copy of this item right now."></tbody>
+                      </table>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center flex-wrap koro-dt-footer">
+                      <div class="koro-dt-info" data-dt-info></div>
+                      <ul class="pagination pagination-sm mb-0" data-dt-pages></ul>
+                    </div>
+                  </div>
                 </div>
-            </div>
 
-            <div class="mt-4"></div>
+                <div class="tab-pane pt-3 pb-1" id="hoards_table_container" role="tabpanel">
+                  <div class="koro-dt" data-dt="hoards_table">
+                    <div class="d-flex justify-content-between align-items-center flex-wrap koro-dt-controls">
+                      <label class="koro-dt-length">Show <select class="custom-select custom-select-sm" data-dt-length>
+                        <option value="10" selected>10</option><option value="25">25</option><option value="50">50</option><option value="100">100</option>
+                      </select> entries</label>
+                      <label class="koro-dt-search">Search:<input type="search" class="form-control form-control-sm" data-dt-search value=""></label>
+                    </div>
+                    <div class="owners-table-scroll">
+                      <table class="table table-sm owners-table koro-dt-table">
+                        <thead><tr><th class="koro-dt-avatar"></th><th class="sorting" data-dt-col="1">Player</th><th class="sorting_desc" data-dt-col="2">Copies</th><th class="">Serials</th><th class="">Trading</th></tr></thead>
+                        <tbody data-dt-body data-dt-empty="Nobody holds more than one copy of this item."></tbody>
+                      </table>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center flex-wrap koro-dt-footer">
+                      <div class="koro-dt-info" data-dt-info></div>
+                      <ul class="pagination pagination-sm mb-0" data-dt-pages></ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- More items. The previous page's slider, kept as it is. -->
+          <div class="container-fluid px-0" style="max-width: 1138px;">
+            <div class="d-flex justify-content-between mx-3 flex-wrap mt-4">
+              <h2 class="section_header">More Wanwood Limiteds</h2>
+              <a class="btn btn-flat-light-blue-sm rounded-pill" href="/catalog" role="button" style="width: 132px; max-height: 32px;"><span class="text-nowrap">View All</span></a>
+            </div>
+            <div class="mx-3 mt-2 gen_items_slider_outer_container">
+              <div class="koro_slider"><div class="koro_slider_track" id="latest_limiteds_track"></div></div>
+            </div>
+          </div>
+
+          <!-- About this item. -->
+          <div class="container-fluid px-0 about-item-anchor-target" id="about-this-item" style="max-width: 1138px;">
+            <div class="mx-sm-3 mt-4">
+              <h2 class="section_header mb-2">About This Item</h2>
+              <div class="about-item-card px-3 py-3">
+                <div class="about-item-kicker mb-2">Overview</div>
+                <p class="about-item-overview mb-0" data-item-field="about-overview">&nbsp;</p>
+                <div class="about-item-divider" data-item-field="about-description-divider" hidden></div>
+                <div class="about-item-kicker mb-2" data-item-field="about-description-kicker" hidden>Wanwood Description</div>
+                <div class="about-item-description" data-item-field="about-description" hidden></div>
+                <div class="about-item-divider"></div>
+                <div class="about-item-kicker mb-2">Identifiers</div>
+                <div class="about-item-facts">
+                  <button class="about-item-fact copy-id-button" type="button" data-item-field="copy-id" data-copy-value="" title="Copy Asset ID" aria-label="Copy Asset ID"><span class="about-item-fact-label">Asset ID:</span><span class="about-item-fact-value copy-id-value" data-item-field="id">&nbsp;</span><span class="copy-id-icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M16 1H4a2 2 0 0 0-2 2v14h2V3h12V1zm3 4H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2zm0 16H8V7h11v14z" fill="currentColor"></path></svg></span></button>
+                  <button class="about-item-fact copy-id-button" type="button" data-item-field="copy-link" data-copy-value="" title="Copy page link" aria-label="Copy page link"><span class="about-item-fact-label">Page:</span><span class="about-item-fact-value copy-id-value" data-item-field="page-link">&nbsp;</span><span class="copy-id-icon" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M16 1H4a2 2 0 0 0-2 2v14h2V3h12V1zm3 4H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2zm0 16H8V7h11v14z" fill="currentColor"></path></svg></span></button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-4"></div>
         </div>
         <div id="right_gutter"></div>
     </div>
 
     <footer class="bg-primary mt-4"><div style="max-width: 1138px; margin: auto;"><div class="sitefooter-info-section-grid"><div><div class="d-flex"><div class="my-auto"><div style="width: 17px; margin-top: 2px; margin-right: 2px;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1094 1466.2"><path fill="#0084dd" d="M1094 521.6 0 0v469.5l141-67.4 250 119.2L0 707.8v369.7l815.6 388.7L315 893l779-371.4z"></path></svg></div></div><div class="sitefooter-about-title ml-1">Wolimons</div></div><div style="color: #aaa; font-size: 0.9em;">Wolimons is a fan-made item values &amp; trading resource. Track limited item values, RAP, demand and trends, and evaluate trades with the trade calculator.</div></div><div><div class="sitefooter-links-title">Features</div><a class="sitefooter-links-link" href="/catalog">Item Catalog</a><a class="sitefooter-links-link" href="/tradecalculator">Trade Calculator</a><a class="sitefooter-links-link" href="/valuechanges">Value Changes</a></div><div><div class="sitefooter-links-title">Community</div><a class="sitefooter-links-link" href="https://discord.gg/vCwRzWSMf" target="_blank" rel="noopener">Discord Server</a></div></div><div class="text-center py-3" style="color: #777; font-size: 0.8em;">Wolimons is not affiliated with Roblox Corporation or Rolimon's.</div></div></footer>
 
-<div class="modal" id="search_modal" tabindex="-1" role="dialog" style="z-index: 2000;"><div class="modal-dialog" id="global_search_modal_dialog" role="document" style="max-width: 1000px;"><div class="modal-content bg-primary shadow text-center" style="border-radius: 1em;"><div class="modal-header bg-dark py-2" style="border-top-left-radius: 1em; border-top-right-radius: 1em;"><h5 class="modal-title text-light">Search</h5><button class="close text-light" type="button" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">×</span></button></div><div class="modal-body text-center pb-3"><ul class="nav nav-tabs nav-fill nav-justified"><li class="nav-item global_search_tab_pane"><a class="nav-link p-1 active" href="#global_items_search_tab_pane" data-toggle="tab" data-search-tab="item"><div class="global_search_tab_icon_svg"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 62 62" fill-rule="evenodd" clip-rule="evenodd" stroke-linejoin="round" stroke-miterlimit="2"><path d="M4 19.8c3.6-2.9 8.8.6 8.3 5l-2-.5s-.8-2-2.1-2.8c-.7-.5-1.6-.5-2.6.3-3 2.4.6 5.7 3.4 9.1l5.6 7.2 10 12.6 4.2 6.6L23 52 13 39.3 2.8 26.4A5 5 0 0 1 4 19.8Zm43.4 9.3-1.6-1c-3.7-1.7-8-3.4-12.6-4.9l-.8-.2A106.4 106.4 0 0 0 19.5 19l-.8-.2a5.9 5.9 0 0 0-2-.2c-.4 0-.4.2-.4.2l-.9 2.7s2 2.5 15 7c13.2 4.4 16.2 3.6 16.2 3.6l1-2.7s.2-.1-.3-.5Zm-13.8-8.7a205 205 0 0 1 10.1 3.7l3.3-9.8c1-3-9.4-6.4-9.4-6.4S27.2 4.2 26 7.2L22.8 17l10.7 3.3Zm9 25.4S37 55.2 32.5 56c0 0-1.1.5-3.8-7.7-2.6-8.2-1.4-8.5-1.4-8.5 4.2-1.9 14.3 2.6 14.3 2.6l2.8-1s5.6-9.4 10-10.3c0 0 1.2-.5 3.8 7.7s1.4 8.5 1.4 8.5c-4.2 1.9-14.2-2.5-14.2-2.5l-2.8.9Z" fill="currentColor" fill-rule="nonzero"></path></svg></div><div class="global_search_tab_title">LIMITEDS</div></a></li><li class="nav-item global_search_tab_pane"><a class="nav-link p-1" href="#global_players_search_tab_pane" data-toggle="tab" data-search-tab="player"><div class="global_search_tab_icon_svg"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill-rule="evenodd" clip-rule="evenodd" stroke-linejoin="round" stroke-miterlimit="2"><path d="M16.76 12.87c1.5 1.01 2.93 2.23 2.93 4.06v4.15h3.64v-4.15c0-2.38-3.56-3.63-6.57-4.06Z" fill="currentColor"></path><circle cx="9" cy="8" r="4" transform="translate(-.31 -1.44) scale(1.09003)" fill="currentColor"></circle><path d="M15.41 11.64a4.36 4.36 0 1 0-1.45-8.46 6.54 6.54 0 0 1 0 8.2c.46.15.94.26 1.45.26ZM9.5 12.78c-2.91 0-8.83 1.25-8.83 4.15v4.15h17.65v-4.15c0-2.9-5.91-4.15-8.82-4.15Z" fill="currentColor"></path></svg></div><div class="global_search_tab_title">PLAYERS</div></a></li><li class="nav-item global_search_tab_pane"><a class="nav-link p-1" href="#global_groups_search_tab_pane" data-toggle="tab" data-search-tab="group"><div class="global_search_tab_icon_svg"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill-rule="evenodd" clip-rule="evenodd" stroke-linejoin="round" stroke-miterlimit="2"><path d="M12.42 7.92c.54 0 1 .42 1.07.96v4.86c0 2.06-1.7 3.76-3.75 3.76-2 0-3.66-1.59-3.76-3.58V9c0-.54.4-1 .95-1.07h5.49Zm-7.23 0a2.16 2.16 0 0 0-.28.89L4.9 9V13.93a4.81 4.81 0 0 0 .5 1.94 3.08 3.08 0 0 1-1.19.24 3.1 3.1 0 0 1-3.07-2.9V9c0-.54.4-1 .94-1.07H5.2Zm9.1 0h3c.54 0 1 .42 1.07.96v4.16a3.1 3.1 0 0 1-4.3 2.83 4.81 4.81 0 0 0 .5-1.87l.01-.29V8.84a2.14 2.14 0 0 0-.29-.92ZM9.73 2.5c1.32 0 2.4 1.09 2.4 2.4 0 1.32-1.08 2.4-2.4 2.4s-2.4-1.08-2.4-2.4c0-1.31 1.09-2.4 2.4-2.4Zm5.38.68c1.14 0 2.07.93 2.07 2.06s-.93 2.07-2.07 2.07a2.07 2.07 0 0 1-2.06-2.07c0-1.13.93-2.06 2.06-2.06Zm-10.74 0c1.13 0 2.06.93 2.06 2.06S5.5 7.31 4.37 7.31A2.07 2.07 0 0 1 2.3 5.24c0-1.13.94-2.06 2.07-2.06Z" fill-rule="nonzero" fill="currentColor"></path></svg></div><div class="global_search_tab_title">GROUPS</div></a></li></ul><div class="tab-content"><div class="tab-pane active" id="global_items_search_tab_pane"><div class="mt-2 input-group shadow"><input class="form-control form-control-lg rounded-0 shadow border-0" id="global_item_search_textbox" style="background-color: #eee;" type="text" placeholder="Search limiteds" autocapitalize="off" spellcheck="false"><input class="btn btn-flat-dark-gray-lg-font btn-square shadow" id="global_item_search_textbox_clear" type="submit" value="×"></div><div class="mt-3 text-left global-search-results" id="global_item_search_results" style="min-height: 300px;"><div class="search-item-card-grid"></div></div></div><div class="tab-pane" id="global_players_search_tab_pane"><div class="mt-2 input-group shadow"><input class="form-control form-control-lg rounded-0 shadow border-0" id="global_player_search_textbox" style="background-color: #eee;" type="text" placeholder="Search players" autocapitalize="off" spellcheck="false"><input class="btn btn-flat-dark-gray-lg-font btn-square shadow" id="global_player_search_textbox_clear" type="submit" value="×"></div><div class="mt-3 text-left global-search-results" id="global_player_search_results" style="min-height: 300px;"><div class="text-center py-5 small" style="color:#7a8288;">Type an exact Wanwood username</div></div></div><div class="tab-pane" id="global_groups_search_tab_pane"><div class="mt-2 input-group shadow"><input class="form-control form-control-lg rounded-0 shadow border-0" id="global_group_search_textbox" style="background-color: #eee;" type="text" placeholder="Search groups" autocapitalize="off" spellcheck="false"><input class="btn btn-flat-dark-gray-lg-font btn-square shadow" id="global_group_search_textbox_clear" type="submit" value="×"></div><div class="mt-3 text-left global-search-results" id="global_group_search_results" style="min-height: 300px;"><div class="text-center py-5 small" style="color:#7a8288;">Type to search groups</div></div></div></div></div></div></div></div><button id="scroll-to-top" aria-label="Scroll to top"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"><path d="M7.41 15.41 12 10.83l4.59 4.58L18 14l-6-6-6 6z" fill="#fff"></path></svg></button><script src="/assets/js/config.js?v=2"></script><script src="/assets/js/values.js?v=2"></script><script src="/assets/js/wanwood-api.js?v=2"></script><script src="/assets/js/account.js?v=2"></script><script src="/assets/js/prefs.js?v=2"></script><script src="/assets/js/item.js?v=2" defer></script><script src="/assets/js/item-cards.js?v=2" defer></script><script src="/assets/js/navbar.js?v=2" defer></script></body></html>
+<div class="modal" id="search_modal" tabindex="-1" role="dialog" style="z-index: 2000;"><div class="modal-dialog" id="global_search_modal_dialog" role="document" style="max-width: 1000px;"><div class="modal-content bg-primary shadow text-center" style="border-radius: 1em;"><div class="modal-header bg-dark py-2" style="border-top-left-radius: 1em; border-top-right-radius: 1em;"><h5 class="modal-title text-light">Search</h5><button class="close text-light" type="button" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">×</span></button></div><div class="modal-body text-center pb-3"><ul class="nav nav-tabs nav-fill nav-justified"><li class="nav-item global_search_tab_pane"><a class="nav-link p-1 active" href="#global_items_search_tab_pane" data-toggle="tab" data-search-tab="item"><div class="global_search_tab_icon_svg"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 62 62" fill-rule="evenodd" clip-rule="evenodd" stroke-linejoin="round" stroke-miterlimit="2"><path d="M4 19.8c3.6-2.9 8.8.6 8.3 5l-2-.5s-.8-2-2.1-2.8c-.7-.5-1.6-.5-2.6.3-3 2.4.6 5.7 3.4 9.1l5.6 7.2 10 12.6 4.2 6.6L23 52 13 39.3 2.8 26.4A5 5 0 0 1 4 19.8Zm43.4 9.3-1.6-1c-3.7-1.7-8-3.4-12.6-4.9l-.8-.2A106.4 106.4 0 0 0 19.5 19l-.8-.2a5.9 5.9 0 0 0-2-.2c-.4 0-.4.2-.4.2l-.9 2.7s2 2.5 15 7c13.2 4.4 16.2 3.6 16.2 3.6l1-2.7s.2-.1-.3-.5Zm-13.8-8.7a205 205 0 0 1 10.1 3.7l3.3-9.8c1-3-9.4-6.4-9.4-6.4S27.2 4.2 26 7.2L22.8 17l10.7 3.3Zm9 25.4S37 55.2 32.5 56c0 0-1.1.5-3.8-7.7-2.6-8.2-1.4-8.5-1.4-8.5 4.2-1.9 14.3 2.6 14.3 2.6l2.8-1s5.6-9.4 10-10.3c0 0 1.2-.5 3.8 7.7s1.4 8.5 1.4 8.5c-4.2 1.9-14.2-2.5-14.2-2.5l-2.8.9Z" fill="currentColor" fill-rule="nonzero"></path></svg></div><div class="global_search_tab_title">LIMITEDS</div></a></li><li class="nav-item global_search_tab_pane"><a class="nav-link p-1" href="#global_players_search_tab_pane" data-toggle="tab" data-search-tab="player"><div class="global_search_tab_icon_svg"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill-rule="evenodd" clip-rule="evenodd" stroke-linejoin="round" stroke-miterlimit="2"><path d="M16.76 12.87c1.5 1.01 2.93 2.23 2.93 4.06v4.15h3.64v-4.15c0-2.38-3.56-3.63-6.57-4.06Z" fill="currentColor"></path><circle cx="9" cy="8" r="4" transform="translate(-.31 -1.44) scale(1.09003)" fill="currentColor"></circle><path d="M15.41 11.64a4.36 4.36 0 1 0-1.45-8.46 6.54 6.54 0 0 1 0 8.2c.46.15.94.26 1.45.26ZM9.5 12.78c-2.91 0-8.83 1.25-8.83 4.15v4.15h17.65v-4.15c0-2.9-5.91-4.15-8.82-4.15Z" fill="currentColor"></path></svg></div><div class="global_search_tab_title">PLAYERS</div></a></li><li class="nav-item global_search_tab_pane"><a class="nav-link p-1" href="#global_groups_search_tab_pane" data-toggle="tab" data-search-tab="group"><div class="global_search_tab_icon_svg"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill-rule="evenodd" clip-rule="evenodd" stroke-linejoin="round" stroke-miterlimit="2"><path d="M12.42 7.92c.54 0 1 .42 1.07.96v4.86c0 2.06-1.7 3.76-3.75 3.76-2 0-3.66-1.59-3.76-3.58V9c0-.54.4-1 .95-1.07h5.49Zm-7.23 0a2.16 2.16 0 0 0-.28.89L4.9 9V13.93a4.81 4.81 0 0 0 .5 1.94 3.08 3.08 0 0 1-1.19.24 3.1 3.1 0 0 1-3.07-2.9V9c0-.54.4-1 .94-1.07H5.2Zm9.1 0h3c.54 0 1 .42 1.07.96v4.16a3.1 3.1 0 0 1-4.3 2.83 4.81 4.81 0 0 0 .5-1.87l.01-.29V8.84a2.14 2.14 0 0 0-.29-.92ZM9.73 2.5c1.32 0 2.4 1.09 2.4 2.4 0 1.32-1.08 2.4-2.4 2.4s-2.4-1.08-2.4-2.4c0-1.31 1.09-2.4 2.4-2.4Zm5.38.68c1.14 0 2.07.93 2.07 2.06s-.93 2.07-2.07 2.07a2.07 2.07 0 0 1-2.06-2.07c0-1.13.93-2.06 2.06-2.06Zm-10.74 0c1.13 0 2.06.93 2.06 2.06S5.5 7.31 4.37 7.31A2.07 2.07 0 0 1 2.3 5.24c0-1.13.94-2.06 2.07-2.06Z" fill-rule="nonzero" fill="currentColor"></path></svg></div><div class="global_search_tab_title">GROUPS</div></a></li></ul><div class="tab-content"><div class="tab-pane active" id="global_items_search_tab_pane"><div class="mt-2 input-group shadow"><input class="form-control form-control-lg rounded-0 shadow border-0" id="global_item_search_textbox" style="background-color: #eee;" type="text" placeholder="Search limiteds" autocapitalize="off" spellcheck="false"><input class="btn btn-flat-dark-gray-lg-font btn-square shadow" id="global_item_search_textbox_clear" type="submit" value="×"></div><div class="mt-3 text-left global-search-results" id="global_item_search_results" style="min-height: 300px;"><div class="search-item-card-grid"></div></div></div><div class="tab-pane" id="global_players_search_tab_pane"><div class="mt-2 input-group shadow"><input class="form-control form-control-lg rounded-0 shadow border-0" id="global_player_search_textbox" style="background-color: #eee;" type="text" placeholder="Search players" autocapitalize="off" spellcheck="false"><input class="btn btn-flat-dark-gray-lg-font btn-square shadow" id="global_player_search_textbox_clear" type="submit" value="×"></div><div class="mt-3 text-left global-search-results" id="global_player_search_results" style="min-height: 300px;"><div class="text-center py-5 small" style="color:#7a8288;">Type an exact Wanwood username</div></div></div><div class="tab-pane" id="global_groups_search_tab_pane"><div class="mt-2 input-group shadow"><input class="form-control form-control-lg rounded-0 shadow border-0" id="global_group_search_textbox" style="background-color: #eee;" type="text" placeholder="Search groups" autocapitalize="off" spellcheck="false"><input class="btn btn-flat-dark-gray-lg-font btn-square shadow" id="global_group_search_textbox_clear" type="submit" value="×"></div><div class="mt-3 text-left global-search-results" id="global_group_search_results" style="min-height: 300px;"><div class="text-center py-5 small" style="color:#7a8288;">Type to search groups</div></div></div></div></div></div></div></div><button id="scroll-to-top" aria-label="Scroll to top"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"><path d="M7.41 15.41 12 10.83l4.59 4.58L18 14l-6-6-6 6z" fill="#fff"></path></svg></button><script src="/assets/js/config.js?v=2"></script><script src="/assets/js/values.js?v=2"></script><script src="/assets/js/wanwood-api.js?v=2"></script><script src="/assets/js/account.js?v=2"></script><script src="/assets/js/prefs.js?v=2"></script><script src="/assets/js/history-chart.js?v=2"></script><script src="/assets/js/koro-table.js?v=2"></script><script src="/assets/js/item.js?v=2" defer></script><script src="/assets/js/item-cards.js?v=2" defer></script><script src="/assets/js/navbar.js?v=2" defer></script></body></html>

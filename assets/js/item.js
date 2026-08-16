@@ -15,19 +15,44 @@
  * ---------------------------------------------------------------------------
  * WHERE THE NUMBERS COME FROM
  * ---------------------------------------------------------------------------
- *   api/marketplace/productinfo   name, description, type, creator, for sale
+ *   api/marketplace/productinfo       name, description, type, creator,
+ *                                     original price, for sale
  *   economy/v1/assets/N/resale-data   RAP, total copies, sales, remaining,
- *                                     and the sparse price/volume history
+ *                                     and the price/volume history the charts
+ *                                     are drawn from
  *   economy/v1/assets/N/resellers     the live sale listings -> best price,
- *                                     seller count, the "Copies For Sale" table
+ *                                     seller count, the Copies For Sale tab
+ *   inventory/v2/assets/N/owners      every visible copy -> the All Copies and
+ *                                     Hoards tabs, the Ownership boxes, and
+ *                                     the Copies and Ownership charts
  *   api/v1/items/restrictions         Limited / Limited U flag
  *   thumbnails/v1/assets              the image
- *   values.js                         Value and Demand. Community-set by hand,
+ *   values.js                         Value, Demand, Trend, valuation method
+ *                                     and the value team's note. All hand-set,
  *                                     never fetched.
  *
- * Wanwood has no source for Demand or an acronym, so Demand comes from
- * values.js when a maintainer has set it and stays blank otherwise - it is
- * never faked out of a price field. There is nowhere to get an acronym at all.
+ * Wanwood has no source for Demand, Trend or an acronym, so those come from
+ * values.js when a value manager has set them and stay blank otherwise - they
+ * are never faked out of a price field. There is nowhere to get an acronym at
+ * all, so the chip only appears once one is written down.
+ *
+ * ---------------------------------------------------------------------------
+ * THE CHARTS
+ * ---------------------------------------------------------------------------
+ * All four use WolimonsHistoryChart - the same Highstock chart the player
+ * profile draws, loaded from the same vendored copy of the library, themed the
+ * same way. Nothing about the chart is re-implemented here; this file only
+ * decides which two series each tab hands it.
+ *
+ * ---------------------------------------------------------------------------
+ * EDITING VALUES FROM THIS PAGE
+ * ---------------------------------------------------------------------------
+ * A signed-in owner, value manager or staff member gets an editor inside the
+ * Valuation tab. It posts to the same POST /api/values/set the admin panel
+ * uses, with the same shared-key bearer token, so there is one code path on
+ * the server and one set of rules about who may write. Everyone else never
+ * sees it: the block stays hidden and the backend would refuse the write
+ * anyway.
  */
 (() => {
   'use strict';
@@ -35,6 +60,13 @@
   const CONFIG = window.WOLIMONS_CONFIG || {};
   const SITE_BASE = CONFIG.siteBase || 'https://wanwoo.xyz';
   const API = window.WanwoodAPI;
+  const CHART = window.WolimonsHistoryChart;
+  const TABLE = window.WolimonsTable;
+  const ACCOUNT = window.WolimonsAccount;
+
+  /* Where the admin panel keeps the shared-key session. The same token is
+   * reused here rather than asking for the key a second time. */
+  const TOKEN_KEY = 'wolimons_admin_token_v1';
 
   /* Read values.js defensively: a browser holding an older cached copy has no
    * demand() on it, and a missing accessor must not take the page down. */
@@ -43,9 +75,17 @@
     get: id => (typeof RAW_VALUES.get === 'function' ? Number(RAW_VALUES.get(id)) || 0 : 0),
     demand: id => (typeof RAW_VALUES.demand === 'function' ? RAW_VALUES.demand(id) : null),
     trend: id => (typeof RAW_VALUES.trend === 'function' ? RAW_VALUES.trend(id) : null),
+    method: id => (typeof RAW_VALUES.method === 'function' ? RAW_VALUES.method(id) : null),
+    note: id => (typeof RAW_VALUES.note === 'function' ? RAW_VALUES.note(id) : ''),
     categories: id => (typeof RAW_VALUES.categories === 'function'
       ? (RAW_VALUES.categories(id) || [])
       : []),
+    refresh: () => (typeof RAW_VALUES.refresh === 'function'
+      ? RAW_VALUES.refresh()
+      : Promise.resolve()),
+    subscribe: fn => (typeof RAW_VALUES.subscribe === 'function'
+      ? RAW_VALUES.subscribe(fn)
+      : fn(RAW_VALUES)),
   };
 
   /* Same table the catalog uses - kept identical so labels never drift. */
@@ -62,6 +102,20 @@
     47: 'WaistAccessory',
   };
 
+  /* The two sentences the snapshot prints under the valuation method. Kept
+   * word for word; only the Discord link is ours. */
+  const METHOD_TEXT = {
+    proof: {
+      label: 'Proof-Based',
+      blurb: 'Proof-based items are valued based on their recent completed trades, '
+        + 'offers, and other factors.',
+    },
+    rap: {
+      label: 'RAP-Based',
+      blurb: 'RAP-based items are valued based on their recent RAP.',
+    },
+  };
+
   const EMPTY = '\u2014';
   const RESELLER_LIMIT = 100;
 
@@ -72,6 +126,7 @@
     .replace(/^-+|-+$/g, '') || 'unnamed';
 
   const fields = name => [...document.querySelectorAll(`[data-item-field="${name}"]`)];
+  const field = name => document.querySelector(`[data-item-field="${name}"]`);
 
   /* Write plain text into every placeholder with this name. */
   function setText(name, value) {
@@ -91,6 +146,13 @@
   const toNumber = value => {
     const number = Number(value);
     return Number.isFinite(number) ? number : null;
+  };
+
+  const el = (tag, className, text) => {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined && text !== null) node.textContent = text;
+    return node;
   };
 
   /* ------------------------------------------------------------------ */
@@ -119,20 +181,28 @@
 
   /*
    * The snapshot drove its tabs with Bootstrap's JS bundle, which this site
-   * does not ship. Twelve lines replace it: show the pane the clicked link
+   * does not ship. A dozen lines replace it: show the pane the clicked link
    * points at, hide its siblings.
+   *
+   * A chart drawn into a hidden pane has no width to measure, so switching
+   * tabs also tells the chart module to have another go - see drawCharts().
    */
+  const tabListeners = new Set();
+
   function initTabs() {
     document.querySelectorAll('[data-tabs]').forEach(group => {
+      const scope = group.matches('.nav-tabs') ? group.parentElement : group;
       const links = [...group.querySelectorAll('.nav-link[data-toggle="tab"]')];
-      const panes = [...group.querySelectorAll('.tab-content > .tab-pane')];
+      const panes = [...scope.querySelectorAll('.tab-content > .tab-pane')];
       links.forEach(link => {
         link.addEventListener('click', event => {
           event.preventDefault();
-          const target = group.querySelector(link.getAttribute('href'));
+          const id = link.getAttribute('href');
+          const target = scope.querySelector(id);
           if (!target) return;
           links.forEach(other => other.classList.toggle('active', other === link));
           panes.forEach(pane => pane.classList.toggle('active', pane === target));
+          tabListeners.forEach(fn => fn(id.replace('#', '')));
         });
       });
     });
@@ -173,18 +243,27 @@
   const optional = promise => promise.catch(() => null);
 
   async function loadItem(id) {
-    const [detail, info, resale, resellers, thumbs] = await Promise.all([
+    const [detail, info, resale, resellers, thumbs, owners, changes] = await Promise.all([
       /* Name, type and the Limited flags, with the module's own fallbacks. */
       optional(API.getItemDetails([id], { includePrice: false, includeRap: false })
         .then(rows => rows[0] || null)),
-      /* Description and creator. getItemDetails only carries these when it
-       * takes the productinfo fallback path, and this page always wants
-       * them, so ask for them outright. */
+      /* Description, creator and the original price. getItemDetails only
+       * carries these when it takes the productinfo fallback path, and this
+       * page always wants them, so ask for them outright. */
       optional(API.fetchJson(`${API.API_BASE}/apisite/api/marketplace/productinfo?assetId=${id}`)),
       optional(API.fetchJson(`${API.API_BASE}/apisite/economy/v1/assets/${id}/resale-data`)),
       optional(API.fetchJson(
         `${API.API_BASE}/apisite/economy/v1/assets/${id}/resellers?limit=${RESELLER_LIMIT}`)),
       optional(API.fetchThumbnails([id])),
+      /* Every visible copy. This is what the Owner Lists, the Ownership boxes
+       * and two of the four charts are built from. */
+      optional(API.getAssetOwners(id)),
+      /* Our own change log, for the Value chart. Every value edit is recorded
+       * with its date, so the chart can show when the value actually moved
+       * instead of drawing a flat line at today's figure. */
+      optional(fetch(`${API.API_BASE}/api/changes?limit=500`)
+        .then(response => response.json())
+        .then(payload => (payload && payload.ok ? payload.changes : []))),
     ]);
 
     const merged = detail ? { ...detail } : null;
@@ -197,116 +276,312 @@
 
     return {
       detail: merged,
+      info,
       resale,
       listings: Array.isArray(resellers?.data) ? resellers.data : [],
+      owners: Array.isArray(owners) ? owners : [],
+      /* Only this item's edits matter to the Value chart. */
+      changes: (Array.isArray(changes) ? changes : []).filter(c => Number(c?.id) === id),
       thumbnail: thumbs?.get(id) || API.thumbnailUrl(id),
     };
   }
 
   /* ------------------------------------------------------------------ */
-  /* Rendering                                                           */
+  /* Owner lists                                                         */
   /* ------------------------------------------------------------------ */
 
-  function renderSellers(listings) {
-    const body = fields('sellers-table')[0];
-    if (!body) return;
-    body.textContent = '';
+  /* A player's headshot in the 38px column the capture reserves for it. */
+  function avatarCell(userId, name) {
+    const link = el('a');
+    link.href = `/player/?id=${userId}`;
+    const img = el('img');
+    img.width = 30;
+    img.height = 30;
+    img.loading = 'lazy';
+    img.alt = '';
+    img.style.borderRadius = '33%';
+    img.style.backgroundColor = '#23272b';
+    img.dataset.playerHeadshot = String(userId);
+    img.title = name || '';
+    link.appendChild(img);
+    return link;
+  }
 
-    if (!listings.length) {
-      const row = document.createElement('tr');
-      const cell = document.createElement('td');
-      cell.colSpan = 4;
-      cell.className = 'text-center py-4';
-      cell.style.color = '#7a8288';
-      cell.textContent = 'Nobody is selling a copy of this item right now.';
-      row.append(cell);
-      body.append(row);
-      return;
+  function playerCell(userId, name) {
+    const link = el('a', 'koro-dt-player', name || `User ${userId}`);
+    link.href = `/player/?id=${userId}`;
+    return link;
+  }
+
+  /* The capture's Trade button, pointed at Wanwood's trade window. */
+  function tradeCell(userId) {
+    const link = el('a', 'btn btn-sm koro-trade-btn', 'Trade');
+    link.href = `${SITE_BASE}/Trade/TradeWindow.aspx?TradePartnerID=${userId}`;
+    link.target = '_blank';
+    link.rel = 'noopener';
+    return link;
+  }
+
+  /* "24 days ago", with the exact stamp on hover - the capture's format. */
+  function agoCell(iso) {
+    if (!iso) return EMPTY;
+    const when = Date.parse(iso);
+    if (!Number.isFinite(when)) return EMPTY;
+    const days = Math.floor((Date.now() - when) / 86400000);
+    let words;
+    if (days <= 0) words = 'today';
+    else if (days === 1) words = 'yesterday';
+    else if (days < 30) words = `${days} days ago`;
+    else if (days < 365) {
+      const months = Math.round(days / 30);
+      words = months === 1 ? 'a month ago' : `${months} months ago`;
+    } else {
+      const years = Math.round(days / 365);
+      words = years === 1 ? 'a year ago' : `${years} years ago`;
     }
+    const span = el('span', null, words);
+    span.title = new Date(when).toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
+    return span;
+  }
 
-    listings
-      .slice()
-      .sort((a, b) => (toNumber(a.price) ?? Infinity) - (toNumber(b.price) ?? Infinity))
-      .forEach(listing => {
-        const row = document.createElement('tr');
+  function uaidCell(uaid) {
+    if (!uaid) return EMPTY;
+    return el('span', 'text-light', formatNumber(uaid));
+  }
 
-        const sellerCell = document.createElement('td');
-        const sellerName = String(listing.seller?.name || 'Unknown');
-        const sellerId = toNumber(listing.seller?.id);
-        if (sellerId) {
-          const link = document.createElement('a');
-          link.href = `${SITE_BASE}/users/${sellerId}/profile`;
-          link.target = '_blank';
-          link.rel = 'noopener';
-          link.textContent = sellerName;
-          sellerCell.append(link);
-        } else {
-          sellerCell.textContent = sellerName;
-        }
+  /* Every headshot on the page in one batched request, once the tables are
+   * built. Individual <img> tags are matched by the id stamped on them. */
+  async function paintHeadshots() {
+    const images = [...document.querySelectorAll('img[data-player-headshot]')];
+    const ids = [...new Set(images.map(img => Number(img.dataset.playerHeadshot)))]
+      .filter(id => Number.isSafeInteger(id) && id > 0);
+    if (!ids.length) return;
+    let urls = new Map();
+    try {
+      urls = await API.fetchUserHeadshots(ids, 48);
+    } catch (error) {
+      return; /* No headshots is a cosmetic loss, not a failure. */
+    }
+    images.forEach(img => {
+      const url = urls.get(Number(img.dataset.playerHeadshot));
+      if (url) img.src = url;
+    });
+  }
 
-        const serialCell = document.createElement('td');
-        const serial = toNumber(listing.serialNumber);
-        serialCell.textContent = serial ? `#${formatNumber(serial)}` : EMPTY;
+  const tables = {};
 
-        const priceCell = document.createElement('td');
-        priceCell.className = 'text-right';
-        const price = toNumber(listing.price);
-        priceCell.textContent = price === null ? EMPTY : formatNumber(price);
+  function buildTables() {
+    if (!TABLE) return;
 
-        const uaidCell = document.createElement('td');
-        uaidCell.textContent = toNumber(listing.userAssetId) ?? EMPTY;
+    tables.all = TABLE.attach(document.querySelector('[data-dt="all_copies_table"]'), {
+      sort: { index: 2, direction: 'asc' },
+      columns: [
+        { className: 'koro-dt-avatar', cell: row => avatarCell(row.userId, row.name) },
+        { cell: row => playerCell(row.userId, row.name), sort: row => row.name, search: row => row.name },
+        { cell: row => (row.serialNumber ? formatNumber(row.serialNumber) : EMPTY), sort: row => row.serialNumber, search: row => row.serialNumber },
+        { cell: row => agoCell(row.updated || row.created), sort: row => Date.parse(row.updated || row.created) || null },
+        { cell: row => uaidCell(row.userAssetId), sort: row => row.userAssetId, search: row => row.userAssetId },
+        { cell: row => tradeCell(row.userId) },
+      ],
+    });
 
-        row.append(sellerCell, serialCell, priceCell, uaidCell);
-        body.append(row);
-      });
+    tables.forSale = TABLE.attach(document.querySelector('[data-dt="for_sale_table"]'), {
+      sort: { index: 3, direction: 'asc' },
+      columns: [
+        { className: 'koro-dt-avatar', cell: row => avatarCell(row.userId, row.name) },
+        { cell: row => playerCell(row.userId, row.name), sort: row => row.name, search: row => row.name },
+        { cell: row => (row.serialNumber ? formatNumber(row.serialNumber) : EMPTY), sort: row => row.serialNumber, search: row => row.serialNumber },
+        { cell: row => (row.price === null ? EMPTY : formatNumber(row.price)), sort: row => row.price, search: row => row.price },
+        { cell: row => uaidCell(row.userAssetId), sort: row => row.userAssetId, search: row => row.userAssetId },
+        { cell: row => tradeCell(row.userId) },
+      ],
+    });
+
+    tables.hoards = TABLE.attach(document.querySelector('[data-dt="hoards_table"]'), {
+      sort: { index: 2, direction: 'desc' },
+      columns: [
+        { className: 'koro-dt-avatar', cell: row => avatarCell(row.userId, row.name) },
+        { cell: row => playerCell(row.userId, row.name), sort: row => row.name, search: row => row.name },
+        { cell: row => formatNumber(row.copies), sort: row => row.copies, search: row => row.copies },
+        { cell: row => row.serials, search: row => row.serials },
+        { cell: row => tradeCell(row.userId) },
+      ],
+    });
+  }
+
+  /* One row per player holding two or more copies, which is what "hoarded"
+   * means everywhere else on the site. */
+  function hoardRows(owners) {
+    const byPlayer = new Map();
+    owners.forEach(owner => {
+      const entry = byPlayer.get(owner.userId)
+        || { userId: owner.userId, name: owner.name, copies: 0, list: [] };
+      entry.copies += 1;
+      if (owner.serialNumber) entry.list.push(owner.serialNumber);
+      byPlayer.set(owner.userId, entry);
+    });
+    return [...byPlayer.values()]
+      .filter(entry => entry.copies > 1)
+      .map(entry => ({
+        ...entry,
+        serials: entry.list.length
+          ? entry.list.sort((a, b) => a - b).map(n => `#${formatNumber(n)}`).join(', ')
+          : EMPTY,
+      }));
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Charts                                                              */
+  /* ------------------------------------------------------------------ */
+
+  /*
+   * Four tabs, all drawn by the profile page's chart module.
+   *
+   *   History     RAP over time against the value, the same pair of series
+   *               the player page plots
+   *   Value       the value alone, as a flat line at today's figure across the
+   *               period RAP covers - the backend keeps a change log but not a
+   *               dated value series, so this is the honest shape of it
+   *   Copies      copies in circulation and copies listed for sale
+   *   Ownership   owners against copies
+   *
+   * The module takes {time, value, rap} rows and plots two series. The last
+   * two tabs re-use those two slots for their own pair of numbers and pass
+   * their own series names, which is the one thing the module was taught to
+   * accept - everything else about the chart is exactly what the profile page
+   * draws, from the same file.
+   */
+  const charts = { drawn: new Set(), data: null };
+
+  function historyRows(resale, value) {
+    const points = Array.isArray(resale?.priceDataPoints) ? resale.priceDataPoints : [];
+    return points
+      .map(point => {
+        const time = Date.parse(point?.date);
+        const rap = toNumber(point?.value);
+        if (!Number.isFinite(time) || rap === null) return null;
+        return { time, value, rap };
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.time - b.time);
+  }
+
+  function copiesRows(resale, listings, owners) {
+    /* Wanwood reports copies and listings as they stand now, not as a series,
+     * so the only dates available are the ones the price history already
+     * carries. Each of those days gets today's counts, which draws a flat
+     * reference line rather than inventing movement that was never recorded. */
+    const points = Array.isArray(resale?.priceDataPoints) ? resale.priceDataPoints : [];
+    const total = toNumber(resale?.assetStock) ?? owners.length;
+    return points
+      .map(point => {
+        const time = Date.parse(point?.date);
+        if (!Number.isFinite(time)) return null;
+        return { time, value: total, rap: listings.length };
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.time - b.time);
+  }
+
+  function ownershipRows(resale, owners) {
+    const points = Array.isArray(resale?.priceDataPoints) ? resale.priceDataPoints : [];
+    const distinct = new Set(owners.map(owner => owner.userId)).size;
+    return points
+      .map(point => {
+        const time = Date.parse(point?.date);
+        if (!Number.isFinite(time)) return null;
+        return { time, value: distinct, rap: owners.length };
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.time - b.time);
   }
 
   /*
-   * Wanwood's resale-data carries only a handful of points - far too few for
-   * a chart to say anything - so the history is rendered as a short table
-   * instead, and hidden entirely when there is nothing to show.
+   * The value over time, against the RAP on the same dates.
+   *
+   * This is real history rather than a flat line: the backend logs every value
+   * edit to /api/changes, so replaying that log backwards from today's figure
+   * gives the value as it stood on each date it moved. An item nobody has
+   * re-valued yet has one step and draws as a straight line, which is the
+   * truth about it.
    */
-  function renderHistory(resale) {
-    const body = fields('history-table')[0];
-    if (!body) return;
-    const prices = Array.isArray(resale?.priceDataPoints) ? resale.priceDataPoints : [];
-    const volumes = Array.isArray(resale?.volumeDataPoints) ? resale.volumeDataPoints : [];
-    if (!prices.length && !volumes.length) {
-      show('history-section', false);
-      return;
-    }
+  function valueRows(resale, value, changes) {
+    const points = Array.isArray(resale?.priceDataPoints) ? resale.priceDataPoints : [];
+    if (!points.length) return [];
 
-    const byDate = new Map();
-    const dayOf = point => String(point.date || '').slice(0, 10);
-    prices.forEach(point => {
-      byDate.set(dayOf(point), { price: toNumber(point.value), volume: null });
-    });
-    volumes.forEach(point => {
-      const day = dayOf(point);
-      const entry = byDate.get(day) || { price: null, volume: null };
-      entry.volume = toNumber(point.value);
-      byDate.set(day, entry);
-    });
+    /* Value edits for this item, oldest first. */
+    const edits = (Array.isArray(changes) ? changes : [])
+      .filter(change => change && change.field === 'value' && Number.isFinite(change.at))
+      .sort((a, b) => a.at - b.at);
 
-    body.textContent = '';
-    [...byDate.entries()]
-      .sort((a, b) => b[0].localeCompare(a[0]))
-      .forEach(([day, entry]) => {
-        const row = document.createElement('tr');
-        const dateCell = document.createElement('td');
-        dateCell.textContent = day || EMPTY;
-        const priceCell = document.createElement('td');
-        priceCell.className = 'text-right';
-        priceCell.textContent = entry.price === null ? EMPTY : formatNumber(entry.price);
-        const volumeCell = document.createElement('td');
-        volumeCell.className = 'text-right';
-        volumeCell.textContent = entry.volume === null ? EMPTY : formatNumber(entry.volume);
-        row.append(dateCell, priceCell, volumeCell);
-        body.append(row);
+    const valueAt = when => {
+      /* Before the first recorded edit the item had whatever that edit
+       * replaced - usually nothing, which is 0. */
+      let current = Number(edits.length ? edits[0].old : value) || 0;
+      edits.forEach(edit => {
+        if (edit.at <= when) current = Number(edit.new) || 0;
       });
+      return current;
+    };
 
-    show('history-section', true);
+    return points
+      .map(point => {
+        const time = Date.parse(point?.date);
+        const rap = toNumber(point?.value);
+        if (!Number.isFinite(time)) return null;
+        return { time, value: valueAt(time), rap: rap ?? 0 };
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.time - b.time);
   }
+
+  const CHART_PANES = {
+    history_chart_container: {
+      div: 'history_chart_div',
+      rows: d => historyRows(d.resale, d.value),
+    },
+    value_chart_container: {
+      div: 'value_chart_div',
+      rows: d => valueRows(d.resale, d.value, d.changes),
+    },
+    copies_chart_container: {
+      div: 'copies_chart_div',
+      rows: d => copiesRows(d.resale, d.listings, d.owners),
+      names: { value: 'Copies', rap: 'Listed for sale', axis: 'Copies' },
+    },
+    ownership_chart_container: {
+      div: 'ownership_chart_div',
+      rows: d => ownershipRows(d.resale, d.owners),
+      names: { value: 'Owners', rap: 'Copies held', axis: 'Players' },
+    },
+  };
+
+  /*
+   * Draw one tab's chart, once. Highcharts measures its container, so a pane
+   * that is display:none when the chart is created comes out zero-wide; the
+   * three inactive tabs are therefore left until they are first opened.
+   */
+  function drawChart(pane) {
+    if (!CHART || charts.drawn.has(pane) || !charts.data) return;
+    const spec = CHART_PANES[pane];
+    if (!spec) return;
+    const container = document.getElementById(spec.div);
+    if (!container) return;
+    charts.drawn.add(pane);
+    CHART.render(container, spec.rows(charts.data), spec.names);
+  }
+
+  function initCharts(data) {
+    charts.data = data;
+    charts.drawn.clear();
+    /* The open tab can be drawn straight away; the rest wait for their click. */
+    drawChart('history_chart_container');
+    tabListeners.add(drawChart);
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Flags                                                               */
+  /* ------------------------------------------------------------------ */
 
   /*
    * The flags beside the item name: the Limited / Limited U ribbon, which the
@@ -314,12 +589,10 @@
    *
    * Rare is a judgement call about an item, not a fact any endpoint reports,
    * so it is read from the "rare" category in values.js - the same hand-set
-   * list the catalog filters on. It is marked by hand today and will be set
-   * from the admin panel when that exists; nothing here has to change for
-   * that, because both write the same category.
+   * list the catalog filters on, and the same one the editor below writes.
    */
   function renderFlag(isLimited, isLimitedUnique, isRare) {
-    const holder = fields('flag')[0];
+    const holder = field('flag');
     if (!holder) return;
     holder.textContent = '';
 
@@ -341,8 +614,7 @@
 
   /* The gem plus its label, as one inline group. */
   function rareFlag() {
-    const wrap = document.createElement('span');
-    wrap.className = 'item_flag_rare';
+    const wrap = el('span', 'item_flag_rare');
     wrap.title = 'Rare - a hand-picked scarce item';
 
     const gem = document.createElement('img');
@@ -352,28 +624,278 @@
     gem.height = 16;
     gem.setAttribute('aria-hidden', 'true');
 
-    const label = document.createElement('span');
-    label.textContent = 'Rare';
-
-    wrap.append(gem, label);
+    wrap.append(gem, el('span', null, 'Rare'));
     return wrap;
   }
 
-  function renderValueVsRap(value, rap) {
-    const target = fields('value-vs-rap')[0];
-    if (!target) return;
-    if (!value || !Number.isFinite(rap) || rap <= 0) {
-      target.textContent = EMPTY;
-      target.style.color = '';
+  /* ------------------------------------------------------------------ */
+  /* Value editor                                                        */
+  /* ------------------------------------------------------------------ */
+
+  /*
+   * The editor mirrors the admin panel's Item values pane, reduced to the one
+   * item this page is already showing. Same controls, same request, same
+   * server-side rules about who may write - see proxy/api.js.
+   *
+   * Two things have to be true before it appears: this browser holds an admin
+   * session, and the linked Wanwood account has a rank that may set values.
+   * The backend re-checks both, so a hidden editor is a convenience rather
+   * than the security boundary.
+   */
+  const editor = {
+    id: null,
+    demand: '',
+    trend: '',
+    method: '',
+    categories: new Set(),
+    can: false,
+  };
+
+  const readToken = () => {
+    try {
+      return window.localStorage.getItem(TOKEN_KEY) || '';
+    } catch (error) {
+      return '';
+    }
+  };
+
+  function notice(message, tone) {
+    const box = field('editor-notice');
+    if (!box) return;
+    box.textContent = message || '';
+    box.style.color = tone === 'bad' ? '#e57373' : tone === 'good' ? '#81c784' : '#7a8288';
+  }
+
+  /* Toggle one of the catalog's filter chips. */
+  function setPressed(button, on) {
+    button.setAttribute('aria-pressed', on ? 'true' : 'false');
+    button.classList.toggle('active', Boolean(on));
+  }
+
+  /* A group of chips where exactly one may be lit, "None" standing for unset. */
+  function initChoiceGroup(name, attribute, apply) {
+    const group = field(name);
+    if (!group) return;
+    group.querySelectorAll(`[data-${attribute}-value]`).forEach(button => {
+      button.addEventListener('click', () => {
+        const raw = button.dataset[`${attribute}Value`];
+        apply(raw === 'None' ? '' : raw);
+      });
+    });
+  }
+
+  function paintChoiceGroup(name, attribute, current) {
+    const group = field(name);
+    if (!group) return;
+    group.querySelectorAll(`[data-${attribute}-value]`).forEach(button => {
+      const value = button.dataset[`${attribute}Value`];
+      setPressed(button, current ? value === current : value === 'None');
+    });
+  }
+
+  function paintCategories() {
+    const group = field('editor-categories');
+    if (!group) return;
+    group.querySelectorAll('[data-category-value]').forEach(button => {
+      setPressed(button, editor.categories.has(button.dataset.categoryValue));
+    });
+  }
+
+  function initEditorControls() {
+    initChoiceGroup('editor-demand', 'demand', value => {
+      editor.demand = value;
+      paintChoiceGroup('editor-demand', 'demand', editor.demand);
+    });
+    initChoiceGroup('editor-trend', 'trend', value => {
+      editor.trend = value;
+      paintChoiceGroup('editor-trend', 'trend', editor.trend);
+    });
+    initChoiceGroup('editor-method', 'method', value => {
+      editor.method = value;
+      paintChoiceGroup('editor-method', 'method', editor.method);
+    });
+
+    const categories = field('editor-categories');
+    if (categories) {
+      categories.querySelectorAll('[data-category-value]').forEach(button => {
+        button.addEventListener('click', () => {
+          const name = button.dataset.categoryValue;
+          if (editor.categories.has(name)) editor.categories.delete(name);
+          else editor.categories.add(name);
+          paintCategories();
+        });
+      });
+    }
+
+    const save = field('editor-save');
+    if (save) save.addEventListener('click', saveValue);
+  }
+
+  /* Load the item's current figures into the controls. */
+  function fillEditor(id) {
+    editor.id = id;
+    editor.demand = VALUES.demand(id) || '';
+    editor.trend = VALUES.trend(id) || '';
+    editor.method = VALUES.method(id) || '';
+    editor.categories = new Set(VALUES.categories(id).filter(name => name !== 'valued'));
+
+    const amount = field('editor-value');
+    if (amount) {
+      const value = VALUES.get(id);
+      amount.value = value ? String(value) : '';
+    }
+    const note = field('editor-note');
+    if (note) note.value = VALUES.note(id) || '';
+
+    paintChoiceGroup('editor-demand', 'demand', editor.demand);
+    paintChoiceGroup('editor-trend', 'trend', editor.trend);
+    paintChoiceGroup('editor-method', 'method', editor.method);
+    paintCategories();
+    notice('');
+  }
+
+  async function saveValue() {
+    if (!editor.id) return;
+    const account = ACCOUNT ? ACCOUNT.get() : null;
+    if (!account || !account.name) {
+      notice('Link your Wanwood account first, on the Verify page.', 'bad');
       return;
     }
-    const delta = Math.round(((value - rap) / rap) * 100);
-    target.textContent = `${delta > 0 ? '+' : ''}${formatNumber(delta)}%`;
-    target.style.color = delta > 0 ? '#8fe6a0' : (delta < 0 ? '#ff8585' : '#bfc7cd');
+
+    const amountBox = field('editor-value');
+    const raw = amountBox ? amountBox.value.trim() : '';
+    const amount = raw === '' ? 0 : Number(raw.replace(/,/g, ''));
+    if (!Number.isFinite(amount) || amount < 0) {
+      notice('Value must be a number, zero or more.', 'bad');
+      return;
+    }
+
+    const noteBox = field('editor-note');
+    notice('Saving...');
+    try {
+      const response = await fetch(`${API.API_BASE}/api/values/set`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${readToken()}`,
+        },
+        body: JSON.stringify({
+          name: account.name,
+          id: editor.id,
+          value: amount,
+          demand: editor.demand || null,
+          trend: editor.trend || null,
+          method: editor.method || null,
+          note: noteBox ? noteBox.value : '',
+          categories: [...editor.categories],
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || payload.ok === false) {
+        throw new Error(payload.error || `The backend refused that (${response.status}).`);
+      }
+      /* Pull the table back so this page - and the rest of the site - agree
+       * with what was actually stored. The subscribe() below redraws. */
+      await VALUES.refresh();
+      notice('Saved.', 'good');
+    } catch (error) {
+      notice(error.message, 'bad');
+    }
+  }
+
+  /*
+   * Decide whether this visitor may edit, and show or hide the block. Asks the
+   * backend rather than trusting anything in the browser, because the rank
+   * lives on the server and can change while the page is open.
+   */
+  async function refreshEditorAccess(id) {
+    const account = ACCOUNT ? ACCOUNT.get() : null;
+    const token = readToken();
+    editor.can = false;
+
+    if (account && account.name && token) {
+      try {
+        const response = await fetch(
+          `${API.API_BASE}/api/me?name=${encodeURIComponent(account.name)}`);
+        const payload = await response.json();
+        editor.can = Boolean(payload && payload.ok && payload.canSetValues);
+      } catch (error) {
+        editor.can = false;
+      }
+    }
+
+    show('editor', editor.can);
+    if (!editor.can) return;
+
+    const who = field('editor-who');
+    if (who && account) who.textContent = `Signed in as ${account.name}`;
+    fillEditor(id);
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Rendering                                                           */
+  /* ------------------------------------------------------------------ */
+
+  /*
+   * Everything that comes out of values.js. Split from render() because it
+   * runs again on its own whenever the values change - after a save here, or
+   * after the backend's table lands a moment behind the page.
+   */
+  function renderValuation(id, rap) {
+    const value = VALUES.get(id);
+    setNumber('value', value);
+    setText('demand', VALUES.demand(id));
+    setText('trend', VALUES.trend(id));
+
+    const method = VALUES.method(id);
+    const text = METHOD_TEXT[method];
+    setText('valuation-method', text ? text.label : null);
+    const blurb = field('valuation-blurb');
+    if (blurb) {
+      blurb.textContent = text
+        ? text.blurb
+        : 'Nobody has recorded how this item is valued yet.';
+    }
+
+    const note = VALUES.note(id);
+    setText('valuation-note', note);
+    show('valuation-note-box', Boolean(note));
+
+    const credit = field('valuation-credit');
+    if (credit) {
+      credit.textContent = value
+        ? ''
+        : 'This item has not been valued yet. Value stays at 0 until the value team sets it.';
+    }
+
+    /* The Rare gem is a category, so it moves with the values too. */
+    const flagHolder = field('flag');
+    if (flagHolder) {
+      const ribbon = flagHolder.querySelector('img[src*="limited"]');
+      renderFlag(Boolean(ribbon), Boolean(ribbon && /limitedu/.test(ribbon.src)),
+        VALUES.categories(id).includes('rare'));
+    }
+
+    /*
+     * Value vs RAP. Not in the snapshot, kept from the item page this one
+     * replaces: it is the one figure that says whether the community thinks
+     * an item is worth more or less than it has been selling for.
+     */
+    const target = field('value-vs-rap');
+    if (target) {
+      if (!value || !Number.isFinite(rap) || rap <= 0) {
+        target.textContent = EMPTY;
+        target.style.color = '';
+      } else {
+        const delta = Math.round(((value - rap) / rap) * 100);
+        target.textContent = `${delta > 0 ? '+' : ''}${formatNumber(delta)}%`;
+        target.style.color = delta > 0 ? '#8fe6a0' : (delta < 0 ? '#ff8585' : '#bfc7cd');
+      }
+    }
   }
 
   function render(id, data) {
-    const { detail, resale, listings, thumbnail } = data;
+    const { detail, info, resale, listings, owners, changes, thumbnail } = data;
 
     const name = detail?.name || `Item ${id}`;
     const restrictions = detail?.itemRestrictions || [];
@@ -381,21 +903,22 @@
     const isLimited = isLimitedUnique || restrictions.includes('Limited');
 
     const rap = toNumber(resale?.recentAveragePrice);
-    const value = VALUES.get(id);
     const prices = listings.map(listing => toNumber(listing.price)).filter(price => price !== null);
     const bestPrice = prices.length ? Math.min(...prices) : null;
-    const highestAsk = prices.length ? Math.max(...prices) : null;
-    const distinctSellers = new Set(listings.map(listing => listing.seller?.id).filter(Boolean)).size;
+    const totalCopies = toNumber(resale?.assetStock);
+    const available = owners.length;
+    const distinctOwners = new Set(owners.map(owner => owner.userId)).size;
+    const hoards = hoardRows(owners);
+    const hoardedCopies = hoards.reduce((sum, entry) => sum + entry.copies, 0);
+    const sales = toNumber(resale?.sales);
 
     /* Head + title -------------------------------------------------- */
     document.title = `${name} - Wolimons`;
     setText('name', name);
-    /* "rare" is a manually curated category, exactly like the value itself. */
-    const isRare = VALUES.categories(id).includes('rare');
-    renderFlag(isLimited, isLimitedUnique, isRare);
     setText('subtitle', isLimitedUnique
       ? 'Wanwood Limited U'
       : (isLimited ? 'Wanwood Limited' : 'Wanwood Item'));
+    renderFlag(isLimited, isLimitedUnique, VALUES.categories(id).includes('rare'));
     fields('wanwood-link').forEach(link => {
       link.href = `${SITE_BASE}/catalog/${id}/${slugify(name)}`;
     });
@@ -403,65 +926,116 @@
       image.src = thumbnail;
       image.alt = `${name} thumbnail`;
     });
+    /* The two buttons the snapshot filters to this item. */
+    fields('value-changes-link').forEach(link => { link.href = `/valuechanges?item=${id}`; });
+    fields('trade-ads-link').forEach(link => { link.href = `/trades?item=${id}`; });
 
     /* Overview ------------------------------------------------------ */
     setText('type', TYPE_NAMES[detail?.assetType] || null);
-    setNumber('total-copies', toNumber(resale?.assetStock));
-    setNumber('total-copies-2', toNumber(resale?.assetStock));
+    setNumber('available-copies', available);
+    setNumber('available-copies-2', available);
     setNumber('remaining', toNumber(resale?.numberRemaining));
-    setNumber('remaining-2', toNumber(resale?.numberRemaining));
-    setNumber('sales', toNumber(resale?.sales));
-    setNumber('sales-2', toNumber(resale?.sales));
+    setNumber('total-copies', totalCopies);
+    setNumber('total-copies-2', totalCopies);
+    setNumber('owners', distinctOwners);
+    setNumber('hoarded-copies', hoardedCopies);
+    setNumber('sales', sales);
     setNumber('sellers', listings.length);
-    setNumber('sellers-2', listings.length);
-    setNumber('distinct-sellers', distinctSellers);
+    setNumber('best-price', bestPrice);
+    setNumber('best-price-2', bestPrice);
+    setNumber('rap', rap);
     setText('creator', detail?.creatorName || null);
 
-    /* Valuation ----------------------------------------------------- */
-    setNumber('rap', rap);
-    setNumber('rap-2', rap);
-    setNumber('value', value);
-    setNumber('value-2', value);
-    /* No Wanwood endpoint reports demand. It is shown only when somebody has
-     * set it by hand in values.js, and left blank otherwise. */
-    const demand = VALUES.demand(id);
-    setText('demand', demand);
-    setText('demand-2', demand);
-    /* Trend is the same story - hand-set in values.js, blank until then. */
-    const trend = VALUES.trend(id);
-    setText('trend', trend);
-    setText('trend-2', trend);
-    renderValueVsRap(value, rap);
+    /* Two figures the snapshot does not carry, kept from the item page this
+     * one replaces: how many different players are selling, and the top ask. */
+    setNumber('distinct-sellers',
+      new Set(listings.map(listing => listing.seller?.id).filter(Boolean)).size);
+    setNumber('highest-ask', prices.length ? Math.max(...prices) : null);
+
+    /* Copies that exist but have no visible owner: a private inventory, or a
+     * deleted account. Only meaningful when the total is known. */
+    setNumber('hidden-copies',
+      totalCopies === null ? null : Math.max(0, totalCopies - available));
+
+    /* Percent of visible copies held by someone with more than one. */
+    const hoardedPct = available ? (hoardedCopies / available) * 100 : null;
+    setText('hoarded-pct', hoardedPct === null ? null : `${hoardedPct.toFixed(1)}%`);
+    setText('hoarded-pct-2', hoardedPct === null ? null : `${hoardedPct.toFixed(1)}%`);
+
+    /*
+     * Average daily sales. Wanwood reports a lifetime sale count and the item's
+     * creation date, so this is sales spread over the item's whole life - not
+     * the 30-day window a live feed would give. Blank when either half is
+     * missing rather than shown as a zero that means "unknown".
+     */
+    const created = Date.parse(info?.Created || detail?.created || '');
+    if (sales !== null && Number.isFinite(created)) {
+      const days = Math.max(1, (Date.now() - created) / 86400000);
+      setText('avg-daily-sales', (sales / days).toFixed(2));
+    } else {
+      setText('avg-daily-sales', null);
+    }
+
+    /*
+     * RAP after sale. Wanwood's RAP is an average over the last ten sales, so
+     * one more sale at the best price moves it by a tenth of the difference.
+     * Blank unless both halves are known.
+     */
+    if (rap !== null && bestPrice !== null) {
+      setNumber('rap-after-sale', Math.round(rap + (bestPrice - rap) / 10));
+    } else {
+      setText('rap-after-sale', null);
+    }
 
     /* More info ----------------------------------------------------- */
     setText('id', id);
     setCopyValue('copy-id', String(id));
     setText('for-sale', detail ? (detail.isForSale ? 'Yes' : 'No') : null);
-    setNumber('best-price', bestPrice);
-    setNumber('best-price-2', bestPrice);
-    setNumber('highest-ask', highestAsk);
+    setNumber('original-price', toNumber(info?.PriceInRobux));
+    /* Wanwood dates its assets, so this one is real. The snapshot also lists a
+     * "Date Discovered", which its own tooltip says is the same as the
+     * creation date - printing the identical value twice adds nothing. */
+    setText('date-created', Number.isFinite(created)
+      ? new Date(created).toISOString().slice(0, 10)
+      : null);
 
     const pageLink = `${window.location.origin}/item/?id=${id}`;
     setText('page-link', `/item/?id=${id}`);
     setCopyValue('copy-link', pageLink);
 
-    /* Tables -------------------------------------------------------- */
-    renderSellers(listings);
-    renderHistory(resale);
+    /* Owner lists --------------------------------------------------- */
+    if (tables.all) tables.all.setRows(owners);
+    if (tables.hoards) tables.hoards.setRows(hoards);
+    if (tables.forSale) {
+      tables.forSale.setRows(listings.map(listing => ({
+        userId: toNumber(listing.seller?.id) || 0,
+        name: String(listing.seller?.name || 'Unknown'),
+        serialNumber: toNumber(listing.serialNumber),
+        price: toNumber(listing.price),
+        userAssetId: toNumber(listing.userAssetId),
+      })));
+    }
+    paintHeadshots();
+
+    /* Charts -------------------------------------------------------- */
+    initCharts({ resale, listings, owners, changes, value: VALUES.get(id) });
 
     /* About --------------------------------------------------------- */
     const kind = [
       isLimitedUnique ? 'limited unique' : (isLimited ? 'limited' : ''),
       (TYPE_NAMES[detail?.assetType] || 'item').toLowerCase(),
     ].filter(Boolean).join(' ');
-    const sentences = [`${name} is a Wanwood ${kind}.`];
-    sentences.push(`Its value is ${formatNumber(value)}${value ? '' : ' (not set yet)'}.`);
-    if (Number.isFinite(rap)) sentences.push(`Its RAP is ${formatNumber(rap)}.`);
-    if (bestPrice !== null) {
-      sentences.push(`${listings.length} ${listings.length === 1 ? 'copy is' : 'copies are'} listed for sale, from ${formatNumber(bestPrice)}.`);
-    } else {
-      sentences.push('No copies are listed for sale right now.');
-    }
+    const value = VALUES.get(id);
+    const demand = VALUES.demand(id);
+    const sentences = [
+      `${name} is a Wanwood ${kind}. Wolimons tracks its price, RAP, value, `
+      + 'demand, sales history, ownership data, and value changes.',
+    ];
+    const facts = [];
+    if (Number.isFinite(rap)) facts.push(`a RAP of ${formatNumber(rap)}`);
+    facts.push(value ? `a Value of ${formatNumber(value)}` : 'no Value set yet');
+    if (demand) facts.push(`a Demand rating of ${demand}`);
+    sentences.push(`It currently has ${facts.join(', ')}.`);
     setText('about-overview', sentences.join(' '));
 
     const description = String(detail?.description || '').trim();
@@ -471,6 +1045,9 @@
       show('about-description-kicker', true);
       show('about-description-divider', true);
     }
+
+    /* Everything hand-set, and again on every later change. */
+    VALUES.subscribe(() => renderValuation(id, rap));
   }
 
   function renderError(message) {
@@ -486,6 +1063,8 @@
 
   initTabs();
   initCopyButtons();
+  initEditorControls();
+  buildTables();
 
   const assetId = readAssetId();
   if (!assetId) {
@@ -494,9 +1073,12 @@
   } else {
     setText('name', 'Loading\u2026');
     setText('id', assetId);
+    refreshEditorAccess(assetId);
+    if (ACCOUNT) ACCOUNT.subscribe(() => refreshEditorAccess(assetId));
+
     loadItem(assetId)
       .then(data => {
-        if (!data.detail && !data.resale && !data.listings.length) {
+        if (!data.detail && !data.resale && !data.listings.length && !data.owners.length) {
           setText('name', `Item ${assetId}`);
           renderError('Wanwood returned nothing for this item. It may not exist, or the API may be unavailable.');
           return;

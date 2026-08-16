@@ -131,8 +131,19 @@
    * wrapped around it.
    *
    * `rows` is [{ time, value, rap }, ...] in ascending time order.
+   *
+   * `names` renames the two series and their y axis. The profile page leaves
+   * it alone and gets Value and RAP in Robux, which is what this chart was
+   * built for. The item page's Copies and Ownership tabs plot a different
+   * pair of numbers into the same two slots, and calling those "Value" and
+   * "RAP" would be a lie - so they pass their own labels rather than this
+   * file being forked or a second chart being written.
    */
-  function options(rows) {
+  function options(rows, names = {}) {
+    const valueName = names.value || 'Value';
+    const rapName = names.rap || 'RAP';
+    /* Robux unless the caller says otherwise; a copy count is not currency. */
+    const axisTitle = names.axis === undefined ? 'R$' : names.axis;
     const valueSeries = rows.map(row => [row.time, row.value]);
     const rapSeries = rows.map(row => [row.time, row.rap]);
 
@@ -199,7 +210,7 @@
       },
 
       yAxis: {
-        title: { text: 'R$', style: { color: AXIS_TITLE } },
+        title: { text: axisTitle, style: { color: AXIS_TITLE } },
         gridLineColor: Y_GRID,
         lineColor: AXIS_LINE,
         lineWidth: 0,
@@ -257,8 +268,8 @@
       },
 
       series: [
-        { name: 'Value', data: valueSeries, color: VALUE_COLOR },
-        { name: 'RAP', data: rapSeries, color: RAP_COLOR },
+        { name: valueName, data: valueSeries, color: VALUE_COLOR },
+        { name: rapName, data: rapSeries, color: RAP_COLOR },
       ],
     };
   }
@@ -269,7 +280,7 @@
    * Returns a promise so a caller can tell a failure apart from an empty
    * dataset; the failure is already reported inside the container either way.
    */
-  function render(container, rows) {
+  function render(container, rows, names) {
     if (!container) return Promise.resolve(null);
 
     const points = Array.isArray(rows) ? rows.filter(row => row && Number.isFinite(row.time)) : [];
@@ -284,7 +295,7 @@
     return loadLibrary()
       .then(Highcharts => {
         container.textContent = '';
-        return Highcharts.stockChart(container, options(points));
+        return Highcharts.stockChart(container, options(points, names));
       })
       .catch(error => {
         message(container, 'The chart could not be drawn: the charting library did not load.');

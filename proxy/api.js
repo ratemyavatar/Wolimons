@@ -447,6 +447,10 @@ async function handle(req, res, url, readBody) {
         trend: payload.trend,
         categories: payload.categories,
         rare: payload.rare,
+        /* The Valuation tab's two extra fields. Both are optional, so an
+         * older client that never sends them leaves them untouched. */
+        method: payload.method,
+        note: payload.note,
         updatedBy: auth.name,
       });
       send(res, 200, {

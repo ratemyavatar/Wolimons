@@ -38,8 +38,17 @@
 .admin_page_note { color: rgb(122, 130, 136); }
 .admin_lock_link { color: #7ab8f5; }
 @media (max-width: 767px) {
-  .admin_sidebar { max-width: none; width: 100%; position: static; }
+  /* Phones: the sidebar becomes a sticky horizontal page strip, so the
+     navigation stays one thumb-reach away instead of stacking eight
+     buttons over the content. */
+  .admin_shell { gap: 10px; }
+  .admin_sidebar { max-width: none; width: 100%; position: sticky; top: 0; z-index: 1020; border-radius: 0; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35); }
+  #admin_nav { flex-direction: row !important; flex-wrap: nowrap; overflow-x: auto; padding: 8px 8px 10px; }
+  #admin_nav .admin_nav_section { display: none; }
+  .admin_nav_button { flex: 0 0 auto; width: auto; margin: 0 6px 0 0; padding: 6px 12px; white-space: nowrap; }
   .admin_kv_key { flex-basis: 100%; }
+  .admin_stat_cell { flex: 1 1 46%; min-width: 130px; padding: 10px 6px 10px 14px; }
+  body.page-admin .admin_topbar .page_title { font-size: 1.25em; }
 }
 </style>
 </head>
@@ -78,7 +87,7 @@
                         <!-- ================= DASHBOARD ================= -->
                         <section class="admin_page" id="admin_page_dashboard">
                             <div class="d-flex justify-content-between flex-wrap align-items-center">
-                                <h2 class="section_header">Dashboard</h2>
+                                <h2 class="section_header" id="admin_greeting">Dashboard</h2>
                                 <div class="small" id="admin_dashboard_account" style="color: rgb(122, 130, 136);"></div>
                             </div>
 
@@ -86,6 +95,50 @@
                                 <div class="px-3" style="color: #adb5bd;"><span class="admin_lock_message"></span> <a class="admin_lock_link d-none" href="/verify">Link your Wanwood account</a><span class="admin_lock_hint"></span></div>
                             </div>
                             <div class="admin_page_body">
+                            <!-- Who is in. Same pane shape as the trade ad
+                                 detail page's header: the linked account's
+                                 headshot beside a column of stat cells. -->
+                            <div class="row shadow mx-0 mt-3 d-none" id="admin_identity_pane" style="background-color: #2e3337;">
+                                <div class="d-flex flex-wrap flex-sm-nowrap w-100 pr-1">
+                                    <div class="main_item_image_container px-0">
+                                        <img class="player_bust img-responsive rounded mt-3 mx-3 mb-0 mb-sm-3" id="admin_avatar" width="200" height="200" decoding="async" fetchpriority="high" alt="Your avatar" src="/assets/Wolimonslogoo.png">
+                                    </div>
+                                    <div class="d-flex flex-wrap w-100">
+                                        <div class="top_stat_pane_column">
+                                            <div class="top_stat_pane_stat_cell d-flex text-truncate">
+                                                <div class="my-auto top-stat-main-icon"><svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false" preserveAspectRatio="xMidYMid meet" viewBox="0 0 24 24"><path d="M12 4a4 4 0 014 4 4 4 0 01-4 4 4 4 0 01-4-4 4 4 0 014-4m0 10c4.42 0 8 1.79 8 4v2H4v-2c0-2.21 3.58-4 8-4z" fill="#7a8288"></path></svg></div>
+                                                <div class="pl-2 text-truncate">
+                                                    <div class="top-stat-header" title="The Wanwood account this browser is linked to">Signed in as</div>
+                                                    <div class="top-stat-data text-truncate" id="admin_username">-</div>
+                                                </div>
+                                            </div>
+                                            <div class="top_stat_pane_stat_cell d-flex mb-3 mb-sm-0">
+                                                <div class="my-auto top-stat-main-icon"><svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false" preserveAspectRatio="xMidYMid meet" viewBox="0 0 24 24"><path d="M12 6a1 1 0 11-1 1 1 1 0 011-1zm-6 8h12v3H6zm14-8h-4V3H8v3H4a2 2 0 00-2 2v11a2 2 0 002 2h16a2 2 0 002-2V8a2 2 0 00-2-2zM10 5h4v5h-4zm10 14H4v-9h4a2 2 0 002 2h4a2 2 0 002-2h4z" fill="#7a8288"></path></svg></div>
+                                                <div class="pl-2">
+                                                    <div class="top-stat-header" title="The Wanwood user id of the linked account">Wanwood ID</div>
+                                                    <div class="top-stat-data" id="admin_user_id">-</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="top_stat_pane_column">
+                                            <div class="top_stat_pane_stat_cell d-flex mb-3 mb-sm-4">
+                                                <div class="my-auto top-stat-main-icon"><svg viewBox="0 0 12 12" xmlns="http://www.w3.org/2000/svg" fill-rule="evenodd" clip-rule="evenodd" stroke-linejoin="round" stroke-miterlimit="2"><path d="M11.75 8.2857 9.25 11 7.5 9.1l.75-.8143 1 1.0857 1.75-1.9.75.8143M6 3.9428c.823 0 1.5.735 1.5 1.6286C7.5 6.4649 6.823 7.2 6 7.2s-1.5-.735-1.5-1.6286c0-.8935.677-1.6286 1.5-1.6286m0 4.3429c.25 0 .485-.038.71-.114-.135.3854-.21.7763-.21 1.1997v.2443l-.5.0271c-2.5 0-4.635-1.6883-5.5-4.0714C1.365 3.1883 3.5 1.5 6 1.5s4.635 1.6883 5.5 4.0714c-.125.3474-.28.684-.46 1.0043-.45-.2932-.98-.4614-1.54-.4614-.39 0-.75.0814-1.105.228.07-.2443.105-.4995.105-.7709 0-1.4885-1.129-2.7143-2.5-2.7143S3.5 4.083 3.5 5.5714c0 1.4885 1.129 2.7143 2.5 2.7143Z" fill="#7a8288" fill-rule="nonzero"></path></svg></div>
+                                                <div class="pl-2">
+                                                    <div class="top-stat-header" title="What this account may do on Wolimons">Permissions</div>
+                                                    <div class="top-stat-data" id="admin_permissions">-</div>
+                                                </div>
+                                            </div>
+                                            <div class="top_stat_pane_stat_cell d-flex mb-3">
+                                                <div class="my-auto top-stat-main-icon"><svg xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false" preserveAspectRatio="xMidYMid meet" viewBox="0 0 24 24"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8s8 3.58 8 8s-3.58 8-8 8z" fill="#7a8288"></path><path d="M12.5 7H11v6l5.25 3.15l.75-1.23l-4.5-2.67z" fill="#7a8288"></path></svg></div>
+                                                <div class="pl-2">
+                                                    <div class="top-stat-header" title="When this browser last proved it controls the account">Verified</div>
+                                                    <div class="top-stat-data" id="admin_verified_at">-</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                             <!-- The stat wall. Same cells as the trade ad
                                  detail page's header pane. -->
                             <div class="row shadow mx-0 mt-3" style="background-color: #2e3337;">

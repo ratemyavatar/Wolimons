@@ -208,6 +208,13 @@
     dom.nav = document.getElementById('admin_nav');
 
     dom.dashboardAccount = document.getElementById('admin_dashboard_account');
+    dom.greeting = document.getElementById('admin_greeting');
+    dom.identityPane = document.getElementById('admin_identity_pane');
+    dom.avatar = document.getElementById('admin_avatar');
+    dom.username = document.getElementById('admin_username');
+    dom.userId = document.getElementById('admin_user_id');
+    dom.permissions = document.getElementById('admin_permissions');
+    dom.verifiedAt = document.getElementById('admin_verified_at');
     dom.statsGrid = document.getElementById('admin_stats_grid');
     dom.dashChanges = document.getElementById('admin_dash_changes');
     dom.dashAds = document.getElementById('admin_dash_ads');
@@ -461,13 +468,46 @@
           ? `${account.name} \u00b7 ${roleLabel(state.me.role)}`
           : `${account.name} \u00b7 not on the staff roster`;
     }
+    if (dom.greeting) {
+      dom.greeting.textContent = account ? `Hello, ${account.name}!` : 'Hello!';
+    }
+
+    /* The headshot pane. Only for a linked account - the lock panes speak
+     * for everyone else. */
+    if (dom.identityPane) {
+      dom.identityPane.classList.toggle('d-none', !account);
+    }
+    if (account) {
+      if (dom.username) {
+        dom.username.textContent = account.name;
+        dom.username.title = account.name;
+      }
+      if (dom.userId) dom.userId.textContent = String(account.id);
+      if (dom.verifiedAt) dom.verifiedAt.textContent = utcTimestamp(account.verifiedAt);
+      if (dom.permissions) {
+        dom.permissions.replaceChildren();
+        const label = el('span', null, hasRole() ? roleLabel(state.me.role) : 'None');
+        dom.permissions.appendChild(label);
+        const icon = ROLE_ICONS && state.me ? ROLE_ICONS.iconFor(state.me.role) : null;
+        if (icon) dom.permissions.appendChild(icon);
+      }
+      /* The headshot is a nicety - if Wanwood cannot be reached the pane
+       * keeps the logo rather than a broken image. */
+      if (dom.avatar && API && typeof API.fetchUserAvatar === 'function') {
+        API.fetchUserAvatar(account.id, { size: 420 })
+          .then(url => {
+            if (url && dom.avatar) {
+              dom.avatar.src = url;
+              dom.avatar.alt = `${account.name} avatar`;
+            }
+          })
+          .catch(() => {});
+      }
+    }
+
     if (dom.dashboardAccount) {
       dom.dashboardAccount.replaceChildren();
-      if (account) {
-        dom.dashboardAccount.append(hasRole()
-          ? `Signed in as ${account.name} (Wanwood ${account.id}) \u00b7 ${roleLabel(state.me.role)}`
-          : `Signed in as ${account.name} (Wanwood ${account.id}) \u00b7 not ranked`);
-      } else {
+      if (!account) {
         dom.dashboardAccount.append('Admin functions are locked to staff - ');
         const link = el('a', 'admin_lock_link', 'link your Wanwood account');
         link.href = '/verify';

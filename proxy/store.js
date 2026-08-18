@@ -188,6 +188,9 @@ const EMPTY = {
   badges: {},
   announcement: null,
   comments: [],
+  /* userId -> the moment they last opened their inbox. Comments newer than
+   * this are the unread ones the navbar badge counts. */
+  inboxRead: {},
 };
 
 let data = structuredClone(EMPTY);
@@ -465,6 +468,17 @@ function normalize(raw) {
       .filter(Boolean)
       .sort((a, b) => b.at - a.at)
       .slice(0, COMMENT_LIMIT);
+  }
+
+  /* Inbox read markers: userId -> the timestamp the inbox was last opened. */
+  if (raw.inboxRead && typeof raw.inboxRead === 'object') {
+    for (const [id, ts] of Object.entries(raw.inboxRead)) {
+      const userId = Number(id);
+      const when = Number(ts);
+      if (Number.isSafeInteger(userId) && userId > 0 && Number.isFinite(when)) {
+        out.inboxRead[String(userId)] = when;
+      }
+    }
   }
 
   return out;
@@ -1033,6 +1047,28 @@ async function allComments({ limit = 200 } = {}) {
   return (data.comments || []).slice(0, cap).map(comment => ({ ...comment }));
 }
 
+/* ---------------------------------------------------------------------- */
+/* Inbox read markers                                                      */
+/* ---------------------------------------------------------------------- */
+
+/* The timestamp the user last opened their inbox, or 0 if they never have. */
+async function getInboxRead(userId) {
+  await load();
+  const id = Number(userId);
+  if (!Number.isSafeInteger(id) || id <= 0) return 0;
+  return Number(data.inboxRead[String(id)]) || 0;
+}
+
+/* Opening the inbox marks everything up to now as read. */
+async function setInboxRead(userId, ts) {
+  const id = Number(userId);
+  if (!Number.isSafeInteger(id) || id <= 0) throw new Error('A user is required.');
+  return mutate(`Mark inbox read for ${id}`, current => {
+    current.inboxRead = current.inboxRead || {};
+    current.inboxRead[String(id)] = Number(ts) || Date.now();
+  });
+}
+
 /*
  * Post a comment. The caller has already proved which account is posting
  * (identity token, checked in api.js); the checks here are about the shape
@@ -1147,6 +1183,8 @@ module.exports = {
   addComment,
   removeComment,
   moderateComment,
+  getInboxRead,
+  setInboxRead,
   AD_LIMIT,
   ADS_PER_USER,
   CHANGE_FIELDS,

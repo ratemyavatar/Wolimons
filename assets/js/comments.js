@@ -322,9 +322,11 @@
 
     say('Loading\u2026');
     let comments = [];
+    let lastRead = 0;
     try {
       const payload = await apiCall('/api/inbox?limit=200');
       comments = Array.isArray(payload.comments) ? payload.comments : [];
+      lastRead = Number(payload.lastRead) || 0;
     } catch (error) {
       say(error.message, 'bad');
       return;
@@ -336,11 +338,16 @@
       return;
     }
 
-    say(`You have ${comments.length} new comment${comments.length === 1 ? '' : 's'}.`);
+    const unread = comments.filter(comment => comment.at > lastRead).length;
+    say(unread
+      ? `${unread} new comment${unread === 1 ? '' : 's'}.`
+      : 'You\u2019re all caught up.');
+
     list.replaceChildren();
     comments.forEach(comment => {
       const isAd = comment.target.startsWith('ad:');
       const ref = isAd ? comment.target.slice(3) : comment.target.slice(7);
+      const isNew = comment.at > lastRead;
 
       /* A small chip saying where the comment landed, linking to the page. */
       const context = el('a', null, isAd ? 'your trade ad' : 'your profile');
@@ -348,9 +355,24 @@
       context.style.cssText = 'color:#7ab8f5;font-size:12px;text-decoration:none;'
         + 'background:rgb(58,63,68);border-radius:10px;padding:1px 8px;';
 
-      list.appendChild(commentCard(comment, { canDelete: false, contextNode: context }));
+      const card = commentCard(comment, { canDelete: false, contextNode: context });
+      if (isNew) {
+        /* Unread cards get a thin blue edge so they stand out until the
+         * inbox is opened and everything is marked read. */
+        card.style.boxShadow = 'inset 3px 0 0 rgb(0, 132, 221)';
+      }
+      list.appendChild(card);
     });
     paintHeadshots(list);
+
+    /* Opening the inbox marks everything in it as read, so the navbar
+     * badge goes out. Fire-and-forget - a failure here is not worth
+     * surfacing, the list is already showing. */
+    apiCall('/api/inbox/read', { method: 'POST', body: '{}' }).catch(() => {});
+    /* Tell the navbar to drop its badge now that we are caught up. */
+    try {
+      window.dispatchEvent(new CustomEvent('wolimons:inbox-read'));
+    } catch (error) { /* older browsers */ }
   }
 
   /* The inbox page is recognised by its list container; nothing else on the

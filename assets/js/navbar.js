@@ -261,12 +261,76 @@
     moreMenu.prepend(accountItem('navbar_more_admin', '/admin', 'Admin', ADMIN_ICON));
   }
 
+  /* ------------------------------------------------------------------ */
+  /* Inbox badge                                                         */
+  /* ------------------------------------------------------------------ */
+
+  /*
+   * A red badge on the Inbox entry in the More menu whenever someone has
+   * commented on this account's profile or trade ads and the inbox has not
+   * been opened since. Opening the inbox marks it read (comments.js fires
+   * 'wolimons:inbox-read'), which drops the badge.
+   */
+  function inboxLink() {
+    return moreMenu ? moreMenu.querySelector('a[href="/inbox/"]') : null;
+  }
+
+  function setInboxBadge(count) {
+    const link = inboxLink();
+    if (!link) return;
+    link.style.position = 'relative';
+    let badge = link.querySelector('#navbar_inbox_badge');
+    if (count > 0) {
+      if (!badge) {
+        badge = document.createElement('span');
+        badge.id = 'navbar_inbox_badge';
+        badge.style.cssText = 'position:absolute;top:2px;right:6px;min-width:18px;'
+          + 'height:18px;border-radius:9px;background:#e53935;color:#fff;'
+          + 'font-size:11px;font-weight:700;line-height:18px;text-align:center;'
+          + 'padding:0 4px;display:inline-flex;align-items:center;justify-content:center;'
+          + 'pointer-events:none;z-index:5;';
+        link.appendChild(badge);
+      }
+      badge.textContent = count > 99 ? '99+' : String(count);
+      badge.title = `${count} unread comment${count === 1 ? '' : 's'}`;
+    } else if (badge) {
+      badge.remove();
+    }
+  }
+
+  async function renderInboxBadge() {
+    const linked = window.WolimonsAccount?.get();
+    const token = window.WolimonsAccount?.getToken
+      ? window.WolimonsAccount.getToken()
+      : '';
+    if (!linked || !token) {
+      setInboxBadge(0);
+      return;
+    }
+    try {
+      const base = window.WOLIMONS_CONFIG?.apiBase || '';
+      const response = await fetch(`${base}/api/inbox/count`, {
+        headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) return setInboxBadge(0);
+      const payload = await response.json();
+      setInboxBadge(Number(payload.unread) || 0);
+    } catch (error) {
+      setInboxBadge(0);
+    }
+  }
+
+  /* Opening the inbox marks it read; drop the badge right away. */
+  window.addEventListener('wolimons:inbox-read', () => setInboxBadge(0));
+
   window.WolimonsAccount?.subscribe(() => {
     renderAccountMenu();
     renderAdminEntry();
+    renderInboxBadge();
   });
   renderAccountMenu();
   renderAdminEntry();
+  renderInboxBadge();
 
   /* ------------------------------------------------------------------ */
   /* Search modal                                                        */

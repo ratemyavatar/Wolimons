@@ -502,6 +502,18 @@ function endpointIndex() {
 }
 
 /* ---------------------------------------------------------------------- */
+/*
+ * Every comment left on one user's own profile or trade ads, newest first.
+ * Shared by /api/inbox and /api/inbox/count.
+ */
+async function inboxCommentsFor(userId) {
+  const targets = new Set([`player:${userId}`]);
+  const myAds = await store.ads({ creatorId: userId });
+  myAds.forEach(ad => targets.add(`ad:${ad.id}`));
+  const all = await store.allComments({ limit: 5000 });
+  return all.filter(comment => targets.has(comment.target));
+}
+
 /* The router                                                              */
 /* ---------------------------------------------------------------------- */
 
@@ -1050,14 +1062,46 @@ async function handle(req, res, url, readBody) {
         return true;
       }
 
-      const targets = new Set([`player:${userId}`]);
-      const myAds = await store.ads({ creatorId: userId });
-      myAds.forEach(ad => targets.add(`ad:${ad.id}`));
+      const mine = await inboxCommentsFor(userId);
+      const cap = Math.min(Math.max(Number(url.searchParams.get('limit')) || 200, 1), 500);
+      const lastRead = await store.getInboxRead(userId);
+      const unread = mine.filter(comment => comment.at > lastRead).length;
+      send(res, 200, { ok: true, comments: mine.slice(0, cap), unread, lastRead });
+      return true;
+    }
 
-      const all = await store.allComments({ limit: 5000 });
-      const mine = all.filter(comment => targets.has(comment.target))
-        .slice(0, Math.min(Math.max(Number(url.searchParams.get('limit')) || 200, 1), 500));
-      send(res, 200, { ok: true, comments: mine });
+    /*
+     * Just the unread count - cheap enough for the navbar to ask on every
+     * page load so it can light the badge when something new has landed.
+     */
+    if (req.method === 'GET' && route === '/api/inbox/count') {
+      const userId = readIdentity(bearer(req));
+      if (!userId) {
+        send(res, 200, { ok: true, unread: 0 });
+        return true;
+      }
+      const mine = await inboxCommentsFor(userId);
+      const lastRead = await store.getInboxRead(userId);
+      const unread = mine.filter(comment => comment.at > lastRead).length;
+      send(res, 200, { ok: true, unread });
+      return true;
+    }
+
+    /*
+     * Opening the inbox marks everything currently in it as read, so the
+     * badge goes out. New comments that arrive afterwards light it again.
+     */
+    if (req.method === 'POST' && route === '/api/inbox/read') {
+      const userId = readIdentity(bearer(req));
+      if (!userId) {
+        send(res, 401, {
+          ok: false,
+          error: 'Verify your Wanwood account to see your inbox.',
+        });
+        return true;
+      }
+      await store.setInboxRead(userId, Date.now());
+      send(res, 200, { ok: true, readAt: Date.now() });
       return true;
     }
 

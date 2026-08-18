@@ -1121,7 +1121,10 @@
           if (user) name = user.name;
         }
       }
-      setText('creator', name);
+      /* Never fall back to the productinfo figure (the asset's own name) -
+       * if the username cannot be resolved, say "User 1" instead, which is
+       * still true and still not the item name. */
+      setText('creator', name || 'User 1');
     })();
 
     /* Two figures the snapshot does not carry, kept from the item page this

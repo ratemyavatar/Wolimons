@@ -306,12 +306,24 @@
   /* Cache                                                               */
   /* ------------------------------------------------------------------ */
 
+  /* The Lucky Cat's choice depends on which items are eligible - and
+   * eligibility reads the values table (projecteds excluded, overpriced
+   * items excluded). The draw is therefore stamped with the table version
+   * the same way the roster is, so a value being set or reverted sends the
+   * cat back to pick again from the corrected pool instead of blessing a
+   * copy on the strength of numbers that no longer stand. */
+  function valuesVersion() {
+    const stamp = Number(VALUES && VALUES.updatedAt);
+    return Number.isFinite(stamp) ? stamp : 0;
+  }
+
   function readCache(index) {
     try {
       const raw = window.sessionStorage.getItem(CACHE_KEY);
       if (!raw) return null;
       const parsed = JSON.parse(raw);
       if (!parsed || parsed.period !== index) return null;
+      if (parsed.valuesVersion !== valuesVersion()) return null;
       return parsed.choice || null;
     } catch (error) {
       return null;
@@ -320,7 +332,8 @@
 
   function writeCache(index, choice) {
     try {
-      window.sessionStorage.setItem(CACHE_KEY, JSON.stringify({ period: index, choice }));
+      window.sessionStorage.setItem(CACHE_KEY,
+        JSON.stringify({ period: index, valuesVersion: valuesVersion(), choice }));
     } catch (error) {
       /* Private mode, quota, whatever - the page works without a cache. */
     }

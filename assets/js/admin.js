@@ -211,6 +211,7 @@
     dom.statsGrid = document.getElementById('admin_stats_grid');
     dom.dashChanges = document.getElementById('admin_dash_changes');
     dom.dashAds = document.getElementById('admin_dash_ads');
+    dom.dashEconomy = document.getElementById('admin_dash_economy');
 
     dom.valueImage = document.getElementById('admin_value_item_image');
     dom.valueName = document.getElementById('admin_value_item_name');
@@ -572,10 +573,11 @@
     /* Everything the wall is made of, asked for together. Each one can fail
      * on its own; a dead corner shows a dash rather than taking the page
      * down. */
-    const [status, changes, ads] = await Promise.all([
+    const [status, changes, ads, values] = await Promise.all([
       apiCall('/api/status').catch(() => null),
       apiCall('/api/changes?limit=8').catch(() => null),
       apiCall('/api/ads').catch(() => null),
+      apiCall('/api/values').catch(() => null),
     ]);
 
     if (dom.statsGrid) {
@@ -617,6 +619,65 @@
       else {
         dom.dashAds.replaceChildren();
         rows.forEach(ad => dom.dashAds.appendChild(adRow(ad, { moderate: false })));
+      }
+    }
+
+    if (dom.dashEconomy) {
+      const table = values && values.values && typeof values.values === 'object'
+        ? values.values : {};
+      /* The ten biggest values in the table, newest edit first on a tie.
+       * These are the numbers the whole economy is keyed to, so they are the
+       * ones to eyeball - a rogue 6,000,000 lands at the top of this list the
+       * moment it is saved. */
+      const rows = Object.entries(table)
+        .map(([id, entry]) => ({
+          id: Number(id),
+          value: Number(entry && entry.value) || 0,
+          updatedAt: Number(entry && entry.updatedAt) || 0,
+          updatedBy: String((entry && entry.updatedBy) || ''),
+        }))
+        .filter(row => Number.isSafeInteger(row.id) && row.id > 0)
+        .sort((a, b) => (b.value - a.value) || (b.updatedAt - a.updatedAt))
+        .slice(0, 10);
+
+      const total = Object.values(table)
+        .reduce((sum, entry) => sum + (Number(entry && entry.value) || 0), 0);
+
+      dom.dashEconomy.replaceChildren();
+      if (!rows.filter(row => row.value > 0).length) {
+        emptyRow(dom.dashEconomy, 'Nothing has been valued yet.');
+      } else {
+        rows.forEach(row => {
+          const item = el('div', 'trade_ad_picker_row');
+          item.style.cursor = 'default';
+
+          const text = el('div', 'flex-grow-1');
+          const head = el('div', 'text-truncate');
+          const link = el('a', null, `Item ${row.id}`);
+          link.href = `/item/?id=${row.id}`;
+          link.target = '_blank';
+          link.rel = 'noopener';
+          link.style.color = '#e9ecef';
+          head.appendChild(link);
+          text.appendChild(head);
+          const sub = el('div', 'small text-truncate', row.updatedBy
+            ? `set by ${row.updatedBy} \u00b7 ${ago(row.updatedAt)}`
+            : '');
+          sub.style.color = '#7a8288';
+          text.appendChild(sub);
+          item.appendChild(text);
+
+          const figure = el('div', 'top-stat-data text-nowrap my-auto',
+            row.value ? formatNumber(row.value) : '-');
+          figure.style.color = row.value >= 1000000 ? '#e57373' : '#e9ecef';
+          item.appendChild(figure);
+
+          dom.dashEconomy.appendChild(item);
+        });
+
+        const sum = el('div', 'small mt-2', `Total value in the table: ${formatNumber(total)}`);
+        sum.style.color = '#7a8288';
+        dom.dashEconomy.appendChild(sum);
       }
     }
   }
@@ -964,6 +1025,24 @@
     if (!Number.isFinite(amount) || amount < 0) {
       notice(dom.valuesNotice, 'Value must be a number, zero or more.', 'bad');
       return;
+    }
+
+    /* The economy guard. A value this size moves every holder's profile
+     * total, badges and leaderboard position the moment it is saved, so it
+     * gets a deliberate pause - this is exactly how a 6,000,000 once got
+     * set and had to be hunted back down. */
+    if (amount >= 1000000) {
+      const label = state.item.name || `item ${state.item.id}`;
+      const sure = window.confirm(
+        `Set ${label} to ${formatNumber(amount)}?\n\n`
+        + 'A value this large changes every holder\'s total, badges and '
+        + 'leaderboard position as soon as it is saved. Only confirm if the '
+        + 'value team has really decided on it.',
+      );
+      if (!sure) {
+        notice(dom.valuesNotice, 'Not saved.');
+        return;
+      }
     }
 
     notice(dom.valuesNotice, 'Saving...');

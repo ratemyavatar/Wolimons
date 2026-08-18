@@ -149,7 +149,19 @@
       const text = await response.text();
       if (/^\s*</.test(text)) return false;
 
-      const changed = absorb(JSON.parse(text));
+      const payload = JSON.parse(text);
+      const changed = absorb(payload);
+
+      /* The table's version, straight from the server: every edit bumps it.
+       * Anything that bakes these numbers into a cache of its own (the
+       * roster, the Lucky Cat draw) stamps the cache with this and rebuilds
+       * the moment it changes - a reverted value must not keep inflating
+       * everybody's totals from a stale cache. 0 means "no table landed". */
+      const stamp = Number(payload && payload.updatedAt) || 0;
+      if (window.WolimonsValues.updatedAt !== stamp) {
+        window.WolimonsValues.updatedAt = stamp;
+      }
+
       if (changed) notify();
       return changed;
     } catch (error) {
@@ -174,6 +186,11 @@
     /* True once the backend's copy is in hand. False means these are the
      * fallbacks, which is worth distinguishing from "everything is 0". */
     loaded: false,
+
+    /* The server's stamp on the table it last served - every value edit
+     * bumps it. Caches that bake these numbers in compare themselves
+     * against it; 0 until the first reply lands. */
+    updatedAt: 0,
 
     /* Resolves once, after the first load attempt. */
     ready,

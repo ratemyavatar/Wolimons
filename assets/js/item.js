@@ -882,6 +882,21 @@
       return;
     }
 
+    /* The same economy guard the panel has: a seven-figure value moves every
+     * holder's total, badges and rank the moment it lands, so it is worth a
+     * deliberate pause. */
+    if (amount >= 1000000) {
+      const sure = window.confirm(
+        `Set this item to ${formatNumber(amount)}?\n\n`
+        + 'A value this large changes every holder\'s total, badges and '
+        + 'leaderboard position as soon as it is saved.',
+      );
+      if (!sure) {
+        notice('Not saved.');
+        return;
+      }
+    }
+
     const noteBox = field('editor-note');
     notice('Saving...');
     try {

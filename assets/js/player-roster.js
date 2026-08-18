@@ -90,6 +90,21 @@
   /* Cache                                                               */
   /* ------------------------------------------------------------------ */
 
+  /*
+   * Which version of the values table a roster was built from.
+   *
+   * The scan bakes VALUES.get() into every row, so a cached roster is only
+   * true as long as the table it was summed from. Every value edit bumps the
+   * server's stamp and values.js republishes it here, so the moment a value
+   * moves - including a bad one being reverted - every cached roster stops
+   * matching and is rebuilt instead of keeping the old totals on the board,
+   * on /players, in ranks and in the Lucky Cat draw.
+   */
+  function valuesVersion() {
+    const stamp = Number(VALUES && VALUES.updatedAt);
+    return Number.isFinite(stamp) ? stamp : 0;
+  }
+
   function readCache() {
     try {
       const raw = window.sessionStorage.getItem(CACHE_KEY);
@@ -97,6 +112,10 @@
       const saved = JSON.parse(raw);
       if (!saved || !Array.isArray(saved.players) || !saved.at) return null;
       if (Date.now() - saved.at > CACHE_TTL_MS) return null;
+      /* The baked-in totals are only good for the table they were summed
+       * from. A mismatched stamp - or a cache written before stamps existed,
+       * which carries none - means rebuild. */
+      if (saved.valuesVersion !== valuesVersion()) return null;
       /* Filtered on the way out as well: a cache written before an account
        * was added to the list would otherwise keep it on the board until it
        * expired. */
@@ -116,7 +135,7 @@
        * belong to whichever ordering a page chose, not to the roster. */
       const saved = players.map(({ verified, rank, ...player }) => player);
       window.sessionStorage.setItem(CACHE_KEY,
-        JSON.stringify({ at: Date.now(), players: saved }));
+        JSON.stringify({ at: Date.now(), valuesVersion: valuesVersion(), players: saved }));
     } catch (error) {
       /* Private mode or a full quota - the roster just rebuilds next time. */
     }
@@ -146,6 +165,19 @@
    * show itself filling in rather than a long blank wait.
    */
   async function scan(onProgress) {
+    /* The rows bake VALUES.get() into every player's total, so the table has
+     * to be the real one before any summing starts - scanning against the
+     * empty fallback would cache a RAP-only board under a values stamp it
+     * does not represent. Pages that rank on the roster already wait for the
+     * table themselves; this makes the order safe for every caller. */
+    if (VALUES && VALUES.ready && typeof VALUES.ready.then === 'function') {
+      try {
+        await VALUES.ready;
+      } catch (error) {
+        /* No table is a legitimate state - the board then sums zeros. */
+      }
+    }
+
     const assetIds = await API.listAllCollectibles();
     if (!assetIds.length) return [];
 

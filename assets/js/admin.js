@@ -61,6 +61,7 @@
     { id: 'changes', label: 'Change Log', section: 'Moderation', need: 'role' },
     { id: 'api', label: 'Public API', section: 'Site', need: 'role' },
     { id: 'server', label: 'Server', section: 'Site', need: 'role' },
+    { id: 'announcement', label: 'Announcement', section: 'Site', need: 'grant' },
   ];
 
   /* The public API's own table, for the Public API page. Kept in step with
@@ -262,6 +263,13 @@
     dom.apiList = document.getElementById('admin_api_list');
 
     dom.serverRefresh = document.getElementById('admin_server_refresh');
+
+    dom.announcementText = document.getElementById('admin_announcement_text');
+    dom.announcementLink = document.getElementById('admin_announcement_link');
+    dom.announcementSave = document.getElementById('admin_announcement_save');
+    dom.announcementClear = document.getElementById('admin_announcement_clear');
+    dom.announcementNotice = document.getElementById('admin_announcement_notice');
+    dom.announcementCurrent = document.getElementById('admin_announcement_current');
     dom.serverList = document.getElementById('admin_server_list');
 
     dom.pickerModal = document.getElementById('item_select_modal');
@@ -451,6 +459,7 @@
     if (known === 'changes' && allowed) loadChanges();
     if (known === 'api' && allowed && !state.loaded.has('api')) renderApiPage();
     if (known === 'server' && allowed) loadServer();
+    if (known === 'announcement' && allowed) loadAnnouncement();
 
     window.scrollTo({ top: 0 });
   }
@@ -1615,6 +1624,67 @@
   }
 
   /* ------------------------------------------------------------------ */
+  /* Announcement                                                        */
+  /* ------------------------------------------------------------------ */
+
+  function renderCurrentAnnouncement(announcement) {
+    const box = dom.announcementCurrent;
+    if (!box) return;
+    if (announcement && announcement.text) {
+      box.textContent = `Currently up: \u201c${announcement.text}\u201d`
+        + (announcement.link ? ` \u2192 ${announcement.link}` : '');
+      box.classList.remove('d-none');
+    } else {
+      box.textContent = 'No announcement is up right now.';
+      box.classList.remove('d-none');
+    }
+  }
+
+  async function loadAnnouncement() {
+    try {
+      const payload = await apiCall('/api/announcement');
+      const announcement = payload.announcement || null;
+      if (dom.announcementText) dom.announcementText.value = announcement ? announcement.text : '';
+      if (dom.announcementLink) dom.announcementLink.value = announcement ? (announcement.link || '') : '';
+      renderCurrentAnnouncement(announcement);
+    } catch (error) {
+      notice(dom.announcementNotice, error.message, 'bad');
+    }
+  }
+
+  async function saveAnnouncement(clear) {
+    const text = clear ? '' : (dom.announcementText ? dom.announcementText.value.trim() : '');
+    const link = clear ? '' : (dom.announcementLink ? dom.announcementLink.value.trim() : '');
+
+    if (!clear && !text) {
+      notice(dom.announcementNotice, 'Type the announcement text first, or press Take it down.', 'bad');
+      return;
+    }
+    if (!clear && link && !/^https?:\/\//i.test(link)) {
+      notice(dom.announcementNotice, 'The link must start with http:// or https://.', 'bad');
+      return;
+    }
+
+    notice(dom.announcementNotice, 'Saving...');
+    try {
+      const payload = await apiCall('/api/announcement/set', {
+        method: 'POST',
+        body: JSON.stringify({ name: actorName(), text, link }),
+      });
+      renderCurrentAnnouncement(payload.announcement || null);
+      if (payload.announcement && payload.announcement.text) {
+        notice(dom.announcementNotice, 'The announcement is up on every page.', 'good');
+      } else {
+        if (dom.announcementText) dom.announcementText.value = '';
+        if (dom.announcementLink) dom.announcementLink.value = '';
+        notice(dom.announcementNotice, 'The announcement has been taken down.', 'good');
+      }
+    } catch (error) {
+      notice(dom.announcementNotice, error.message, 'bad');
+    }
+  }
+
+  /* ------------------------------------------------------------------ */
   /* Item picker - the trade ad composer's modal                         */
   /* ------------------------------------------------------------------ */
 
@@ -1763,6 +1833,9 @@
     dom.adsRefresh?.addEventListener('click', () => { if (hasRole()) loadAds(); });
     dom.changesRefresh?.addEventListener('click', loadChanges);
     dom.serverRefresh?.addEventListener('click', () => { if (hasRole()) loadServer(); });
+
+    dom.announcementSave?.addEventListener('click', () => saveAnnouncement(false));
+    dom.announcementClear?.addEventListener('click', () => saveAnnouncement(true));
   }
 
   function render() {

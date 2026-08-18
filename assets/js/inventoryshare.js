@@ -1,9 +1,9 @@
 /*
- * Wolimons style sheet page - /stylesheet
+ * Wolimons inventory share page - /inventoryshare
  * ---------------------------------------
  * Type any Wanwood username or user id and the page draws that player's
- * style sheet - the same picture the profile's Share inventory button makes,
- * because the drawing is the shared stylesheet-art.js renderer. From here it
+ * inventory picture - the same one the profile's Share inventory button
+ * makes, because the drawing is the shared inventory-art.js renderer. From here it
  * can be uploaded for a plain link that Discord unfurls as an image.
  *
  * The inventory pipeline is the profile page's: collectibles summary first
@@ -19,7 +19,7 @@
   const API = window.WanwoodAPI;
   const VALUES = window.WolimonsValues;
   const ACCOUNT = window.WolimonsAccount;
-  const ART = window.WolimonsStyleSheetArt;
+  const ART = window.WolimonsInventoryArt;
 
   const API_BASE = CONFIG.apiBase || '';
 
@@ -160,7 +160,7 @@
         return;
       }
 
-      status(`Drawing ${player.name}'s style sheet\u2026`);
+      status(`Drawing ${player.name}'s inventory\u2026`);
       const sorted = items.slice()
         .sort((a, b) => (b.value - a.value) || (b.rap - a.rap) || a.name.localeCompare(b.name));
 

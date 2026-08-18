@@ -1,7 +1,7 @@
 /*
- * Wolimons style sheets - the shared renderer.
+ * Wolimons inventory share - the shared renderer.
  * --------------------------------------------
- * A style sheet is the trading-community picture of a player's inventory:
+ * The inventory share picture: a player's inventory as one image:
  * the name and totals across the top, then the items in a grid, most
  * valuable first. This file is the one place that draws it; the profile
  * page's Share inventory button and the /stylesheet page both call it, so
@@ -86,7 +86,7 @@
 
     ctx.fillStyle = COLORS.title;
     ctx.font = 'bold 26px sans-serif';
-    ctx.fillText(`${name || 'Player'}'s Style Sheet`, PAD, 46);
+    ctx.fillText(`${name || 'Player'}'s Inventory`, PAD, 46);
 
     ctx.fillStyle = COLORS.sub;
     ctx.font = '15px sans-serif';
@@ -138,5 +138,5 @@
     return canvas;
   }
 
-  window.WolimonsStyleSheetArt = { render, MAX_ITEMS };
+  window.WolimonsInventoryArt = { render, MAX_ITEMS };
 })();

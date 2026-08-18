@@ -493,4 +493,50 @@
       },
     });
   }
+
+  /* ------------------------------------------------------------------ */
+  /* Global announcement banner                                          */
+  /* ------------------------------------------------------------------ */
+
+  /*
+   * One banner across the top of every page, set from the admin panel and
+   * stored with the values and the roster. The background is the site's own
+   * button blue and the text is white and bold like the button labels, so it
+   * reads as part of the site rather than an ad. No announcement, no banner;
+   * the optional link wraps the text.
+   */
+  (async function loadAnnouncement() {
+    try {
+      const base = (window.WOLIMONS_CONFIG && window.WOLIMONS_CONFIG.apiBase) || '';
+      const response = await fetch(`${base}/api/announcement`, {
+        headers: { Accept: 'application/json' },
+      });
+      if (!response.ok) return;
+      const payload = await response.json();
+      const announcement = payload && payload.announcement;
+      if (!announcement || !String(announcement.text || '').trim()) return;
+
+      const banner = document.createElement('div');
+      banner.id = 'global_announcement_banner';
+      banner.style.cssText = 'background: rgb(0, 132, 221); color: #fff; '
+        + 'font-weight: bold; text-align: center; padding: 9px 40px; '
+        + 'font-size: 15px; line-height: 1.45; position: relative;';
+
+      const text = String(announcement.text).trim();
+      if (announcement.link) {
+        const link = document.createElement('a');
+        link.href = announcement.link;
+        link.style.cssText = 'color: #fff; font-weight: bold; text-decoration: underline;';
+        link.textContent = text;
+        banner.appendChild(link);
+      } else {
+        banner.textContent = text;
+      }
+
+      /* Above the navbar, whatever else the page starts with. */
+      document.body.insertBefore(banner, document.body.firstChild);
+    } catch (error) {
+      /* A banner is never worth breaking a page over. */
+    }
+  })();
 })();

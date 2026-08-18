@@ -669,6 +669,12 @@ async function handle(req, res, url, readBody) {
       return true;
     }
 
+    if (req.method === 'GET' && route === '/api/announcement') {
+      const snapshot = await store.snapshot();
+      send(res, 200, { ok: true, announcement: snapshot.announcement });
+      return true;
+    }
+
     if (req.method === 'GET' && route === '/api/status') {
       const snapshot = await store.snapshot();
       const grants = Object.values(snapshot.badges || {})
@@ -698,6 +704,28 @@ async function handle(req, res, url, readBody) {
     }
 
     /* --------------------------------------------------------------- writes */
+
+    /*
+     * Set or clear the global announcement. Owners only - it lands on every
+     * page of the site. Empty text clears it.
+     */
+    if (req.method === 'POST' && route === '/api/announcement/set') {
+      const payload = readJson(await readBody(req));
+      const auth = await authorize(req, payload, { need: 'owner' });
+      if (!auth.ok) {
+        send(res, auth.status, { ok: false, error: auth.error });
+        return true;
+      }
+
+      await store.setAnnouncement({
+        text: payload.text,
+        link: payload.link,
+        updatedBy: auth.name,
+      });
+      const snapshot = await store.snapshot();
+      send(res, 200, { ok: true, announcement: snapshot.announcement });
+      return true;
+    }
 
     if (req.method === 'POST' && route === '/api/roles/set') {
       const payload = readJson(await readBody(req));

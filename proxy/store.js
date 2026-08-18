@@ -177,6 +177,7 @@ const EMPTY = {
   changes: [],
   ads: [],
   badges: {},
+  announcement: null,
 };
 
 let data = structuredClone(EMPTY);
@@ -402,6 +403,24 @@ function normalize(raw) {
         badges,
         grantedBy: String(entry.grantedBy || ''),
         grantedAt: Number(entry.grantedAt) || 0,
+      };
+    }
+  }
+
+  /*
+   * The global announcement, when one is up. Text is the banner itself; the
+   * link is optional. Empty text means "no announcement" and is stored as
+   * null so nothing stale survives a clear.
+   */
+  if (raw.announcement && typeof raw.announcement === 'object') {
+    const text = String(raw.announcement.text || '').trim().slice(0, 300);
+    const link = String(raw.announcement.link || '').trim().slice(0, 500);
+    if (text) {
+      out.announcement = {
+        text,
+        link: /^https?:\/\//i.test(link) ? link : '',
+        updatedBy: String(raw.announcement.updatedBy || ''),
+        updatedAt: Number(raw.announcement.updatedAt) || 0,
       };
     }
   }
@@ -730,6 +749,30 @@ async function setBadge({ name, badge, granted, grantedBy }) {
   );
 }
 
+/*
+ * Set (or clear) the global announcement. The banner shows on every page, so
+ * this is an owner-only write. Passing empty text clears it.
+ */
+async function setAnnouncement({ text, link, updatedBy }) {
+  const clean = String(text || '').trim();
+
+  return mutate(
+    clean ? 'Update the Wolimons announcement' : 'Clear the Wolimons announcement',
+    current => {
+      current.announcement = clean
+        ? {
+            text: clean,
+            link: /^https?:\/\//i.test(String(link || '').trim())
+              ? String(link || '').trim()
+              : '',
+            updatedBy: String(updatedBy || ''),
+            updatedAt: Date.now(),
+          }
+        : null;
+    },
+  );
+}
+
 async function setRole({ name, role, grantedBy }) {
   const clean = String(name || '').trim();
   if (!clean) throw new Error('A username is required.');
@@ -952,6 +995,7 @@ module.exports = {
   badgeGrants,
   setBadge,
   setValue,
+  setAnnouncement,
   changes,
   ads,
   adById,

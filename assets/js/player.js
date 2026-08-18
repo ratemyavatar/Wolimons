@@ -732,10 +732,10 @@
   /*
    * The Share inventory button opens a popup, says Loading, and when the
    * style sheet is drawn and uploaded the popup reports success in green
-   * with the share link. The drawing itself lives in stylesheet-art.js, the
-   * same renderer the /stylesheet page uses.
+   * with the share link. The drawing itself lives in inventory-art.js, the
+   * same renderer the /inventoryshare page uses.
    */
-  const STYLE_ART = window.WolimonsStyleSheetArt;
+  const STYLE_ART = window.WolimonsInventoryArt;
 
   function showShareModal(open) {
     const modal = document.getElementById('share_inventory_modal');
@@ -773,6 +773,21 @@
     try {
       const top = state.items.slice()
         .sort((a, b) => (b.value - a.value) || (b.rap - a.rap) || a.name.localeCompare(b.name));
+
+      /* The grid loads its thumbnails lazily, so a share clicked early would
+       * draw blanks. Resolve them all first - the call is memoised, so when
+       * they have already landed this costs nothing. */
+      if (API) {
+        try {
+          const map = await API.fetchThumbnails(top.map(item => item.id));
+          top.forEach(item => {
+            const url = map && map.get ? map.get(item.id) : null;
+            if (url) item.thumbnail = url;
+          });
+        } catch (error) {
+          /* Missing thumbnails leave blank tiles, not a broken share. */
+        }
+      }
 
       const canvas = await STYLE_ART.render({
         name: state.name || 'Player',

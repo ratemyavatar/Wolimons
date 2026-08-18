@@ -1098,7 +1098,22 @@
     setNumber('best-price', bestPrice);
     setNumber('best-price-2', bestPrice);
     setNumber('rap', rap);
-    setText('creator', detail?.creatorName || null);
+    setText('creator', null);
+    /*
+     * The productinfo's Creator field is not to be trusted - it answers with
+     * the asset's own name. Every limited is created by the account with user
+     * id 1, so that account's real username is resolved instead; the
+     * productinfo figure is only the fallback if the lookup fails.
+     */
+    if (API && typeof API.getUserById === 'function') {
+      API.getUserById(1).then(user => {
+        setText('creator', user ? user.name : (detail?.creatorName || null));
+      }).catch(() => {
+        setText('creator', detail?.creatorName || null);
+      });
+    } else {
+      setText('creator', detail?.creatorName || null);
+    }
 
     /* Two figures the snapshot does not carry, kept from the item page this
      * one replaces: how many different players are selling, and the top ask. */

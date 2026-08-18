@@ -28,3 +28,6 @@ logs/
 # Downloaded by windows/setup.bat on first use, not ours to ship.
 windows/nssm.exe
 windows/cloudflared.exe
+
+# Inventory share cards uploaded by visitors through /api/inventory-card.
+cards/

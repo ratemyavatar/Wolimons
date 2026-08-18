@@ -56,6 +56,7 @@
 
 const crypto = require('crypto');
 const path = require('path');
+const fsp = require('fs/promises');
 const store = require('./store');
 
 /*
@@ -914,6 +915,52 @@ async function handle(req, res, url, readBody) {
       }
       const ad = await store.moderateAd({ id: payload.id, removedBy: auth.name });
       send(res, 200, { ok: true, id: ad.id });
+      return true;
+    }
+
+    /*
+     * Inventory share cards. The profile page draws the inventory to a canvas
+     * and posts the JPEG here; we keep it under cards/ (which the static
+     * server hands out like any other file) and answer with its path, so the
+     * link pasted into Discord unfurls as a plain image.
+     *
+     * Inventories are public - the profile page already shows every copy - so
+     * this is not gated. The checks are about shape and disk instead: it has
+     * to be a real JPEG, it cannot be huge, and the folder is pruned so it
+     * cannot grow without bound.
+     */
+    if (req.method === 'POST' && route === '/api/inventory-card') {
+      const body = await readBody(req);
+      if (!body || body.length < 1000) {
+        send(res, 400, { ok: false, error: 'No image arrived.' });
+        return true;
+      }
+      if (body.length > 3 * 1000 * 1000) {
+        send(res, 400, { ok: false, error: 'That image is too large to keep.' });
+        return true;
+      }
+      /* JPEG magic bytes - nothing else gets stored. */
+      if (body[0] !== 0xff || body[1] !== 0xd8) {
+        send(res, 400, { ok: false, error: 'Only JPEG images are accepted.' });
+        return true;
+      }
+
+      const dir = path.join(SITE_ROOT, 'cards');
+      await fsp.mkdir(dir, { recursive: true });
+
+      /* Keep the newest four hundred; the rest are gone, oldest first. */
+      const files = (await fsp.readdir(dir))
+        .filter(name => name.endsWith('.jpg'))
+        .map(name => ({ name, at: Number(name.split('-').pop()) || 0 }))
+        .sort((a, b) => b.at - a.at);
+      for (const stale of files.slice(400)) {
+        await fsp.unlink(path.join(dir, stale.name)).catch(() => {});
+      }
+
+      const userId = Number(url.searchParams.get('id')) || 0;
+      const name = `${userId > 0 ? userId : 'player'}-${Date.now()}.jpg`;
+      await fsp.writeFile(path.join(dir, name), body);
+      send(res, 200, { ok: true, url: `/cards/${name}` });
       return true;
     }
 

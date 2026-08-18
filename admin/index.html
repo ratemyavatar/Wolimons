@@ -37,11 +37,11 @@
 .admin_kv_val { flex: 1 1 240px; color: rgb(233, 236, 239); word-break: break-word; }
 .admin_page_note { color: rgb(122, 130, 136); }
 .admin_lock_link { color: #7ab8f5; }
-@media (max-width: 1024px) {
-  /* Phones and tablets (portrait or landscape): the sidebar becomes a sticky
-     horizontal page strip, so the navigation stays one thumb-reach away
-     instead of stacking eight buttons over the content or eating a third
-     of a narrow screen. Desktops above 1024px keep the vertical sidebar. */
+@media (max-width: 900px) {
+  /* Phones and portrait tablets: the sidebar becomes a sticky horizontal
+     page strip, so the navigation stays one thumb-reach away instead of
+     stacking eight buttons over the content. Desktops (and landscape
+     tablets with room to spare) keep the vertical sidebar. */
   .admin_shell { gap: 10px; }
   .admin_sidebar { max-width: none; width: 100%; position: sticky; top: 0; z-index: 1020; border-radius: 0; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35); }
   #admin_nav { flex-direction: row !important; flex-wrap: nowrap; overflow-x: auto; padding: 8px 8px 10px; }

@@ -725,6 +725,193 @@
   if (sortSelect) sortSelect.addEventListener('change', renderInventory);
   if (stackToggle) stackToggle.addEventListener('change', renderInventory);
 
+  /* ------------------------------------------------------------------ */
+  /* Share inventory                                                     */
+  /* ------------------------------------------------------------------ */
+
+  /*
+   * Draws the inventory to a canvas in the browser, uploads it as a JPEG to
+   * this server, and hands back a plain URL - paste it into Discord and it
+   * unfurls as a picture of the inventory.
+   *
+   * Everything drawn comes from what the page already knows: the same
+   * thumbnails the grid shows (proxied through this origin, so the canvas
+   * never taints), the same totals the stat cards print, and the site's own
+   * colours. The most valuable items lead; after sixty the card stops rather
+   * than becoming unreadable.
+   */
+  function loadImageForCard(src) {
+    return new Promise(resolve => {
+      if (!src) return resolve(null);
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => resolve(null);
+      img.src = src;
+    });
+  }
+
+  function truncateName(name, max) {
+    const clean = String(name || '');
+    return clean.length <= max ? clean : `${clean.slice(0, max - 1)}\u2026`;
+  }
+
+  async function shareInventory() {
+    const button = document.getElementById('player_share_inventory');
+    const result = document.getElementById('player_share_result');
+    const urlBox = document.getElementById('player_share_url');
+    const noticeBox = document.getElementById('player_share_notice');
+    if (!button) return;
+    if (!state.items || !state.items.length) {
+      if (noticeBox && result) {
+        result.classList.remove('d-none');
+        if (urlBox) urlBox.value = '';
+        noticeBox.textContent = 'This player owns no collectibles to picture.';
+      }
+      return;
+    }
+
+    button.disabled = true;
+    const label = button.querySelector('.text-nowrap');
+    const oldText = label ? label.textContent : '';
+    if (label) label.textContent = 'Drawing...';
+
+    try {
+      const top = state.items.slice()
+        .sort((a, b) => (b.value - a.value) || (b.rap - a.rap) || a.name.localeCompare(b.name))
+        .slice(0, 60);
+
+      const images = await Promise.all(top.map(item =>
+        loadImageForCard(item.thumbnail || (API ? API.thumbnailUrl(item.id) : ''))));
+
+      const COLS = 4;
+      const TILE_W = 250;
+      const TILE_H = 195;
+      const PAD = 24;
+      const HEADER = 118;
+      const FOOTER = 52;
+      const rowCount = Math.ceil(top.length / COLS);
+      const width = PAD * 2 + COLS * TILE_W;
+      const height = HEADER + rowCount * TILE_H + FOOTER;
+
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+
+      /* Page background, then the header band in the navbar's own grey. */
+      ctx.fillStyle = '#272b30';
+      ctx.fillRect(0, 0, width, height);
+      ctx.fillStyle = '#3a3f44';
+      ctx.fillRect(0, 0, width, HEADER - 12);
+
+      ctx.fillStyle = '#e9ecef';
+      ctx.font = 'bold 26px sans-serif';
+      ctx.fillText(`${state.name || 'Player'}'s Inventory`, PAD, 46);
+
+      const totalValue = state.items.reduce((sum, item) => sum + item.value * item.copies, 0);
+      const totalRap = state.items.reduce((sum, item) => sum + item.rap * item.copies, 0);
+      const totalCopies = state.items.reduce((sum, item) => sum + item.copies, 0);
+      ctx.fillStyle = '#adb5bd';
+      ctx.font = '15px sans-serif';
+      ctx.fillText(
+        `Value R$ ${formatNumber(totalValue)}    RAP R$ ${formatNumber(totalRap)}    `
+        + `${formatNumber(totalCopies)} limiteds`,
+        PAD, 78,
+      );
+
+      top.forEach((item, index) => {
+        const col = index % COLS;
+        const row = Math.floor(index / COLS);
+        const x = PAD + col * TILE_W;
+        const y = HEADER + row * TILE_H;
+
+        /* The card tile in the catalogue card's own colour. */
+        ctx.fillStyle = '#30363c';
+        ctx.fillRect(x + 5, y + 5, TILE_W - 10, TILE_H - 10);
+
+        const img = images[index];
+        const BOX = 100;
+        if (img) {
+          ctx.drawImage(img, x + (TILE_W - BOX) / 2, y + 16, BOX, BOX);
+        } else {
+          ctx.strokeStyle = '#43494f';
+          ctx.strokeRect(x + (TILE_W - BOX) / 2, y + 16, BOX, BOX);
+        }
+
+        ctx.textAlign = 'center';
+        const cx = x + TILE_W / 2;
+        ctx.fillStyle = '#e9ecef';
+        ctx.font = '13px sans-serif';
+        ctx.fillText(truncateName(item.name, 27), cx, y + 135);
+        ctx.fillStyle = '#7ab8f5';
+        ctx.font = '12px sans-serif';
+        ctx.fillText(item.value ? `Value R$ ${formatNumber(item.value)}` : 'Unvalued', cx, y + 155);
+        ctx.fillStyle = '#8a9199';
+        ctx.fillText(
+          `RAP R$ ${formatNumber(item.rap)}${item.copies > 1 ? `   x${item.copies}` : ''}`,
+          cx, y + 173,
+        );
+        ctx.textAlign = 'left';
+      });
+
+      ctx.fillStyle = '#7a8288';
+      ctx.font = '13px sans-serif';
+      ctx.fillText(`Wolimons \u00b7 ${new Date().toISOString().slice(0, 10)}`, PAD, height - 20);
+
+      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.85));
+      if (!blob) throw new Error('The browser refused to export the image.');
+
+      if (label) label.textContent = 'Uploading...';
+      const response = await fetch(
+        `${API && API.API_BASE ? API.API_BASE : ''}/api/inventory-card`
+        + `?id=${Number(state.userId) || 0}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'image/jpeg' },
+          body: blob,
+        },
+      );
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || payload.ok === false) {
+        throw new Error(payload.error || `The upload failed (${response.status}).`);
+      }
+
+      const full = `${window.location.origin}${payload.url}`;
+      if (result && urlBox) {
+        result.classList.remove('d-none');
+        urlBox.value = full;
+      }
+      if (noticeBox) {
+        noticeBox.textContent = 'Paste this link in Discord - it opens as a picture of the inventory.';
+      }
+    } catch (error) {
+      if (result && noticeBox) {
+        result.classList.remove('d-none');
+        if (urlBox) urlBox.value = '';
+        noticeBox.textContent = error.message;
+      }
+    } finally {
+      button.disabled = false;
+      if (label) label.textContent = oldText || 'Share inventory';
+    }
+  }
+
+  const shareButton = document.getElementById('player_share_inventory');
+  if (shareButton) shareButton.addEventListener('click', shareInventory);
+  const shareCopy = document.getElementById('player_share_copy');
+  if (shareCopy) {
+    shareCopy.addEventListener('click', () => {
+      const box = document.getElementById('player_share_url');
+      if (!box || !box.value) return;
+      box.select();
+      box.setSelectionRange(0, box.value.length);
+      try { document.execCommand('copy'); } catch (error) { /* user can Ctrl+C */ }
+      const original = shareCopy.textContent;
+      shareCopy.textContent = 'Copied';
+      window.setTimeout(() => { shareCopy.textContent = original; }, 1200);
+    });
+  }
+
   const badgeExpand = el('badges_expand');
   if (badgeExpand) {
     badgeExpand.addEventListener('click', toggleBadgeRow);

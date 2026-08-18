@@ -328,6 +328,27 @@ async function playerSummary(userId) {
 /* Rewriting the tags                                                  */
 /* ------------------------------------------------------------------ */
 
+/*
+ * Unfurlers fetch og:image themselves, and Wanwood refuses requests that do
+ * not look like a browser - so an image URL pointing straight at the upstream
+ * would preview as nothing. Routing the URL through this origin instead lets
+ * the proxy (which already speaks browser to Wanwood) serve the bytes, and
+ * relative paths become absolute because crawlers need a full URL.
+ */
+function publicImage(image, base) {
+  if (!image) return `${base}/assets/Wolimonslogoo.png`;
+  if (image.startsWith('/')) return `${base}${image}`;
+  try {
+    const parsed = new URL(image);
+    if (parsed.host === new URL(UPSTREAM).host) {
+      return `${base}${parsed.pathname}${parsed.search}`;
+    }
+    return image;
+  } catch (error) {
+    return image;
+  }
+}
+
 function buildTags(player, pageUrl) {
   const parts = [
     `Value ${formatNumber(player.value)}`,
@@ -344,7 +365,8 @@ function buildTags(player, pageUrl) {
 
   const title = `${player.name} - Wolimons`;
   const description = parts.join('  |  ');
-  const image = player.avatar || '/assets/Wolimonslogoo.png';
+  const base = new URL(pageUrl).origin;
+  const image = publicImage(player.avatar, base);
 
   return { title, description, image, url: pageUrl };
 }
@@ -446,7 +468,7 @@ function buildItemTags(item, pageUrl) {
   return {
     title: `${item.name} - Wolimons`,
     description: parts.join('  |  '),
-    image: item.image,
+    image: publicImage(item.image, new URL(pageUrl).origin),
     url: pageUrl,
   };
 }

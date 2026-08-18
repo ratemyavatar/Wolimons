@@ -302,6 +302,24 @@ function corsOrigin(requestOrigin) {
   return ALLOWED_ORIGINS[0];
 }
 
+/*
+ * The origin the outside world used to reach this request - the Host header,
+ * with the proto read from X-Forwarded-Proto when something proxies in front
+ * (a Cloudflare tunnel, most usually). Needed wherever a URL has to make
+ * sense to a stranger: the link-preview tags, for one.
+ */
+const TRUST_PROTO = /^(1|true|yes|on)$/i.test(String(process.env.TRUST_PROXY || ''));
+
+function publicBase(req) {
+  const host = String(req.headers.host || '').trim() || `localhost:${PORT}`;
+  let proto = 'http';
+  if (TRUST_PROTO) {
+    const forwarded = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim().toLowerCase();
+    if (forwarded === 'https' || forwarded === 'http') proto = forwarded;
+  }
+  return `${proto}://${host}`;
+}
+
 function applyCors(res, requestOrigin) {
   res.setHeader('Access-Control-Allow-Origin', corsOrigin(requestOrigin));
   res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, POST, OPTIONS');
@@ -316,7 +334,9 @@ function readBody(req) {
     let size = 0;
     req.on('data', chunk => {
       size += chunk.length;
-      if (size > 1_000_000) {
+      /* Room for an inventory share card JPEG; every other body is far
+       * smaller than this. */
+      if (size > 4_000_000) {
         reject(new Error('Request body too large'));
         req.destroy();
         return;
@@ -448,23 +468,34 @@ async function serveStatic(req, res, url) {
      * Link previews. Only for the profile page, and only for a crawler -
      * a real browser gets the page untouched and fills it in itself.
      * Returns null whenever it cannot help, so the page still loads.
+     *
+     * The URL handed over carries the origin the crawler actually asked for
+     * (its Host header, and the forwarded proto behind Cloudflare) - not the
+     * localhost origin this process sees itself as - so og:url and og:image
+     * come out as links Discord can follow.
      */
     let embedded = false;
+    const publicUrl = new URL(req.url, publicBase(req));
     if (url.pathname === '/player/' || url.pathname === '/player/index.html') {
-      const rewritten = await embed.playerEmbed(html, url, req.headers['user-agent']);
+      const rewritten = await embed.playerEmbed(html, publicUrl, req.headers['user-agent']);
       if (rewritten) {
         html = rewritten;
         embedded = true;
       }
     } else if (url.pathname === '/item/' || url.pathname === '/item/index.html') {
-      const rewritten = await embed.itemEmbed(html, url, req.headers['user-agent']);
+      const rewritten = await embed.itemEmbed(html, publicUrl, req.headers['user-agent']);
       if (rewritten) {
         html = rewritten;
         embedded = true;
       }
     }
 
-    if (PROTECT_SOURCES) html = stripped('html', file, html, info.mtimeMs);
+    if (PROTECT_SOURCES) {
+      /* The cache key carries the embedded flag: a crawler's rewritten copy
+       * and a browser's plain copy are different bodies for the same file,
+       * and they must never be served to each other. */
+      html = stripped('html', file + (embedded ? ':embed' : ''), html, info.mtimeMs);
+    }
 
     const body = Buffer.from(html, 'utf8');
     /* The '-e' keeps a crawler's copy from colliding with a browser's in any

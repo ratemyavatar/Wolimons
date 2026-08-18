@@ -1152,34 +1152,23 @@
     }) || null;
   }
 
+  /*
+   * A line with no arrow can still be a field: "demand low", "unvalued
+   * 325", "trend unstable". Returns { key, value } when it is, null when the
+   * line is something else (usually the item name).
+   */
+  function bareField(line) {
+    const match = /^(demand|trend|method|valuation|value|unvalued|valued)\s+(.+)$/i.exec(line);
+    if (!match) return null;
+    return { key: match[1].toLowerCase(), value: match[2].trim() };
+  }
+
   function parseValuationText(raw) {
     const result = { title: '', acronym: '', searchName: '', fields: {}, note: '', problems: [] };
     let inNote = false;
 
-    const parseLine = (line) => {
-      const noteMatch = /^(?:explanation|note)\s*(?:-->|->|=>|:|\u2192)\s*(.*)$/i.exec(line);
-      if (noteMatch) {
-        const text = noteMatch[1].trim();
-        if (text) result.note += (result.note ? ' ' : '') + text;
-        inNote = true;
-        return;
-      }
-
-      if (!VALUE_ARROW.test(line)) {
-        /* The first plain line is the item. */
-        if (!result.title) {
-          result.title = line;
-          const paren = /\(([^()]+)\)\s*$/.exec(line);
-          if (paren) result.acronym = paren[1].trim();
-          result.searchName = line.replace(/\s*\(([^()]+)\)\s*$/, '').trim();
-        }
-        return;
-      }
-
-      const halves = line.split(VALUE_ARROW);
-      const key = halves[0].trim().toLowerCase();
-      const value = halves.slice(1).join(' ').trim();
-
+    /* One field, however the line was written. */
+    const handleField = (key, value) => {
       if (/demand/.test(key)) {
         const demand = matchVocab(value, VALUE_VOCAB.demand);
         if (demand) result.fields.demand = demand;
@@ -1205,6 +1194,42 @@
       }
     };
 
+    const parseLine = (line) => {
+      const noteMatch = /^(?:explanation|note)\s*(?:-->|->|=>|:|\u2192)\s*(.*)$/i.exec(line);
+      if (noteMatch) {
+        const text = noteMatch[1].trim();
+        if (text) result.note += (result.note ? ' ' : '') + text;
+        inNote = true;
+        return;
+      }
+      const bareNote = /^(?:explanation|note)\s+(.+)$/i.exec(line);
+      if (bareNote) {
+        result.note += (result.note ? ' ' : '') + bareNote[1].trim();
+        inNote = true;
+        return;
+      }
+
+      if (VALUE_ARROW.test(line)) {
+        const halves = line.split(VALUE_ARROW);
+        handleField(halves[0].trim().toLowerCase(), halves.slice(1).join(' ').trim());
+        return;
+      }
+
+      const bare = bareField(line);
+      if (bare) {
+        handleField(bare.key, bare.value);
+        return;
+      }
+
+      /* The first plain line is the item. */
+      if (!result.title) {
+        result.title = line;
+        const paren = /\(([^()]+)\)\s*$/.exec(line);
+        if (paren) result.acronym = paren[1].trim();
+        result.searchName = line.replace(/\s*\(([^()]+)\)\s*$/, '').trim();
+      }
+    };
+
     String(raw || '').split(/\r?\n/).forEach(rawLine => {
       const line = rawLine.trim();
       if (!line) {
@@ -1214,7 +1239,7 @@
         return;
       }
       if (inNote) {
-        if (VALUE_ARROW.test(line) || /^(?:explanation|note)\b/i.test(line)) {
+        if (VALUE_ARROW.test(line) || /^(?:explanation|note)\b/i.test(line) || bareField(line)) {
           inNote = false;
           parseLine(line);
         } else {
@@ -1324,13 +1349,23 @@
    * Lines that cannot be recognised are kept exactly as written - the
    * formatter must never eat words.
    */
-  function formatValuationLine(line) {
+  function formatValuationLine(line, isTitle) {
     const noteMatch = /^(?:explanation|note)\s*(?:-->|->|=>|:|\u2192)\s*(.*)$/i.exec(line);
     if (noteMatch) {
       const rest = noteMatch[1].trim();
       return rest ? `explanation: ${rest}` : 'explanation:';
     }
-    if (!VALUE_ARROW.test(line)) return line;
+
+    if (!VALUE_ARROW.test(line)) {
+      /* The item name is left exactly as written. Anything else without an
+       * arrow gets one - "demand low" becomes "demand --> low". */
+      if (isTitle) return line;
+      const bareNote = /^(?:explanation|note)\s+(.+)$/i.exec(line);
+      if (bareNote) return `explanation: ${bareNote[1].trim()}`;
+      const bare = bareField(line);
+      if (bare) return formatValuationLine(`${bare.key} --> ${bare.value}`, false);
+      return line;
+    }
 
     const halves = line.split(VALUE_ARROW);
     const key = halves[0].trim();
@@ -1364,7 +1399,13 @@
 
   function formatValuationText(raw) {
     const lines = String(raw || '').split(/\r?\n/).map(line => line.trim());
-    const formatted = lines.map(line => (line ? formatValuationLine(line) : ''));
+    let seenTitle = false;
+    const formatted = lines.map(line => {
+      if (!line) return '';
+      const isTitle = !seenTitle;
+      seenTitle = true;
+      return formatValuationLine(line, isTitle);
+    });
     return formatted.join('\n').replace(/\n{3,}/g, '\n\n').replace(/\s+$/, '');
   }
 

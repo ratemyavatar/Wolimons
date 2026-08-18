@@ -37,10 +37,11 @@
 .admin_kv_val { flex: 1 1 240px; color: rgb(233, 236, 239); word-break: break-word; }
 .admin_page_note { color: rgb(122, 130, 136); }
 .admin_lock_link { color: #7ab8f5; }
-@media (max-width: 767px) {
-  /* Phones: the sidebar becomes a sticky horizontal page strip, so the
-     navigation stays one thumb-reach away instead of stacking eight
-     buttons over the content. */
+@media (max-width: 1024px) {
+  /* Phones and tablets (portrait or landscape): the sidebar becomes a sticky
+     horizontal page strip, so the navigation stays one thumb-reach away
+     instead of stacking eight buttons over the content or eating a third
+     of a narrow screen. Desktops above 1024px keep the vertical sidebar. */
   .admin_shell { gap: 10px; }
   .admin_sidebar { max-width: none; width: 100%; position: sticky; top: 0; z-index: 1020; border-radius: 0; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35); }
   #admin_nav { flex-direction: row !important; flex-wrap: nowrap; overflow-x: auto; padding: 8px 8px 10px; }
@@ -257,7 +258,7 @@
                             <div class="row mx-0 mt-4"><h2 class="section_header">Paste a valuation</h2></div>
                             <div class="row shadow mx-0 mt-2" style="background-color: #2e3337;">
                                 <div class="w-100 px-3 px-sm-4 py-4">
-                                    <div class="small mb-2 admin_page_note">Paste a valuation as text - the item name on its own line first, then any of these: <span style="color:#e9ecef;">unvalued --&gt; 325</span> &nbsp; <span style="color:#e9ecef;">demand --&gt; low</span> &nbsp; <span style="color:#e9ecef;">trend --&gt; unstable</span> &nbsp; <span style="color:#e9ecef;">explanation: ...</span> Don't fight the formatting: the box tidies itself as you type, and arrows like <span style="color:#e9ecef;">-&gt;</span>, <span style="color:#e9ecef;">=&gt;</span> or a colon all work. Leave out whatever you do not want to touch - only the lines you list are applied, and the rest of the item's row stays as it was. An acronym in brackets after the name is used as a backup search.</div>
+                                    <div class="small mb-2 admin_page_note">Item name first, then whatever you're setting. Type it however you like - the box adds the arrows and fixes the spelling and numbers as you go. What you leave out stays untouched.</div>
                                     <textarea class="form-control rounded-0 shadow border-0" id="admin_value_text" rows="8" style="background-color: #eee; resize: vertical; font-family: inherit;" placeholder="red energy sword (res)
 
 unvalued --&gt; 325
@@ -444,4 +445,4 @@ explanation: sold for 100 and 150 robux after a lowball trade, so the trend is u
         </div>
     </div>
 
-<script src="/assets/js/config.js?v=5"></script><script src="/assets/js/values.js?v=5"></script><script src="/assets/js/wanwood-api.js?v=5"></script><script src="/assets/js/account.js?v=5"></script><script src="/assets/js/prefs.js?v=5"></script><script src="/assets/js/granted-badges.js?v=5"></script><script src="/assets/js/badge-art.js?v=5"></script><script src="/assets/js/badges.js?v=5"></script><script src="/assets/js/role-icons.js?v=5" defer></script><script src="/assets/js/admin.js?v=5" defer></script></body></html>
+<script src="/assets/js/config.js?v=6"></script><script src="/assets/js/values.js?v=6"></script><script src="/assets/js/wanwood-api.js?v=6"></script><script src="/assets/js/account.js?v=6"></script><script src="/assets/js/prefs.js?v=6"></script><script src="/assets/js/granted-badges.js?v=6"></script><script src="/assets/js/badge-art.js?v=6"></script><script src="/assets/js/badges.js?v=6"></script><script src="/assets/js/role-icons.js?v=6" defer></script><script src="/assets/js/admin.js?v=6" defer></script></body></html>

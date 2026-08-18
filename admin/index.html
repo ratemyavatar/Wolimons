@@ -14,7 +14,7 @@
     <meta name="twitter:image" content="/assets/Wolimonslogoo.png">
     <title>Admin - Wolimons</title>
     <link rel="stylesheet" href="/css/sitecombined2.css">
-    <link rel="stylesheet" href="/css/koromons.css">
+    <link rel="stylesheet" href="/css/wolimons.css">
     <link rel="stylesheet" href="/css/tradeads.css">
 <link rel="icon" type="image/svg+xml" href="/assets/Wolimonslogoo.png">
 <style>
@@ -25,18 +25,20 @@
  */
 .admin_topbar { background-color: rgb(58, 63, 68); }
 .admin_shell { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 16px; }
-.admin_sidebar { background-color: rgb(46, 51, 55); flex: 0 0 auto; min-width: 212px; max-width: 240px; }
+.admin_sidebar { background-color: rgb(46, 51, 55); flex: 0 0 auto; min-width: 212px; max-width: 240px; position: sticky; top: 12px; }
 .admin_main { flex: 1 1 620px; min-width: 0; }
 .admin_nav_button { display: block; width: 100%; margin: 2px 0; padding: 8px 14px; text-align: left; }
 .admin_nav_button.active { color: #fff; }
+.admin_nav_section { color: rgb(122, 130, 136); font-size: 0.78em; letter-spacing: 0.06em; padding: 10px 14px 2px; }
 .admin_stat_cell { flex: 1 1 165px; min-width: 150px; padding: 12px 6px 12px 24px; }
 .admin_kv_row { display: flex; flex-wrap: wrap; gap: 8px; padding: 7px 0; border-bottom: 1px solid rgb(58, 63, 68); }
 .admin_kv_row:last-child { border-bottom: 0; }
 .admin_kv_key { flex: 0 0 200px; color: rgb(122, 130, 136); }
 .admin_kv_val { flex: 1 1 240px; color: rgb(233, 236, 239); word-break: break-word; }
 .admin_page_note { color: rgb(122, 130, 136); }
+.admin_lock_link { color: #7ab8f5; }
 @media (max-width: 767px) {
-  .admin_sidebar { max-width: none; width: 100%; }
+  .admin_sidebar { max-width: none; width: 100%; position: static; }
   .admin_kv_key { flex-basis: 100%; }
 }
 </style>
@@ -62,22 +64,13 @@
             <div class="container-fluid px-0 mt-3 mb-4" style="max-width: 1300px;">
                 <div class="admin_shell mx-0 mx-sm-2">
 
-                    <!-- The sidebar. Every function has its own page; the
-                         buttons are the catalog's filter chips stretched full
-                         width, so the pressed state is the one traders already
-                         know. -->
+                    <!-- The sidebar. Built by admin.js from one shared list,
+                         so every page of the panel gets exactly the same
+                         navigation from the same source. It stays on screen
+                         while the page scrolls. -->
                     <aside class="admin_sidebar shadow rounded">
                         <div class="px-3 pt-3 pb-1 small" style="color: rgb(122, 130, 136);">ADMIN PANEL</div>
-                        <nav class="d-flex flex-column px-2 pb-3" id="admin_nav" aria-label="Admin panel pages">
-                            <button class="filter-button btn btn-primary admin_nav_button active" data-page="dashboard" type="button" aria-pressed="true">Dashboard</button>
-                            <button class="filter-button btn btn-primary admin_nav_button" data-page="values" type="button" aria-pressed="false">Item Values</button>
-                            <button class="filter-button btn btn-primary admin_nav_button" data-page="roles" type="button" aria-pressed="false">Staff Ranks</button>
-                            <button class="filter-button btn btn-primary admin_nav_button" data-page="badges" type="button" aria-pressed="false">Player Badges</button>
-                            <button class="filter-button btn btn-primary admin_nav_button" data-page="ads" type="button" aria-pressed="false">Trade Ads</button>
-                            <button class="filter-button btn btn-primary admin_nav_button" data-page="changes" type="button" aria-pressed="false">Change Log</button>
-                            <button class="filter-button btn btn-primary admin_nav_button" data-page="api" type="button" aria-pressed="false">Public API</button>
-                            <button class="filter-button btn btn-primary admin_nav_button" data-page="server" type="button" aria-pressed="false">Server</button>
-                        </nav>
+                        <nav class="d-flex flex-column px-2 pb-3" id="admin_nav" aria-label="Admin panel pages"></nav>
                     </aside>
 
                     <main class="admin_main">
@@ -117,72 +110,77 @@
                         <!-- ================= ITEM VALUES ================= -->
                         <section class="admin_page d-none" id="admin_page_values">
                             <div class="row mx-0"><h2 class="section_header">Item values</h2></div>
-                            <div class="row shadow mx-0 mt-2" style="background-color: #2e3337;">
-                                <div class="w-100 px-3 px-sm-4 py-4">
-                                    <div class="small mb-3 admin_page_note">Values, demand, trend, valuation method and categories are set here by hand - Wanwood only has prices and RAP. Saving writes the change log the Value Changes page reads.</div>
-                                    <div class="d-flex flex-wrap align-items-center">
-                                        <div class="trade_ad_picker_row" id="admin_value_item" style="cursor: default;">
-                                            <img id="admin_value_item_image" width="44" height="44" alt="" loading="lazy" src="/assets/Wolimonslogoo.png">
-                                            <div class="flex-grow-1">
-                                                <div class="text-truncate" id="admin_value_item_name">No item chosen</div>
-                                                <div class="small" id="admin_value_item_stats" style="color: #7a8288;">Choose an item to value it</div>
+                            <div class="admin_page_lock trade_ads_empty_state mx-0 mt-3 d-none">
+                                <div class="px-3" style="color: #adb5bd;"><span class="admin_lock_message"></span> <a class="admin_lock_link d-none" href="/verify">Link your Wanwood account</a><span class="admin_lock_hint"></span></div>
+                            </div>
+                            <div class="admin_page_body">
+                                <div class="row shadow mx-0 mt-2" style="background-color: #2e3337;">
+                                    <div class="w-100 px-3 px-sm-4 py-4">
+                                        <div class="small mb-3 admin_page_note">Values, demand, trend, valuation method and categories are set here by hand - Wanwood only has prices and RAP. Saving writes the change log the Value Changes page reads.</div>
+                                        <div class="d-flex flex-wrap align-items-center">
+                                            <div class="trade_ad_picker_row" id="admin_value_item" style="cursor: default;">
+                                                <img id="admin_value_item_image" width="44" height="44" alt="" loading="lazy" src="/assets/Wolimonslogoo.png">
+                                                <div class="flex-grow-1">
+                                                    <div class="text-truncate" id="admin_value_item_name">No item chosen</div>
+                                                    <div class="small" id="admin_value_item_stats" style="color: #7a8288;">Choose an item to value it</div>
+                                                </div>
+                                            </div>
+                                            <input class="btn btn-flat-light-blue shadow ml-auto" id="admin_value_choose" type="submit" value="Choose an item">
+                                        </div>
+
+                                        <div class="d-flex flex-wrap mt-3">
+                                            <div class="filter-range-pair flex-column mr-4 ml-0">
+                                                <div class="stat-textbox-title-small" style="color: #adadad;">Value</div>
+                                                <div class="d-flex">
+                                                    <input class="filter-text-box form-control filter-textbox-small" id="admin_value_amount" type="text" inputmode="numeric" placeholder="0">
+                                                </div>
                                             </div>
                                         </div>
-                                        <input class="btn btn-flat-light-blue shadow ml-auto" id="admin_value_choose" type="submit" value="Choose an item">
-                                    </div>
 
-                                    <div class="d-flex flex-wrap mt-3">
-                                        <div class="filter-range-pair flex-column mr-4 ml-0">
-                                            <div class="stat-textbox-title-small" style="color: #adadad;">Value</div>
-                                            <div class="d-flex">
-                                                <input class="filter-text-box form-control filter-textbox-small" id="admin_value_amount" type="text" inputmode="numeric" placeholder="0">
-                                            </div>
+                                        <div class="stat-textbox-title-small" style="color: #adadad;">Demand</div>
+                                        <div class="d-flex flex-wrap" id="admin_demand_choices">
+                                            <button class="filter-button btn btn-primary" data-demand-value="High" type="button" aria-pressed="false">High</button>
+                                            <button class="filter-button btn btn-primary" data-demand-value="Decent" type="button" aria-pressed="false">Decent</button>
+                                            <button class="filter-button btn btn-primary" data-demand-value="Low" type="button" aria-pressed="false">Low</button>
+                                            <button class="filter-button btn btn-primary" data-demand-value="Terrible" type="button" aria-pressed="false">Terrible</button>
+                                            <button class="filter-button btn btn-primary" data-demand-value="None" type="button" aria-pressed="false">Unassigned</button>
                                         </div>
-                                    </div>
 
-                                    <div class="stat-textbox-title-small" style="color: #adadad;">Demand</div>
-                                    <div class="d-flex flex-wrap" id="admin_demand_choices">
-                                        <button class="filter-button btn btn-primary" data-demand-value="High" type="button" aria-pressed="false">High</button>
-                                        <button class="filter-button btn btn-primary" data-demand-value="Decent" type="button" aria-pressed="false">Decent</button>
-                                        <button class="filter-button btn btn-primary" data-demand-value="Low" type="button" aria-pressed="false">Low</button>
-                                        <button class="filter-button btn btn-primary" data-demand-value="Terrible" type="button" aria-pressed="false">Terrible</button>
-                                        <button class="filter-button btn btn-primary" data-demand-value="None" type="button" aria-pressed="false">Unassigned</button>
-                                    </div>
+                                        <div class="stat-textbox-title-small mt-2" style="color: #adadad;">Trend</div>
+                                        <div class="d-flex flex-wrap" id="admin_trend_choices">
+                                            <button class="filter-button btn btn-primary" data-trend-value="Raising" type="button" aria-pressed="false">Raising</button>
+                                            <button class="filter-button btn btn-primary" data-trend-value="Stable" type="button" aria-pressed="false">Stable</button>
+                                            <button class="filter-button btn btn-primary" data-trend-value="Lowering" type="button" aria-pressed="false">Lowering</button>
+                                            <button class="filter-button btn btn-primary" data-trend-value="Unstable" type="button" aria-pressed="false">Unstable</button>
+                                            <button class="filter-button btn btn-primary" data-trend-value="Fluctuating" type="button" aria-pressed="false">Fluctuating</button>
+                                            <button class="filter-button btn btn-primary" data-trend-value="None" type="button" aria-pressed="false">Unassigned</button>
+                                        </div>
 
-                                    <div class="stat-textbox-title-small mt-2" style="color: #adadad;">Trend</div>
-                                    <div class="d-flex flex-wrap" id="admin_trend_choices">
-                                        <button class="filter-button btn btn-primary" data-trend-value="Raising" type="button" aria-pressed="false">Raising</button>
-                                        <button class="filter-button btn btn-primary" data-trend-value="Stable" type="button" aria-pressed="false">Stable</button>
-                                        <button class="filter-button btn btn-primary" data-trend-value="Lowering" type="button" aria-pressed="false">Lowering</button>
-                                        <button class="filter-button btn btn-primary" data-trend-value="Unstable" type="button" aria-pressed="false">Unstable</button>
-                                        <button class="filter-button btn btn-primary" data-trend-value="Fluctuating" type="button" aria-pressed="false">Fluctuating</button>
-                                        <button class="filter-button btn btn-primary" data-trend-value="None" type="button" aria-pressed="false">Unassigned</button>
-                                    </div>
+                                        <div class="stat-textbox-title-small mt-2" style="color: #adadad;">Valuation method</div>
+                                        <div class="d-flex flex-wrap" id="admin_method_choices">
+                                            <button class="filter-button btn btn-primary" data-method-value="proof" type="button" aria-pressed="false">Proof-Based</button>
+                                            <button class="filter-button btn btn-primary" data-method-value="rap" type="button" aria-pressed="false">RAP-Based</button>
+                                            <button class="filter-button btn btn-primary" data-method-value="None" type="button" aria-pressed="false">Unassigned</button>
+                                        </div>
 
-                                    <div class="stat-textbox-title-small mt-2" style="color: #adadad;">Valuation method</div>
-                                    <div class="d-flex flex-wrap" id="admin_method_choices">
-                                        <button class="filter-button btn btn-primary" data-method-value="proof" type="button" aria-pressed="false">Proof-Based</button>
-                                        <button class="filter-button btn btn-primary" data-method-value="rap" type="button" aria-pressed="false">RAP-Based</button>
-                                        <button class="filter-button btn btn-primary" data-method-value="None" type="button" aria-pressed="false">Unassigned</button>
-                                    </div>
+                                        <div class="stat-textbox-title-small mt-2" style="color: #adadad;">Categories</div>
+                                        <div class="d-flex flex-wrap" id="admin_category_choices">
+                                            <button class="filter-button btn btn-primary" data-category-value="rare" type="button" aria-pressed="false">Rare</button>
+                                            <button class="filter-button btn btn-primary" data-category-value="projected" type="button" aria-pressed="false">Projected</button>
+                                            <button class="filter-button btn btn-primary" data-category-value="tablet" type="button" aria-pressed="false">Tablet</button>
+                                            <button class="filter-button btn btn-primary" data-category-value="unobtainable" type="button" aria-pressed="false">Unobtainable</button>
+                                            <button class="filter-button btn btn-primary" data-category-value="hoarded" type="button" aria-pressed="false">Hoarded</button>
+                                        </div>
 
-                                    <div class="stat-textbox-title-small mt-2" style="color: #adadad;">Categories</div>
-                                    <div class="d-flex flex-wrap" id="admin_category_choices">
-                                        <button class="filter-button btn btn-primary" data-category-value="rare" type="button" aria-pressed="false">Rare</button>
-                                        <button class="filter-button btn btn-primary" data-category-value="projected" type="button" aria-pressed="false">Projected</button>
-                                        <button class="filter-button btn btn-primary" data-category-value="tablet" type="button" aria-pressed="false">Tablet</button>
-                                        <button class="filter-button btn btn-primary" data-category-value="unobtainable" type="button" aria-pressed="false">Unobtainable</button>
-                                        <button class="filter-button btn btn-primary" data-category-value="hoarded" type="button" aria-pressed="false">Hoarded</button>
+                                        <div class="stat-textbox-title-small mt-2" style="color: #adadad;">Note</div>
+                                        <div class="input-group mt-1">
+                                            <input class="form-control form-control-lg rounded-0 shadow border-0" id="admin_value_note" style="background-color: #eee;" type="text" maxlength="500" placeholder="Shown on the item page under the valuation method">
+                                        </div>
+                                        <div class="mt-3">
+                                            <input class="btn btn-flat-light-blue shadow" id="admin_value_save" type="submit" value="Save item">
+                                        </div>
+                                        <div class="mt-2 small" id="admin_values_notice" style="color: #7a8288;"></div>
                                     </div>
-
-                                    <div class="stat-textbox-title-small mt-2" style="color: #adadad;">Note</div>
-                                    <div class="input-group mt-1">
-                                        <input class="form-control form-control-lg rounded-0 shadow border-0" id="admin_value_note" style="background-color: #eee;" type="text" maxlength="500" placeholder="Shown on the item page under the valuation method">
-                                    </div>
-                                    <div class="mt-3">
-                                        <input class="btn btn-flat-light-blue shadow" id="admin_value_save" type="submit" value="Save item">
-                                    </div>
-                                    <div class="mt-2 small" id="admin_values_notice" style="color: #7a8288;"></div>
                                 </div>
                             </div>
                         </section>
@@ -190,25 +188,30 @@
                         <!-- ================= STAFF RANKS ================= -->
                         <section class="admin_page d-none" id="admin_page_roles">
                             <div class="row mx-0"><h2 class="section_header">Staff ranks</h2></div>
-                            <div class="row shadow mx-0 mt-2" style="background-color: #2e3337;">
-                                <div class="w-100 px-3 px-sm-4 py-4">
-                                    <div class="small mb-3 admin_page_note">Ranks decide whose name carries the icons on the site - Site Owner, Value Manager and Value Team. They no longer gate anything here; they are the public roster.</div>
-                                    <div class="stat-textbox-title-small" style="color: #adadad;">Wanwood username</div>
-                                    <div class="input-group mt-1">
-                                        <input class="form-control form-control-lg rounded-0 shadow border-0" id="admin_role_name" style="background-color: #eee;" type="text" placeholder="Username exactly as it appears on Wanwood" autocapitalize="off" spellcheck="false">
+                            <div class="admin_page_lock trade_ads_empty_state mx-0 mt-3 d-none">
+                                <div class="px-3" style="color: #adb5bd;"><span class="admin_lock_message"></span> <a class="admin_lock_link d-none" href="/verify">Link your Wanwood account</a><span class="admin_lock_hint"></span></div>
+                            </div>
+                            <div class="admin_page_body">
+                                <div class="row shadow mx-0 mt-2" style="background-color: #2e3337;">
+                                    <div class="w-100 px-3 px-sm-4 py-4">
+                                        <div class="small mb-3 admin_page_note">Ranks decide whose name carries the icons on the site - Site Owner, Value Manager and Value Team. Only a Site Owner may hand them out.</div>
+                                        <div class="stat-textbox-title-small" style="color: #adadad;">Wanwood username</div>
+                                        <div class="input-group mt-1">
+                                            <input class="form-control form-control-lg rounded-0 shadow border-0" id="admin_role_name" style="background-color: #eee;" type="text" placeholder="Username exactly as it appears on Wanwood" autocapitalize="off" spellcheck="false">
+                                        </div>
+                                        <div class="stat-textbox-title-small mt-3" style="color: #adadad;">Rank</div>
+                                        <div class="d-flex flex-wrap" id="admin_role_choices">
+                                            <button class="filter-button btn btn-primary" data-role-value="owner" type="button" aria-pressed="false">Site Owner</button>
+                                            <button class="filter-button btn btn-primary" data-role-value="value_manager" type="button" aria-pressed="false">Value Manager</button>
+                                            <button class="filter-button btn btn-primary" data-role-value="staff" type="button" aria-pressed="false">Value Team</button>
+                                            <button class="filter-button btn btn-primary" data-role-value="none" type="button" aria-pressed="false">Remove rank</button>
+                                        </div>
+                                        <div class="mt-3">
+                                            <input class="btn btn-flat-light-blue shadow" id="admin_role_save" type="submit" value="Set rank">
+                                        </div>
+                                        <div class="mt-2 small" id="admin_roles_notice" style="color: #7a8288;"></div>
+                                        <div class="trade_ad_picker_results mt-3" id="admin_roles_list"></div>
                                     </div>
-                                    <div class="stat-textbox-title-small mt-3" style="color: #adadad;">Rank</div>
-                                    <div class="d-flex flex-wrap" id="admin_role_choices">
-                                        <button class="filter-button btn btn-primary" data-role-value="owner" type="button" aria-pressed="false">Site Owner</button>
-                                        <button class="filter-button btn btn-primary" data-role-value="value_manager" type="button" aria-pressed="false">Value Manager</button>
-                                        <button class="filter-button btn btn-primary" data-role-value="staff" type="button" aria-pressed="false">Value Team</button>
-                                        <button class="filter-button btn btn-primary" data-role-value="none" type="button" aria-pressed="false">Remove rank</button>
-                                    </div>
-                                    <div class="mt-3">
-                                        <input class="btn btn-flat-light-blue shadow" id="admin_role_save" type="submit" value="Set rank">
-                                    </div>
-                                    <div class="mt-2 small" id="admin_roles_notice" style="color: #7a8288;"></div>
-                                    <div class="trade_ad_picker_results mt-3" id="admin_roles_list"></div>
                                 </div>
                             </div>
                         </section>
@@ -216,21 +219,26 @@
                         <!-- ================= PLAYER BADGES ================= -->
                         <section class="admin_page d-none" id="admin_page_badges">
                             <div class="row mx-0"><h2 class="section_header">Player badges</h2></div>
-                            <div class="row shadow mx-0 mt-2" style="background-color: #2e3337;">
-                                <div class="w-100 px-3 px-sm-4 py-4">
-                                    <div class="small mb-3 admin_page_note">These are the badges nothing on the site can work out on its own - Discord wins, contributions, and recognition like Certified Wanwoodian. Everything else on /badges is earned from the player's own inventory and cannot be given or taken away here.</div>
-                                    <div class="stat-textbox-title-small" style="color: #adadad;">Wanwood username</div>
-                                    <div class="input-group mt-1">
-                                        <input class="form-control form-control-lg rounded-0 shadow border-0" id="admin_badge_name" style="background-color: #eee;" type="text" placeholder="Username exactly as it appears on Wanwood" autocapitalize="off" spellcheck="false">
+                            <div class="admin_page_lock trade_ads_empty_state mx-0 mt-3 d-none">
+                                <div class="px-3" style="color: #adb5bd;"><span class="admin_lock_message"></span> <a class="admin_lock_link d-none" href="/verify">Link your Wanwood account</a><span class="admin_lock_hint"></span></div>
+                            </div>
+                            <div class="admin_page_body">
+                                <div class="row shadow mx-0 mt-2" style="background-color: #2e3337;">
+                                    <div class="w-100 px-3 px-sm-4 py-4">
+                                        <div class="small mb-3 admin_page_note">These are the badges nothing on the site can work out on its own - Discord wins, contributions, and recognition like Certified Wanwoodian. Everything else on /badges is earned from the player's own inventory and cannot be given or taken away here. Only a Site Owner may hand them out.</div>
+                                        <div class="stat-textbox-title-small" style="color: #adadad;">Wanwood username</div>
+                                        <div class="input-group mt-1">
+                                            <input class="form-control form-control-lg rounded-0 shadow border-0" id="admin_badge_name" style="background-color: #eee;" type="text" placeholder="Username exactly as it appears on Wanwood" autocapitalize="off" spellcheck="false">
+                                        </div>
+                                        <div class="stat-textbox-title-small mt-3" style="color: #adadad;">Badge</div>
+                                        <div class="d-flex flex-wrap" id="admin_badge_choices"></div>
+                                        <div class="mt-3">
+                                            <input class="btn btn-flat-light-blue shadow" id="admin_badge_give" type="submit" value="Give badge">
+                                            <input class="btn btn-flat-dark-gray shadow ml-2" id="admin_badge_take" type="submit" value="Take it back">
+                                        </div>
+                                        <div class="mt-2 small" id="admin_badges_notice" style="color: #7a8288;"></div>
+                                        <div class="trade_ad_picker_results mt-3" id="admin_badges_list"></div>
                                     </div>
-                                    <div class="stat-textbox-title-small mt-3" style="color: #adadad;">Badge</div>
-                                    <div class="d-flex flex-wrap" id="admin_badge_choices"></div>
-                                    <div class="mt-3">
-                                        <input class="btn btn-flat-light-blue shadow" id="admin_badge_give" type="submit" value="Give badge">
-                                        <input class="btn btn-flat-dark-gray shadow ml-2" id="admin_badge_take" type="submit" value="Take it back">
-                                    </div>
-                                    <div class="mt-2 small" id="admin_badges_notice" style="color: #7a8288;"></div>
-                                    <div class="trade_ad_picker_results mt-3" id="admin_badges_list"></div>
                                 </div>
                             </div>
                         </section>
@@ -241,11 +249,16 @@
                                 <h2 class="section_header">Trade ads</h2>
                                 <input class="btn btn-flat-light-blue-sm rounded-pill shadow" id="admin_ads_refresh" type="submit" value="Refresh">
                             </div>
-                            <div class="row shadow mx-0 mt-2" style="background-color: #2e3337;">
-                                <div class="w-100 px-3 px-sm-4 py-4">
-                                    <div class="small mb-3 admin_page_note">Every ad on the public board. Players can only delete their own; from here any ad can be taken down. Removing one is recorded with your name.</div>
-                                    <div class="mt-2 small" id="admin_ads_notice" style="color: #7a8288;"></div>
-                                    <div class="trade_ad_picker_results mt-2" id="admin_ads_list"></div>
+                            <div class="admin_page_lock trade_ads_empty_state mx-0 mt-3 d-none">
+                                <div class="px-3" style="color: #adb5bd;"><span class="admin_lock_message"></span> <a class="admin_lock_link d-none" href="/verify">Link your Wanwood account</a><span class="admin_lock_hint"></span></div>
+                            </div>
+                            <div class="admin_page_body">
+                                <div class="row shadow mx-0 mt-2" style="background-color: #2e3337;">
+                                    <div class="w-100 px-3 px-sm-4 py-4">
+                                        <div class="small mb-3 admin_page_note">Every ad on the public board. Players can only delete their own; staff can take any ad down from here. Removing one is recorded with your name.</div>
+                                        <div class="mt-2 small" id="admin_ads_notice" style="color: #7a8288;"></div>
+                                        <div class="trade_ad_picker_results mt-2" id="admin_ads_list"></div>
+                                    </div>
                                 </div>
                             </div>
                         </section>
@@ -268,11 +281,14 @@
                         <section class="admin_page d-none" id="admin_page_api">
                             <div class="d-flex justify-content-between flex-wrap align-items-center">
                                 <h2 class="section_header">Public API</h2>
-                                <a class="btn btn-flat-light-blue-sm rounded-pill shadow" href="/api" target="_blank" rel="noopener" role="button"><span class="text-nowrap">Open the endpoint index</span></a>
+                                <div>
+                                    <a class="btn btn-flat-light-blue-sm rounded-pill shadow mr-2" href="/apidocs/" role="button"><span class="text-nowrap">API docs page</span></a>
+                                    <a class="btn btn-flat-light-blue-sm rounded-pill shadow" href="/api" target="_blank" rel="noopener" role="button"><span class="text-nowrap">Open the endpoint index</span></a>
+                                </div>
                             </div>
                             <div class="row shadow mx-0 mt-2" style="background-color: #2e3337;">
                                 <div class="w-100 px-3 px-sm-4 py-4">
-                                    <div class="small admin_page_note">Wolimons answers a public, keyless JSON API - the Rolimons-style one tools and bots can build on. Everything below is live right now on this server; open any row in a new tab to see the answer. The machine-readable version of this list is served at <span style="color:#e9ecef;">/api</span>.</div>
+                                    <div class="small admin_page_note">Wolimons answers a public, keyless JSON API - the Rolimons-style one tools and bots can build on. Everything below is live right now on this server; open any row in a new tab to see the answer. The machine-readable version of this list is served at <span style="color:#e9ecef;">/api</span>, and the full documentation lives at <a class="admin_lock_link" href="/apidocs/">/apidocs</a>.</div>
                                     <div class="small mt-2" style="color: #adadad;">Base URL on this server</div>
                                     <div class="mt-1" id="admin_api_base" style="color:#e9ecef; word-break: break-all;">-</div>
                                     <div class="trade_ad_picker_results mt-3" id="admin_api_list"></div>
@@ -287,10 +303,15 @@
                                 <h2 class="section_header">Server</h2>
                                 <input class="btn btn-flat-light-blue-sm rounded-pill shadow" id="admin_server_refresh" type="submit" value="Refresh">
                             </div>
-                            <div class="row shadow mx-0 mt-2" style="background-color: #2e3337;">
-                                <div class="w-100 px-3 px-sm-4 py-4">
-                                    <div class="small mb-3 admin_page_note">What the backend reports about itself - where it is serving from, where the data is kept, and how much of it there is. If the site ever looks wrong, this page says which copy is actually running.</div>
-                                    <div id="admin_server_list"></div>
+                            <div class="admin_page_lock trade_ads_empty_state mx-0 mt-3 d-none">
+                                <div class="px-3" style="color: #adb5bd;"><span class="admin_lock_message"></span> <a class="admin_lock_link d-none" href="/verify">Link your Wanwood account</a><span class="admin_lock_hint"></span></div>
+                            </div>
+                            <div class="admin_page_body">
+                                <div class="row shadow mx-0 mt-2" style="background-color: #2e3337;">
+                                    <div class="w-100 px-3 px-sm-4 py-4">
+                                        <div class="small mb-3 admin_page_note">What the backend reports about itself - where it is serving from, where the data is kept, and how much of it there is. If the site ever looks wrong, this page says which copy is actually running.</div>
+                                        <div id="admin_server_list"></div>
+                                    </div>
                                 </div>
                             </div>
                         </section>
@@ -322,4 +343,4 @@
         </div>
     </div>
 
-<script src="/assets/js/config.js?v=3"></script><script src="/assets/js/values.js?v=3"></script><script src="/assets/js/wanwood-api.js?v=3"></script><script src="/assets/js/account.js?v=3"></script><script src="/assets/js/prefs.js?v=3"></script><script src="/assets/js/granted-badges.js?v=3"></script><script src="/assets/js/badge-art.js?v=3"></script><script src="/assets/js/badges.js?v=3"></script><script src="/assets/js/role-icons.js?v=3" defer></script><script src="/assets/js/admin.js?v=3" defer></script></body></html>
+<script src="/assets/js/config.js?v=4"></script><script src="/assets/js/values.js?v=4"></script><script src="/assets/js/wanwood-api.js?v=4"></script><script src="/assets/js/account.js?v=4"></script><script src="/assets/js/prefs.js?v=4"></script><script src="/assets/js/granted-badges.js?v=4"></script><script src="/assets/js/badge-art.js?v=4"></script><script src="/assets/js/badges.js?v=4"></script><script src="/assets/js/role-icons.js?v=4" defer></script><script src="/assets/js/admin.js?v=4" defer></script></body></html>

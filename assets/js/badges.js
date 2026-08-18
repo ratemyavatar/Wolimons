@@ -26,7 +26,7 @@
   /* Tiers                                                               */
   /* ------------------------------------------------------------------ */
 
-  /* Matches the .border_top_* colours in css/koromons.css. Rank orders the
+  /* Matches the .border_top_* colours in css/wolimons.css. Rank orders the
    * profile row so the rarest badge sits first. */
   const TIERS = {
     artifact: { rank: 90, label: 'Artifact' },

@@ -90,7 +90,7 @@
    *
    * The two picture badges reuse the artwork /badges and the profile row use,
    * so the same award looks the same everywhere. Presentation is .lb_badge /
-   * .badge-tt in koromons.css.
+   * .badge-tt in wolimons.css.
    */
   /* Built by assets/js/name-badges.js, which the profile page shares so the
    * same award renders identically in both places. */

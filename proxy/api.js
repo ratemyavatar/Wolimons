@@ -42,12 +42,12 @@
  * ---------------------------------------------------------------------------
  * HOW ACCESS IS DECIDED
  * ---------------------------------------------------------------------------
- * There is no admin key. The panel is an open room: whoever can reach /admin
- * on this server can read and change everything in it. That is a deliberate
- * choice for a small site run from a private VPS - the door is the server
- * itself, not a password inside it. Writes record who made them (the linked
- * Wanwood account when there is one, otherwise "Admin panel") so the change
- * log keeps saying who did what, but the name is attribution, not a gate.
+ * There is no admin key, but the panel is not open to everybody either.
+ * Every write names the Wanwood account making it, and that name must be on
+ * the staff roster: owners may rank people and hand out badges, any ranked
+ * member may set values or moderate the board. The roster is the door now,
+ * instead of a password, and it is checked here on the server - so editing
+ * the panel in a browser cannot widen what a visitor may do.
  *
  * Trade ads keep their own proof. Posting and deleting your own ads still
  * requires an identity token from /verify, because the board is public and
@@ -175,16 +175,52 @@ function readJson(body) {
 }
 
 /*
- * Who made a change, for the record.
+ * Who is asking, and are they an admin?
  *
- * There is no key to check any more. The name in the body is attribution -
- * it lands in the change log and the "set by" columns - and when the browser
- * has a linked Wanwood account the panel sends that name. Nothing rides on
- * it being true, so nothing is refused over it.
+ * There is still no key - but "open" does not mean "anyone". Every write
+ * names the Wanwood account making it, and that name has to be on the staff
+ * roster: an owner for ranks and badges, any ranked member for values, a
+ * ranked member for moderation. The roster is the door now instead of a
+ * password. The name is checked against it here on the server, so editing
+ * the panel in a browser cannot widen what a visitor may do.
+ *
+ * need: 'owner'  - site owners only
+ *       'valuer' - owner, value manager or value team
+ *       'staff'  - anyone with any rank at all
  */
-function attribute(payload) {
-  const name = String(payload?.name || '').trim();
-  return name.slice(0, 60) || 'Admin panel';
+const ROLE_RANK = { owner: 3, value_manager: 2, staff: 1 };
+
+async function authorize(req, payload, { need }) {
+  const name = String(payload?.name || '').trim().slice(0, 60);
+  if (!name) {
+    return {
+      ok: false,
+      status: 401,
+      error: 'Link your Wanwood account to the admin panel first.',
+    };
+  }
+
+  const role = await store.roleOf(name);
+  if (!role) {
+    return { ok: false, status: 403, error: `${name} is not a Wolimons admin.` };
+  }
+
+  const allowed = need === 'owner'
+    ? role === 'owner'
+    : need === 'valuer'
+      ? (ROLE_RANK[role] || 0) >= 1
+      : (ROLE_RANK[role] || 0) >= 1;
+
+  if (!allowed) {
+    return {
+      ok: false,
+      status: 403,
+      error: need === 'owner'
+        ? `Only a site owner may do that, and ${name} is not one.`
+        : `${name} cannot do that.`,
+    };
+  }
+  return { ok: true, name, role };
 }
 
 /* ---------------------------------------------------------------------- */
@@ -611,7 +647,8 @@ async function handle(req, res, url, readBody) {
         .filter(row => row.badges && row.badges.length);
       send(res, 200, {
         ok: true,
-        auth: 'open',
+        auth: 'roster',
+        protectSources: !/^(0|false|no|off)$/i.test(String(process.env.PROTECT_SOURCES || '1')),
         siteRoot: SITE_ROOT,
         upstream: UPSTREAM.replace(/^https?:\/\//, ''),
         canWrite: store.config.canWrite,
@@ -636,18 +673,28 @@ async function handle(req, res, url, readBody) {
 
     if (req.method === 'POST' && route === '/api/roles/set') {
       const payload = readJson(await readBody(req));
-      const name = attribute(payload);
+      const auth = await authorize(req, payload, { need: 'owner' });
+      if (!auth.ok) {
+        send(res, auth.status, { ok: false, error: auth.error });
+        return true;
+      }
 
       const target = String(payload.target || '').trim();
       if (!target) {
         send(res, 400, { ok: false, error: 'Name the account you are ranking.' });
         return true;
       }
+      /* An owner may not demote themselves out of the roster by accident -
+       * with no key to fall back on, that would lock the panel entirely. */
+      if (target.toLowerCase() === auth.name.toLowerCase() && payload.role !== 'owner') {
+        send(res, 400, { ok: false, error: 'You cannot change your own owner rank.' });
+        return true;
+      }
 
       const updated = await store.setRole({
         name: target,
         role: String(payload.role || ''),
-        grantedBy: name,
+        grantedBy: auth.name,
       });
       send(res, 200, {
         ok: true,
@@ -656,10 +703,14 @@ async function handle(req, res, url, readBody) {
       return true;
     }
 
-    /* Give a player a badge, or take it back. */
+    /* Give a player a badge, or take it back. Owners only. */
     if (req.method === 'POST' && route === '/api/badges/set') {
       const payload = readJson(await readBody(req));
-      const name = attribute(payload);
+      const auth = await authorize(req, payload, { need: 'owner' });
+      if (!auth.ok) {
+        send(res, auth.status, { ok: false, error: auth.error });
+        return true;
+      }
 
       const target = String(payload.target || '').trim();
       if (!target) {
@@ -672,7 +723,7 @@ async function handle(req, res, url, readBody) {
         badge: String(payload.badge || ''),
         /* Absent means "give it" - the panel sends false to take one back. */
         granted: payload.granted !== false,
-        grantedBy: name,
+        grantedBy: auth.name,
       });
 
       send(res, 200, {
@@ -686,6 +737,11 @@ async function handle(req, res, url, readBody) {
 
     if (req.method === 'POST' && route === '/api/values/set') {
       const payload = readJson(await readBody(req));
+      const auth = await authorize(req, payload, { need: 'valuer' });
+      if (!auth.ok) {
+        send(res, auth.status, { ok: false, error: auth.error });
+        return true;
+      }
 
       const updated = await store.setValue({
         id: payload.id,
@@ -698,7 +754,7 @@ async function handle(req, res, url, readBody) {
          * older client that never sends them leaves them untouched. */
         method: payload.method,
         note: payload.note,
-        updatedBy: attribute(payload),
+        updatedBy: auth.name,
       });
       send(res, 200, {
         ok: true,
@@ -819,12 +875,17 @@ async function handle(req, res, url, readBody) {
     /*
      * Moderation: take any ad down, from the admin panel. The public board
      * still only lets an author delete their own ad (/api/ads/delete); this
-     * path is the open-panel equivalent of the rest of /admin, and the
-     * removal is recorded with the name the panel sends.
+     * path is for ranked members of the site, and the removal is recorded
+     * with whoever made it.
      */
     if (req.method === 'POST' && route === '/api/ads/moderate') {
       const payload = readJson(await readBody(req));
-      const ad = await store.moderateAd({ id: payload.id, removedBy: attribute(payload) });
+      const auth = await authorize(req, payload, { need: 'staff' });
+      if (!auth.ok) {
+        send(res, auth.status, { ok: false, error: auth.error });
+        return true;
+      }
+      const ad = await store.moderateAd({ id: payload.id, removedBy: auth.name });
       send(res, 200, { ok: true, id: ad.id });
       return true;
     }

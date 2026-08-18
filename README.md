@@ -203,7 +203,8 @@ tradecalculator\      trade calculator
 badges\               badges
 verify\               account verification
 preferences\          site preferences
-admin\                admin panel - open, no password
+admin\                admin panel - no password; writes locked to the staff roster
+apidocs\              the public API documentation page
 
 proxy\                the server. Serves the pages AND the API.
 proxy\.env            my settings. Made by setup.bat. Never goes on GitHub.

@@ -211,6 +211,7 @@ same moment won't clobber each other.
 | `GITHUB_BRANCH` | `main` | which branch to commit to |
 | `DATA_PATH` | `data/wolimons-data.json` | the data file itself |
 | `TRUST_PROXY` | *(off)* | `1` reads the client IP from `CF-Connecting-IP` / `X-Forwarded-For`. Only behind Cloudflare or a reverse proxy |
+| `PROTECT_SOURCES` | `1` | strip comments and blank lines from served pages, scripts and stylesheets so devtools shows the bare code. `0` serves the originals |
 
 Settings can go in a `.env` file next to `server.js` instead of the
 environment — copy `.env.example` to `.env`. It is gitignored. A real

@@ -1,0 +1,272 @@
+<!DOCTYPE html><html lang="en-US"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="The Wolimons public API - free, keyless JSON endpoints for item values, players, trade ads, value changes and more.">
+    <meta name="theme-color" content="#1d8df1">
+    <meta property="og:site_name" content="Wolimons">
+    <meta property="og:title" content="API Documentation - Wolimons">
+    <meta property="og:description" content="The Wolimons public API - free, keyless JSON endpoints for item values, players, trade ads, value changes and more.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="/apidocs/">
+    <meta property="og:image" content="/assets/Wolimonslogoo.png">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="API Documentation - Wolimons">
+    <meta name="twitter:description" content="The Wolimons public API - free, keyless JSON endpoints for item values, players, trade ads, value changes and more.">
+    <meta name="twitter:image" content="/assets/Wolimonslogoo.png">
+    <title>API Documentation - Wolimons</title>
+    <link rel="stylesheet" href="/css/sitecombined2.css">
+    <link rel="stylesheet" href="/css/wolimons.css">
+    <link rel="stylesheet" href="/css/tradeads.css">
+<link rel="icon" type="image/svg+xml" href="/assets/Wolimonslogoo.png">
+<style>
+/*
+ * The docs page keeps the site's own palette - the navbar grey, the pane
+ * grey, the same text colours - and adds just one thing: code blocks.
+ */
+.docs_topbar { background-color: rgb(58, 63, 68); }
+.docs_code {
+  background-color: rgb(36, 38, 42);
+  border: 1px solid rgb(58, 63, 68);
+  border-radius: 6px;
+  padding: 12px 14px;
+  margin: 8px 0 0;
+  font-family: SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 0.85em;
+  line-height: 1.55;
+  color: rgb(233, 236, 239);
+  overflow-x: auto;
+  white-space: pre;
+}
+.docs_code .docs_dim { color: rgb(122, 130, 136); }
+.docs_code .docs_ok { color: #81c784; }
+.docs_endpoint_title { color: rgb(238, 238, 238); font-size: 1.05em; font-weight: 600; }
+.docs_chip {
+  display: inline-block; font-size: 0.72em; font-weight: 700;
+  color: #81c784; background-color: rgb(58, 63, 68);
+  border-radius: 4px; padding: 2px 7px; margin-right: 8px;
+  vertical-align: 2px; letter-spacing: 0.04em;
+}
+</style>
+</head>
+<body class="page-admin">
+
+    <!-- Same top bar as the admin panel: the docs are part of the site, not
+         a guest, and the way home is one click. -->
+    <div class="docs_topbar px-2 px-sm-3 py-2 shadow">
+        <div class="d-flex align-items-center flex-wrap" style="max-width: 900px; margin: auto;">
+            <a class="btn btn-flat-light-blue-sm rounded-pill shadow" href="/" role="button"><span class="d-inline-block text-nowrap button_icon_svg"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" fill="currentColor"></path></svg></span><span class="text-nowrap">Back to Wolimons</span></a>
+            <h1 class="page_title mb-0 ml-3">API Documentation</h1>
+        </div>
+    </div>
+
+    <div id="page_background"></div>
+
+    <div id="page_content_container">
+        <div id="left_gutter"></div>
+        <div id="page_content_body">
+
+            <div class="container-fluid px-0 mt-3 mb-5" style="max-width: 900px;">
+
+                <!-- Intro -->
+                <div class="row shadow mx-0 mx-sm-3 mt-3" style="background-color: #2e3337;">
+                    <div class="w-100 px-3 px-sm-4 py-4">
+                        <div class="small" style="color: #adb5bd;">
+                            Wolimons serves a public JSON API for Wanwood limited-item values, players and
+                            trade ads - the same data the site itself runs on. There is no key and no
+                            registration: every endpoint below is a plain GET request, and every answer
+                            carries CORS headers, so a page on any domain may call it straight from the
+                            browser.
+                        </div>
+                        <div class="small mt-3" style="color: #adb5bd;">
+                            Item names, RAP and lowest prices are read from Wanwood and cached for ten
+                            minutes, so please poll no faster than you need to. Values, demand, trend and
+                            categories are set by hand on this site and update the moment they are saved.
+                            The machine-readable version of this page is served at <span style="color:#e9ecef;">/api</span>.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- itemdetails -->
+                <div class="row mx-0 mt-4 mx-sm-3"><h2 class="section_header">Item details</h2></div>
+                <div class="row shadow mx-0 mx-sm-3 mt-2" style="background-color: #2e3337;">
+                    <div class="w-100 px-3 px-sm-4 py-4">
+                        <div class="docs_endpoint_title"><span class="docs_chip">GET</span>/api/v1/itemdetails</div>
+                        <div class="small mt-2" style="color: #adb5bd;">
+                            Every item Wolimons tracks, keyed by item id: name, value, demand, trend,
+                            valuation method, categories, RAP and lowest ask. This is the one to build a
+                            value checker on.
+                        </div>
+<div class="docs_code"><span class="docs_dim">GET</span> /api/v1/itemdetails
+
+{
+  "success": true,
+  "item_count": 42,
+  "partial": false,
+  "items": {
+    "61": {
+      "name": "Perfectly Legitimate Business Hat",
+      "value": 25000,
+      "demand": "High",
+      "trend": "Stable",
+      "method": "rap",
+      "categories": [],
+      "rap": 24180,
+      "lowestPrice": 26999,
+      "updatedAt": 1787000000000,
+      "updatedBy": "Nun"
+    },
+    <span class="docs_dim">...</span>
+  }
+}</div>
+                    </div>
+                </div>
+
+                <!-- values -->
+                <div class="row mx-0 mt-4 mx-sm-3"><h2 class="section_header">Raw values</h2></div>
+                <div class="row shadow mx-0 mx-sm-3 mt-2" style="background-color: #2e3337;">
+                    <div class="w-100 px-3 px-sm-4 py-4">
+                        <div class="docs_endpoint_title"><span class="docs_chip">GET</span>/api/v1/values</div>
+                        <div class="small mt-2" style="color: #adb5bd;">
+                            The raw value table this site runs on - only what the value team has set, with
+                            no Wanwood enrichment. Faster than itemdetails when you just need the numbers.
+                        </div>
+<div class="docs_code"><span class="docs_dim">GET</span> /api/v1/values
+
+{
+  "success": true,
+  "updatedAt": 1787000000000,
+  "values": {
+    "61": { "value": 25000, "demand": "High", "trend": "Stable",
+            "categories": [], "method": "rap", "note": "" }
+  }
+}</div>
+                    </div>
+                </div>
+
+                <!-- valuechanges -->
+                <div class="row mx-0 mt-4 mx-sm-3"><h2 class="section_header">Value changes</h2></div>
+                <div class="row shadow mx-0 mx-sm-3 mt-2" style="background-color: #2e3337;">
+                    <div class="w-100 px-3 px-sm-4 py-4">
+                        <div class="docs_endpoint_title"><span class="docs_chip">GET</span>/api/v1/valuechanges?limit=&amp;since=</div>
+                        <div class="small mt-2" style="color: #adb5bd;">
+                            The change log behind the Value Changes page, newest first. <span style="color:#e9ecef;">limit</span>
+                            caps the list (default 200), and <span style="color:#e9ecef;">since</span> takes a millisecond
+                            timestamp for polling only what is new.
+                        </div>
+<div class="docs_code"><span class="docs_dim">GET</span> /api/v1/valuechanges?limit=50
+
+{
+  "success": true,
+  "changes": [
+    { "id": 61, "field": "value", "old": 24000, "new": 25000,
+      "by": "Nun", "at": 1787000000000 }
+  ]
+}</div>
+                    </div>
+                </div>
+
+                <!-- playerinfo -->
+                <div class="row mx-0 mt-4 mx-sm-3"><h2 class="section_header">Player info</h2></div>
+                <div class="row shadow mx-0 mx-sm-3 mt-2" style="background-color: #2e3337;">
+                    <div class="w-100 px-3 px-sm-4 py-4">
+                        <div class="docs_endpoint_title"><span class="docs_chip">GET</span>/api/v1/playerinfo/&lt;userId&gt;</div>
+                        <div class="small mt-2" style="color: #adb5bd;">
+                            One Wanwood player by user id: their name, any staff rank they hold on
+                            Wolimons, and the badges that have been handed to them.
+                        </div>
+<div class="docs_code"><span class="docs_dim">GET</span> /api/v1/playerinfo/1
+
+{
+  "success": true,
+  "id": 1,
+  "name": "Nun",
+  "role": "owner",
+  "roleLabel": "Site Owner",
+  "badges": ["certified-wanwoodian"]
+}</div>
+                    </div>
+                </div>
+
+                <!-- getrecentads -->
+                <div class="row mx-0 mt-4 mx-sm-3"><h2 class="section_header">Recent trade ads</h2></div>
+                <div class="row shadow mx-0 mx-sm-3 mt-2" style="background-color: #2e3337;">
+                    <div class="w-100 px-3 px-sm-4 py-4">
+                        <div class="docs_endpoint_title"><span class="docs_chip">GET</span>/api/v1/getrecentads?limit=</div>
+                        <div class="small mt-2" style="color: #adb5bd;">
+                            The trade ad board, newest first. Each side of an ad is up to four slots; a
+                            slot is either an item or one of the request tags like <span style="color:#e9ecef;">rap</span> or
+                            <span style="color:#e9ecef;">wishlist</span>.
+                        </div>
+<div class="docs_code"><span class="docs_dim">GET</span> /api/v1/getrecentads?limit=25
+
+{
+  "success": true,
+  "ads": [
+    { "id": "9-1787000000001", "creatorId": 9, "creatorName": "Someone",
+      "createdAt": 1787000000001,
+      "offer":   [ { "kind": "item", "id": 61, "name": "..." }, null, null, null ],
+      "request": [ { "kind": "tag", "slug": "rap" }, null, null, null ] }
+  ]
+}</div>
+                    </div>
+                </div>
+
+                <!-- roles -->
+                <div class="row mx-0 mt-4 mx-sm-3"><h2 class="section_header">Staff roster</h2></div>
+                <div class="row shadow mx-0 mx-sm-3 mt-2" style="background-color: #2e3337;">
+                    <div class="w-100 px-3 px-sm-4 py-4">
+                        <div class="docs_endpoint_title"><span class="docs_chip">GET</span>/api/v1/roles</div>
+                        <div class="small mt-2" style="color: #adb5bd;">
+                            Who ranks what on Wolimons - Site Owner, Value Manager and Value Team.
+                        </div>
+<div class="docs_code"><span class="docs_dim">GET</span> /api/v1/roles
+
+{
+  "success": true,
+  "roles": [
+    { "name": "Nun", "role": "owner", "grantedBy": "Nun" }
+  ]
+}</div>
+                    </div>
+                </div>
+
+                <!-- badges -->
+                <div class="row mx-0 mt-4 mx-sm-3"><h2 class="section_header">Granted badges</h2></div>
+                <div class="row shadow mx-0 mx-sm-3 mt-2" style="background-color: #2e3337;">
+                    <div class="w-100 px-3 px-sm-4 py-4">
+                        <div class="docs_endpoint_title"><span class="docs_chip">GET</span>/api/v1/badges?name=</div>
+                        <div class="small mt-2" style="color: #adb5bd;">
+                            The badges handed out by the site. With no parameters it returns every grant
+                            plus the list of badge ids that can be granted; with <span style="color:#e9ecef;">?name=X</span> it
+                            returns just that player's badges.
+                        </div>
+<div class="docs_code"><span class="docs_dim">GET</span> /api/v1/badges?name=Nun
+
+{ "success": true, "name": "Nun", "badges": ["certified-wanwoodian"] }</div>
+                    </div>
+                </div>
+
+                <!-- notes -->
+                <div class="row mx-0 mt-4 mx-sm-3"><h2 class="section_header">Notes</h2></div>
+                <div class="row shadow mx-0 mx-sm-3 mt-2" style="background-color: #2e3337;">
+                    <div class="w-100 px-3 px-sm-4 py-4">
+                        <div class="small" style="color: #adb5bd;">
+                            All endpoints answer <span style="color:#e9ecef;">application/json</span>. On an error the
+                            status code says what happened and the body carries a
+                            <span style="color:#e9ecef;">success: false</span> with a human message:
+                        </div>
+<div class="docs_code">{ "success": false, "error": "Wanwood could not be reached, or there is no such player." }</div>
+                        <div class="small mt-3" style="color: #adb5bd;">
+                            Questions, or building something on this? Bring it to the
+                            <a href="https://discord.gg/vCwRzWSMf" target="_blank" rel="noopener" style="color:#7ab8f5;">Discord server</a>.
+                            Wolimons is not affiliated with Roblox Corporation or Rolimon's.
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+        <div id="right_gutter"></div>
+    </div>
+
+</body></html>

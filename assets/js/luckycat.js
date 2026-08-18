@@ -161,13 +161,16 @@
   /* Countdown                                                           */
   /* ------------------------------------------------------------------ */
 
+  /* Seconds always show - a countdown that only changes once a minute
+   * reads as dead text, which is exactly what "15h 34m" used to do. */
   function remainingLabel(msLeft) {
     const total = Math.max(0, Math.floor(msLeft / 1000));
     const hours = Math.floor(total / 3600);
     const minutes = Math.floor((total % 3600) / 60);
     const seconds = total % 60;
-    if (hours > 0) return `${hours}h ${minutes}m`;
-    if (minutes > 0) return `${minutes}m ${seconds}s`;
+    const pad = number => String(number).padStart(2, '0');
+    if (hours > 0) return `${hours}h ${pad(minutes)}m ${pad(seconds)}s`;
+    if (minutes > 0) return `${minutes}m ${pad(seconds)}s`;
     return `${seconds}s`;
   }
 

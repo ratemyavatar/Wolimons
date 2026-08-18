@@ -87,6 +87,191 @@ const CACHE_MAX_ENTRIES = 500;
 const cache = new Map();
 
 /*
+ * Source guard.
+ *
+ * The repo files are written for people - every file is half comments - and
+ * with SERVE_STATIC on, those same files used to be what a browser saw in
+ * its Sources panel, one clean download per file. This strips the comments
+ * and blank lines at serve time, so what lands in a visitor's devtools is
+ * the bare code with none of the explanation. The files on disk are never
+ * touched, and PROTECT_SOURCES=0 turns it back off for debugging.
+ *
+ * The strippers are conservative: only comments and empty lines go. A
+ * browser needs the code itself to run the page - nothing served over HTTP
+ * can hide that - but it no longer gets the annotated original.
+ */
+const PROTECT_SOURCES = !/^(0|false|no|off)$/i.test(String(process.env.PROTECT_SOURCES || '1'));
+
+/* JavaScript: walk the text tracking strings so a // inside a quote is
+ * never mistaken for a comment. Handles '...' "..." and `...` with
+ * backslash escapes.
+ *
+ * Regex literals need care too - `/'/g` holds a quote that must not open a
+ * string - so a `/` that follows a token where a regex is legal is scanned
+ * as a pattern (with [...] classes) rather than as division. */
+function stripJs(text) {
+  let out = '';
+  let i = 0;
+  const n = text.length;
+  let quote = '';
+  let lastSig = '';
+
+  const regexAllowed = () => {
+    if (!lastSig) return true;
+    if ('(,=:[!&|?{};+-*%<>~^'.includes(lastSig)) return true;
+    return /(?:return|typeof|case|in|of|new|delete|void|throw|do|else|instanceof)\s*$/.test(out);
+  };
+
+  while (i < n) {
+    const ch = text[i];
+    const next = text[i + 1];
+
+    if (quote) {
+      out += ch;
+      if (ch === '\\') {
+        if (i + 1 < n) { out += text[i + 1]; i += 2; continue; }
+        i += 1; continue;
+      }
+      if (ch === quote) {
+        quote = '';
+        lastSig = ch;
+      }
+      i += 1;
+      continue;
+    }
+
+    if (ch === '\'' || ch === '"' || ch === '`') {
+      quote = ch;
+      out += ch;
+      i += 1;
+      continue;
+    }
+
+    if (ch === '/' && next === '/') {
+      while (i < n && text[i] !== '\n') i += 1;
+      continue;
+    }
+    if (ch === '/' && next === '*') {
+      i += 2;
+      while (i < n && !(text[i] === '*' && text[i + 1] === '/')) i += 1;
+      i += 2;
+      continue;
+    }
+
+    if (ch === '/' && regexAllowed()) {
+      /* Regex literal: copy the pattern, honouring escapes and [...]
+       * classes, then the flags. A bare newline means it was division after
+       * all - bail out and let the normal scan continue. */
+      out += ch;
+      i += 1;
+      let inClass = false;
+      let closed = false;
+      while (i < n) {
+        const c = text[i];
+        if (c === '\\') {
+          out += c;
+          if (i + 1 < n) { out += text[i + 1]; i += 2; continue; }
+          i += 1;
+          continue;
+        }
+        if (c === '\n') { i += 1; break; }
+        out += c;
+        i += 1;
+        if (c === '[') inClass = true;
+        else if (c === ']') inClass = false;
+        else if (c === '/' && !inClass) { closed = true; break; }
+      }
+      if (closed) {
+        while (i < n && /[a-z]/i.test(text[i])) { out += text[i]; i += 1; }
+        lastSig = '/';
+      }
+      continue;
+    }
+
+    out += ch;
+    if (!/\s/.test(ch)) lastSig = ch;
+    i += 1;
+  }
+
+  return out.split('\n').filter(line => line.trim() !== '').join('\n');
+}
+
+/* CSS has no strings that can hide a comment start, so the naive scan is
+ * the right one. */
+function stripCss(text) {
+  let out = '';
+  let i = 0;
+  const n = text.length;
+  while (i < n) {
+    if (text[i] === '/' && text[i + 1] === '*') {
+      i += 2;
+      while (i < n && !(text[i] === '*' && text[i + 1] === '/')) i += 1;
+      i += 2;
+      continue;
+    }
+    out += text[i];
+    i += 1;
+  }
+  return out.split('\n').filter(line => line.trim() !== '').join('\n');
+}
+
+/* HTML: strip comments, but never inside a <script> or <style> block - the
+ * text there belongs to the other two strippers' worlds, and a comment
+ * marker inside a script string is not a comment. */
+function stripHtml(text) {
+  let out = '';
+  let i = 0;
+  const n = text.length;
+  let rawRegion = '';
+
+  while (i < n) {
+    const ch = text[i];
+
+    if (rawRegion) {
+      const close = `</${rawRegion}`;
+      if (ch === '<' && text.slice(i, i + close.length).toLowerCase() === close) {
+        rawRegion = '';
+      }
+      out += ch;
+      i += 1;
+      continue;
+    }
+
+    if (ch === '<') {
+      const open = text.slice(i, i + 8).toLowerCase();
+      if (open.startsWith('<script') || open.startsWith('<style')) {
+        rawRegion = open.startsWith('<script') ? 'script' : 'style';
+      }
+      if (text.slice(i, i + 4) === '<!--') {
+        i += 4;
+        while (i < n && text.slice(i, i + 3) !== '-->') i += 1;
+        i += 3;
+        continue;
+      }
+    }
+
+    out += ch;
+    i += 1;
+  }
+
+  return out.split('\n').filter(line => line.trim() !== '').join('\n');
+}
+
+/* Stripped bodies are remembered per file-and-mtime so a busy page is only
+ * transformed once, not on every request. */
+const strippedCache = new Map();
+
+function stripped(kind, file, text, mtimeMs) {
+  const key = `${kind}:${file}:${Number(mtimeMs).toString(36)}`;
+  const hit = strippedCache.get(key);
+  if (hit) return hit;
+  const body = kind === 'js' ? stripJs(text) : kind === 'css' ? stripCss(text) : stripHtml(text);
+  if (strippedCache.size > 200) strippedCache.clear();
+  strippedCache.set(key, body);
+  return body;
+}
+
+/*
  * How long to wait on Wanwood before giving up.
  *
  * Without this a request that Wanwood accepts but never answers is held open
@@ -279,6 +464,8 @@ async function serveStatic(req, res, url) {
       }
     }
 
+    if (PROTECT_SOURCES) html = stripped('html', file, html, info.mtimeMs);
+
     const body = Buffer.from(html, 'utf8');
     /* The '-e' keeps a crawler's copy from colliding with a browser's in any
      * cache between here and them - same file, deliberately different body. */
@@ -298,6 +485,33 @@ async function serveStatic(req, res, url) {
     }
     res.writeHead(200, htmlHeaders);
     res.end(req.method === 'HEAD' ? undefined : body);
+    return true;
+  }
+
+  /* Scripts and stylesheets get the source guard: served without their
+   * comments and blank lines, whatever the file on disk says. */
+  const ext = path.extname(file).toLowerCase();
+  if (PROTECT_SOURCES && (ext === '.js' || ext === '.mjs' || ext === '.css')) {
+    const text = await fsp.readFile(file, 'utf8');
+    const body = Buffer.from(stripped(ext === '.css' ? 'css' : 'js', file, text, info.mtimeMs), 'utf8');
+    const guardTag = `W/"${body.length}-${Number(info.mtimeMs).toString(36)}-g"`;
+    const guardHeaders = {
+      'Content-Type': type,
+      'Content-Length': body.length,
+      'Cache-Control': 'public, max-age=300',
+      ETag: guardTag,
+    };
+    if (req.headers['if-none-match'] === guardTag) {
+      res.writeHead(304, guardHeaders);
+      res.end();
+      return true;
+    }
+    res.writeHead(200, guardHeaders);
+    if (req.method === 'HEAD') {
+      res.end();
+      return true;
+    }
+    res.end(body);
     return true;
   }
 
@@ -578,7 +792,10 @@ server.listen(PORT, '0.0.0.0', () => {
     console.log('API only (set SERVE_STATIC=1 to also serve the site).');
   }
 
-  console.log('The admin panel is open - no key. Public API index: /api');
+  console.log('Admin writes are locked to the staff roster - no key. Public API index: /api');
+  if (PROTECT_SOURCES) {
+    console.log('Source guard on: served pages and scripts are stripped of comments.');
+  }
 
   if (/^(1|true|yes|on)$/i.test(String(process.env.TRUST_PROXY || ''))) {
     console.log('Trusting CF-Connecting-IP / X-Forwarded-For (behind Cloudflare or a reverse proxy).');

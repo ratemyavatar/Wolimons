@@ -8,7 +8,7 @@
  * entries" selector, a search box, sortable headers, and Bootstrap pagination
  * underneath. Every class in that markup - .koro-dt, .koro-dt-controls,
  * .koro-dt-length, .koro-dt-search, .sorting / .sorting_asc / .sorting_desc,
- * .koro-dt-footer, .koro-dt-info - is already styled in css/koromons.css,
+ * .koro-dt-footer, .koro-dt-info - is already styled in css/wolimons.css,
  * because the whole block was ported when the site's CSS was taken from the
  * captures. What was missing is the behaviour behind it.
  *
@@ -48,7 +48,7 @@
   'use strict';
 
   /* Which header classes DataTables uses, and therefore which ones the CSS in
-   * koromons.css already draws arrows for. */
+   * wolimons.css already draws arrows for. */
   const SORT_NONE = 'sorting';
   const SORT_ASC = 'sorting_asc';
   const SORT_DESC = 'sorting_desc';

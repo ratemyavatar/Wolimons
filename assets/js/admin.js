@@ -1,12 +1,12 @@
 /*
  * Admin panel - /admin
  *
- * The panel is an open room: no key, no sign-in, no navbar. One top bar with
- * the way back out, a sidebar of pages, and one page per function:
+ * The panel has no key, but it is not for everybody either. One top bar with
+ * the way back out, one shared sidebar, and one page per function:
  *
  *   Dashboard      the stat wall, the newest value changes and trade ads
  *   Item Values    set value, demand, trend, method, categories and the note
- *   Staff Ranks    the public roster - Site Owner, Value Manager, Value Team
+ *   Staff Ranks    the roster - Site Owner, Value Manager, Value Team
  *   Player Badges  hand out the badges nothing can work out itself
  *   Trade Ads      moderate the public board - take any ad down
  *   Change Log     every value/demand/trend edit, newest first
@@ -16,15 +16,16 @@
  * ---------------------------------------------------------------------------
  * WHO IS ALLOWED TO DO WHAT
  * ---------------------------------------------------------------------------
- * Everybody who can reach this page. The admin key is gone: the door is the
- * server itself, not a password inside it. Writes still record who made
- * them - the linked Wanwood account when there is one, otherwise "Admin
- * panel" - so the change log keeps saying who did what. That is attribution,
- * not a gate.
+ * The roster is the door. Every visitor can open the panel and look at the
+ * dashboard, the change log and the API page, but the functions are locked:
  *
- * Trade ads keep their own rules on the public board: players prove control
- * of their account before they post or delete. The moderation page here uses
- * its own route, /api/ads/moderate, which takes any ad down.
+ *   Item Values          owner, value manager or value team
+ *   Staff Ranks/Badges   site owners
+ *   Trade Ads, Server    anyone with any rank at all
+ *
+ * The check is made twice. The panel hides controls the visitor cannot use,
+ * and the backend re-checks the roster on every write - so editing this file
+ * changes nothing about what actually saves. Linking is done on /verify.
  */
 (() => {
   'use strict';
@@ -41,9 +42,27 @@
   const API_BASE = (window.WOLIMONS_CONFIG && window.WOLIMONS_CONFIG.apiBase) || '';
   const SEARCH_LIMIT = 60;
 
+  /*
+   * THE SIDEBAR - one list, every page of the panel reads it.
+   *
+   * `need` says which roster level unlocks the page's function:
+   *   'grant' - owners only, 'value' - the value team and up,
+   *   'role'  - any rank at all. Absent means the page is open to look at.
+   */
+  const PAGES = [
+    { id: 'dashboard', label: 'Dashboard', section: 'Overview' },
+    { id: 'values', label: 'Item Values', section: 'Editing', need: 'value' },
+    { id: 'roles', label: 'Staff Ranks', section: 'Editing', need: 'grant' },
+    { id: 'badges', label: 'Player Badges', section: 'Editing', need: 'grant' },
+    { id: 'ads', label: 'Trade Ads', section: 'Moderation', need: 'role' },
+    { id: 'changes', label: 'Change Log', section: 'Moderation' },
+    { id: 'api', label: 'Public API', section: 'Site' },
+    { id: 'server', label: 'Server', section: 'Site', need: 'role' },
+  ];
+
   /* The public API's own table, for the Public API page. Kept in step with
    * proxy/api.js - that file serves the machine-readable copy at /api, and
-   * this is the human one with the same words. */
+   * /apidocs is the human one. */
   const PUBLIC_ENDPOINTS = [
     ['/api/v1/itemdetails', 'Every tracked item: name, value, demand, trend, valuation method, categories, RAP and lowest ask. Cached ten minutes.'],
     ['/api/v1/values', 'The raw value table this site runs on, keyed by item id.'],
@@ -59,6 +78,9 @@
 
   const state = {
     account: null,
+    /* What the backend says the linked account may do. Null until it
+     * answers, or when no account is linked. */
+    me: null,
     page: 'dashboard',
     /* The rank editor's pending selection. */
     roleChoice: '',
@@ -71,7 +93,7 @@
     method: '',
     categories: new Set(),
     pickerSequence: 0,
-    /* What the dashboard has already loaded this visit. */
+    /* What has already been loaded this visit. */
     loaded: new Set(),
   };
 
@@ -88,11 +110,13 @@
 
   const formatNumber = number => Number(number).toLocaleString('en-US');
 
-  /* The name a change is saved under. The server records it, never checks
-   * it; when no Wanwood account is linked the panel says what it is. */
+  /* The name a change is saved under. The server checks it against the
+   * roster before it saves anything. */
   function actorName() {
-    return state.account && state.account.name ? state.account.name : 'Admin panel';
+    return state.account && state.account.name ? state.account.name : '';
   }
+
+  const roleLabel = role => (ROLE_ICONS && role ? ROLE_ICONS.label(role) : (role || 'None'));
 
   /* The same UTC wording the trade ad detail page prints. */
   function utcTimestamp(timestamp) {
@@ -226,37 +250,172 @@
   }
 
   /* ------------------------------------------------------------------ */
+  /* Access - the roster is the door                                     */
+  /* ------------------------------------------------------------------ */
+
+  const canGrant = () => Boolean(state.me && state.me.canGrantRoles);
+  const canValue = () => Boolean(state.me && state.me.canSetValues);
+  const hasRole = () => Boolean(state.me && state.me.role);
+
+  function allowedFor(need) {
+    if (!need) return true;
+    if (need === 'grant') return canGrant();
+    if (need === 'value') return canValue();
+    return hasRole();
+  }
+
+  /*
+   * What the backend says about the linked account. Asked fresh whenever the
+   * account changes, because a promotion takes effect on the server first
+   * and in the panel second.
+   */
+  async function loadAccess() {
+    const account = state.account;
+    state.me = null;
+    if (account && account.name) {
+      try {
+        const payload = await apiCall(`/api/me?name=${encodeURIComponent(account.name)}`);
+        if (typeof payload.canSetValues === 'boolean') state.me = payload;
+      } catch (error) {
+        state.me = null;
+      }
+    }
+    renderIdentity();
+    applyLocks();
+  }
+
+  /* One lock pane per gated page: what is missing, and how to get it. */
+  function lockText(need) {
+    if (!state.account) {
+      return {
+        message: 'These functions are locked to Wolimons admins.',
+        link: true,
+        hint: ' first, then come back.',
+      };
+    }
+    if (!hasRole()) {
+      return {
+        message: `${state.account.name} is not on the staff roster, so these functions stay locked.`,
+        link: false,
+        hint: '',
+      };
+    }
+    if (need === 'grant') {
+      return {
+        message: `Only a Site Owner may do this. ${state.account.name} is ${roleLabel(state.me.role)}.`,
+        link: false,
+        hint: '',
+      };
+    }
+    if (need === 'value') {
+      return {
+        message: `Only the value team and up may do this. ${state.account.name} is ${roleLabel(state.me.role)}.`,
+        link: false,
+        hint: '',
+      };
+    }
+    return { message: 'These functions are locked to Wolimons admins.', link: false, hint: '' };
+  }
+
+  function applyLocks() {
+    PAGES.forEach(page => {
+      const section = document.getElementById(`admin_page_${page.id}`);
+      if (!section) return;
+      const lock = section.querySelector('.admin_page_lock');
+      const body = section.querySelector('.admin_page_body');
+      if (!lock || !body) return;
+
+      const allowed = allowedFor(page.need);
+      lock.classList.toggle('d-none', allowed);
+      body.classList.toggle('d-none', !allowed);
+      if (!allowed) {
+        const words = lockText(page.need);
+        const message = lock.querySelector('.admin_lock_message');
+        const link = lock.querySelector('.admin_lock_link');
+        const hint = lock.querySelector('.admin_lock_hint');
+        if (message) message.textContent = words.message;
+        if (link) link.classList.toggle('d-none', !words.link);
+        if (hint) hint.textContent = words.hint;
+      }
+    });
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Sidebar - built once from the shared list                           */
+  /* ------------------------------------------------------------------ */
+
+  function buildSidebar() {
+    if (!dom.nav) return;
+    dom.nav.replaceChildren();
+
+    let section = '';
+    PAGES.forEach(page => {
+      if (page.section !== section) {
+        section = page.section;
+        const label = el('div', 'admin_nav_section', section.toUpperCase());
+        label.setAttribute('aria-hidden', 'true');
+        dom.nav.appendChild(label);
+      }
+      const button = el('button', 'filter-button btn btn-primary admin_nav_button', page.label);
+      button.type = 'button';
+      button.dataset.page = page.id;
+      button.setAttribute('aria-pressed', 'false');
+      /* The lock glyph on gated entries - a small padlock, drawn with the
+       * same currentColor trick the rest of the icons use. */
+      if (page.need) {
+        const lockIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        lockIcon.setAttribute('viewBox', '0 0 24 24');
+        lockIcon.setAttribute('aria-hidden', 'true');
+        lockIcon.style.width = '0.95em';
+        lockIcon.style.height = '0.95em';
+        lockIcon.style.marginLeft = '6px';
+        lockIcon.style.verticalAlign = '-2px';
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('d', 'M12 2a5 5 0 0 1 5 5v3h1a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h1V7a5 5 0 0 1 5-5zm3 8V7a3 3 0 0 0-6 0v3h6z');
+        path.setAttribute('fill', 'currentColor');
+        lockIcon.appendChild(path);
+        button.appendChild(lockIcon);
+      }
+      button.addEventListener('click', () => {
+        if (window.location.hash !== `#${page.id}`) window.location.hash = page.id;
+        else showPage(page.id);
+      });
+      dom.nav.appendChild(button);
+    });
+  }
+
+  /* ------------------------------------------------------------------ */
   /* Pages - one per function, switched from the sidebar                 */
   /* ------------------------------------------------------------------ */
 
-  const PAGES = ['dashboard', 'values', 'roles', 'badges', 'ads', 'changes', 'api', 'server'];
-
   function showPage(name) {
-    const page = PAGES.includes(name) ? name : 'dashboard';
-    state.page = page;
+    const known = PAGES.some(page => page.id === name) ? name : 'dashboard';
+    state.page = known;
 
-    PAGES.forEach(candidate => {
-      const section = document.getElementById(`admin_page_${candidate}`);
-      if (section) section.classList.toggle('d-none', candidate !== page);
+    PAGES.forEach(page => {
+      const section = document.getElementById(`admin_page_${page.id}`);
+      if (section) section.classList.toggle('d-none', page.id !== known);
     });
 
     if (dom.nav) {
       dom.nav.querySelectorAll('[data-page]').forEach(button => {
-        const active = button.dataset.page === page;
+        const active = button.dataset.page === known;
         button.classList.toggle('active', active);
         button.setAttribute('aria-pressed', active ? 'true' : 'false');
       });
     }
 
-    /* Each page fills itself the first time it is shown, and the ones that
-     * go stale refill every time after. */
-    if (page === 'dashboard') loadDashboard();
-    if (page === 'roles' && !state.loaded.has('roles')) loadRoles();
-    if (page === 'badges' && !state.loaded.has('badges')) loadGrants();
-    if (page === 'ads') loadAds();
-    if (page === 'changes') loadChanges();
-    if (page === 'api' && !state.loaded.has('api')) renderApiPage();
-    if (page === 'server') loadServer();
+    /* Each page fills itself when it is shown - the locked ones only fill
+     * what is unlocked. */
+    const page = PAGES.find(entry => entry.id === known);
+    const allowed = allowedFor(page ? page.need : null);
+    if (known === 'dashboard') loadDashboard();
+    if (known === 'roles' && allowed && !state.loaded.has('roles')) loadRoles();
+    if (known === 'badges' && allowed && !state.loaded.has('badges')) loadGrants();
+    if (known === 'ads' && allowed) loadAds();
+    if (known === 'changes') loadChanges();
+    if (known === 'api' && !state.loaded.has('api')) renderApiPage();
+    if (known === 'server' && allowed) loadServer();
 
     window.scrollTo({ top: 0 });
   }
@@ -267,27 +426,30 @@
   }
 
   /* ------------------------------------------------------------------ */
-  /* Attribution and the top bar                                         */
+  /* Identity row                                                        */
   /* ------------------------------------------------------------------ */
 
   function renderIdentity() {
     const account = state.account;
     if (dom.topbarStatus) {
-      dom.topbarStatus.textContent = account
-        ? `Saving changes as ${account.name}`
-        : 'Changes are saved as \u201cAdmin panel\u201d';
+      dom.topbarStatus.textContent = !account
+        ? 'Admin functions are locked to staff'
+        : hasRole()
+          ? `${account.name} \u00b7 ${roleLabel(state.me.role)}`
+          : `${account.name} \u00b7 not on the staff roster`;
     }
     if (dom.dashboardAccount) {
       dom.dashboardAccount.replaceChildren();
       if (account) {
-        dom.dashboardAccount.append(`Signed in as ${account.name} (Wanwood ${account.id})`);
+        dom.dashboardAccount.append(hasRole()
+          ? `Signed in as ${account.name} (Wanwood ${account.id}) \u00b7 ${roleLabel(state.me.role)}`
+          : `Signed in as ${account.name} (Wanwood ${account.id}) \u00b7 not ranked`);
       } else {
-        dom.dashboardAccount.append('No Wanwood account linked. Changes are saved as \u201cAdmin panel\u201d - ');
-        const link = el('a', null, 'link one on the verify page');
+        dom.dashboardAccount.append('Admin functions are locked to staff - ');
+        const link = el('a', 'admin_lock_link', 'link your Wanwood account');
         link.href = '/verify';
-        link.style.color = '#7ab8f5';
         dom.dashboardAccount.appendChild(link);
-        dom.dashboardAccount.append('.');
+        dom.dashboardAccount.append(' to unlock them.');
       }
     }
   }
@@ -506,6 +668,10 @@
   }
 
   async function saveRole() {
+    if (!canGrant()) {
+      notice(dom.rolesNotice, 'Only a Site Owner may hand out ranks.', 'bad');
+      return;
+    }
     const target = dom.roleName ? dom.roleName.value.trim() : '';
     if (!target) {
       notice(dom.rolesNotice, 'Type the username you are ranking.', 'bad');
@@ -546,14 +712,6 @@
   /* Player badges                                                       */
   /* ------------------------------------------------------------------ */
 
-  /*
-   * The badges that can be handed out are exactly the ones in badges.js with
-   * no earn rule - the ones whose requirement happens somewhere a browser
-   * cannot check. Deriving the list rather than repeating it means the panel
-   * can never offer a badge that is actually earned, and cannot fall behind
-   * when the catalog changes. The server keeps its own copy of the same list
-   * and refuses anything not on it.
-   */
   function grantableBadges() {
     if (!BADGES || !Array.isArray(BADGES.LIST)) return [];
     return BADGES.LIST.filter(badge => typeof badge.earn !== 'function');
@@ -598,9 +756,6 @@
   function grantRow(entry) {
     const row = el('div', 'trade_ad_picker_row');
 
-    /* The badge drawings, in the 44px column the item rows use for a
-     * thumbnail. Capped so a player with a dozen badges cannot stretch the
-     * row - the names are listed underneath anyway. */
     const slot = el('div', 'd-flex align-items-center');
     slot.style.minWidth = '44px';
     entry.badges.slice(0, 3).forEach(id => {
@@ -621,8 +776,6 @@
     text.appendChild(sub);
     row.appendChild(text);
 
-    /* Tapping a row loads the player into the editor above, which is quicker
-     * and safer than retyping a username. */
     row.addEventListener('click', () => {
       if (dom.badgeName) dom.badgeName.value = entry.name;
       chooseBadge(entry.badges[0] || '');
@@ -634,9 +787,6 @@
     if (!dom.badgesList) return;
     dom.badgesList.replaceChildren();
 
-    /* Only players who actually hold something. The server keeps an empty row
-     * behind the scenes to remember a badge being taken back, and that is
-     * bookkeeping rather than something to show. */
     const rows = (state.grants || []).filter(entry => entry.badges && entry.badges.length);
     if (!rows.length) {
       emptyRow(dom.badgesList, 'Nobody has been given a badge yet.');
@@ -657,9 +807,11 @@
     renderGrants();
   }
 
-  /* `granted` false takes the badge back. Both buttons come through here so
-   * the two paths cannot drift apart. */
   async function saveBadge(granted) {
+    if (!canGrant()) {
+      notice(dom.badgesNotice, 'Only a Site Owner may hand out badges.', 'bad');
+      return;
+    }
     const target = dom.badgeName ? dom.badgeName.value.trim() : '';
     if (!target) {
       notice(dom.badgesNotice, 'Type the username you are awarding.', 'bad');
@@ -685,8 +837,6 @@
       state.grants = Array.isArray(payload.grants) ? payload.grants : state.grants;
       renderGrants();
 
-      /* Pull the public table back so the leaderboard and the profiles in
-       * other tabs agree with what was actually stored. */
       if (GRANTED && typeof GRANTED.refresh === 'function') await GRANTED.refresh();
 
       notice(
@@ -725,8 +875,6 @@
     });
   }
 
-  /* How the value was arrived at. The item page prints this under the
-   * valuation heading. */
   function chooseMethod(method) {
     state.method = method === 'None' ? '' : (method || '');
     if (!dom.methodChoices) return;
@@ -743,8 +891,6 @@
     });
   }
 
-  /* Fill the editor from whatever is already stored for this item, so saving
-   * without touching a field leaves it as it was. */
   function loadItemIntoEditor(item) {
     state.item = item;
 
@@ -763,8 +909,6 @@
 
     chooseDemand(VALUES ? VALUES.demand(item.id) : '');
     chooseTrend(VALUES ? VALUES.trend(item.id) : '');
-    /* Read defensively: a browser holding an older cached values.js has
-     * neither accessor, and a missing one must not stop the editor filling. */
     chooseMethod(VALUES && typeof VALUES.method === 'function' ? VALUES.method(item.id) : '');
     if (dom.valueNote) {
       dom.valueNote.value = VALUES && typeof VALUES.note === 'function'
@@ -774,8 +918,6 @@
 
     state.categories = new Set();
     if (VALUES && typeof VALUES.categories === 'function') {
-      /* 'valued' is derived by values.js rather than stored, so it is not one
-       * of the chips and must not be sent back. */
       VALUES.categories(item.id)
         .filter(name => name !== 'valued')
         .forEach(name => state.categories.add(name));
@@ -786,6 +928,10 @@
   }
 
   async function saveValue() {
+    if (!canValue()) {
+      notice(dom.valuesNotice, 'Only the value team and up may save values.', 'bad');
+      return;
+    }
     if (!state.item) {
       notice(dom.valuesNotice, 'Choose an item first.', 'bad');
       return;
@@ -813,8 +959,6 @@
           categories: [...state.categories],
         }),
       });
-      /* Pull the table back so the rest of the site - and this editor - agree
-       * with what was actually stored. */
       if (VALUES && typeof VALUES.refresh === 'function') await VALUES.refresh();
       notice(dom.valuesNotice, `Saved ${state.item.name || `item ${state.item.id}`}.`, 'good');
     } catch (error) {
@@ -927,14 +1071,15 @@
     try {
       const status = await apiCall('/api/status');
       const rows = [
-        ['Admin access', 'Open - no key. Whoever reaches /admin can change things.'],
+        ['Admin access', 'No key - writes are locked to the staff roster (owners rank and badge, the value team values, ranked members moderate).'],
+        ['Source guard', status.protectSources === false ? 'off' : 'on - comments and blanks are stripped from served pages and scripts'],
         ['Storage', `${status.storage}${status.canWrite ? ' (writable)' : ' (read-only)'}`],
         ['Data location', status.location],
         ['Site root', status.siteRoot],
         ['Upstream', status.upstream],
         ['Node', status.node],
         ['Port', status.port],
-        ['Uptime', `${uptimeText(status.uptime)} (${utcTimestamp(Date.now() - (status.uptime * 1000))})`],
+        ['Uptime', `${uptimeText(status.uptime)} (since ${utcTimestamp(Date.now() - (status.uptime * 1000))})`],
         ['Items in the table', status.items],
         ['Items with a value', status.valued],
         ['Staff ranked', status.staff],
@@ -953,8 +1098,6 @@
   /* Item picker - the trade ad composer's modal                         */
   /* ------------------------------------------------------------------ */
 
-  /* Bootstrap's JS is not loaded on this site, so modals are shown by hand
-   * the same way the rest of the pages do it. */
   function showModal(modal, open) {
     if (!modal) return;
     modal.classList.toggle('show', open);
@@ -1014,7 +1157,6 @@
       return;
     }
 
-    /* A slower earlier search must not overwrite a newer one. */
     if (sequence !== state.pickerSequence) return;
 
     dom.pickerResults.replaceChildren();
@@ -1028,6 +1170,7 @@
   }
 
   function openPicker() {
+    if (!canValue()) return;
     if (dom.pickerSearch) dom.pickerSearch.value = '';
     showModal(dom.pickerModal, true);
     runPickerSearch('');
@@ -1039,15 +1182,8 @@
   /* ------------------------------------------------------------------ */
 
   function bind() {
-    /* Sidebar. The hash keeps the browser's back button and shared links
-     * honest: /admin/#values opens straight on the Item Values page. */
-    dom.nav?.querySelectorAll('[data-page]').forEach(button => {
-      button.addEventListener('click', () => {
-        const page = button.dataset.page;
-        if (window.location.hash !== `#${page}`) window.location.hash = page;
-        else showPage(page);
-      });
-    });
+    /* The hash keeps the browser's back button and shared links honest:
+     * /admin/#values opens straight on the Item Values page. */
     window.addEventListener('hashchange', () => showPage(pageFromHash()));
 
     dom.roleChoices?.querySelectorAll('[data-role-value]').forEach(button => {
@@ -1057,7 +1193,6 @@
     });
     dom.roleSave?.addEventListener('click', saveRole);
 
-    /* The badge chips are wired as they are built, in renderBadgeChoices(). */
     dom.badgeGive?.addEventListener('click', () => saveBadge(true));
     dom.badgeTake?.addEventListener('click', () => saveBadge(false));
 
@@ -1095,14 +1230,16 @@
     });
     dom.valueSave?.addEventListener('click', saveValue);
 
-    dom.adsRefresh?.addEventListener('click', loadAds);
+    dom.adsRefresh?.addEventListener('click', () => { if (hasRole()) loadAds(); });
     dom.changesRefresh?.addEventListener('click', loadChanges);
-    dom.serverRefresh?.addEventListener('click', loadServer);
+    dom.serverRefresh?.addEventListener('click', () => { if (hasRole()) loadServer(); });
   }
 
   function render() {
     state.account = ACCOUNT ? ACCOUNT.get() : null;
-    renderIdentity();
+    state.loaded.delete('roles');
+    state.loaded.delete('badges');
+    loadAccess();
   }
 
   let booted = false;
@@ -1112,12 +1249,13 @@
     if (!document.body.classList.contains('page-admin')) return;
     cacheDom();
     booted = true;
+    buildSidebar();
     bind();
     renderBadgeChoices();
     chooseDemand('');
     chooseTrend('');
     chooseMethod('');
-    /* Verifying or signing out in another tab changes the attribution. */
+    /* Verifying or signing out in another tab flips the locks. */
     if (ACCOUNT && typeof ACCOUNT.subscribe === 'function') ACCOUNT.subscribe(render);
     render();
     showPage(pageFromHash());

@@ -240,20 +240,22 @@
 
   async function load() {
     const wanted = requestedId();
+
+    /* Comments only need the ad id, so they mount immediately - before the
+     * ad itself is fetched, which keeps the section on screen even while the
+     * card is still loading. */
+    if (wanted && window.WolimonsComments) {
+      window.WolimonsComments.mount({
+        target: `ad:${wanted}`,
+        listId: 'tradead_comments_list',
+        boxId: 'tradead_comments_box',
+      });
+    }
+
     const ad = wanted ? await loadAd(wanted) : null;
     if (!ad) {
       showMissing();
       return;
-    }
-
-    /* Comments are independent of the item lookups; mount them as soon as
-     * the ad id is known. */
-    if (window.WolimonsComments) {
-      window.WolimonsComments.mount({
-        target: `ad:${ad.id}`,
-        listId: 'tradead_comments_list',
-        boxId: 'tradead_comments_box',
-      });
     }
 
     /* Draw once with what the server sent, then again once names, thumbnails

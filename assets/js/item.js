@@ -1102,18 +1102,27 @@
     /*
      * The productinfo's Creator field is not to be trusted - it answers with
      * the asset's own name. Every limited is created by the account with user
-     * id 1, so that account's real username is resolved instead; the
-     * productinfo figure is only the fallback if the lookup fails.
+     * id 1, so that account's real username is resolved instead. The
+     * users/v1/users route is tried first (the one the server uses to confirm
+     * a commenter's name, and the one that reliably answers), then the
+     * api/users route. The productinfo figure is deliberately never used -
+     * showing the item's own name as its creator is the exact bug this
+     * replaces.
      */
-    if (API && typeof API.getUserById === 'function') {
-      API.getUserById(1).then(user => {
-        setText('creator', user ? user.name : (detail?.creatorName || null));
-      }).catch(() => {
-        setText('creator', detail?.creatorName || null);
-      });
-    } else {
-      setText('creator', detail?.creatorName || null);
-    }
+    (async () => {
+      let name = null;
+      if (API) {
+        if (typeof API.getProfileById === 'function') {
+          const profile = await API.getProfileById(1);
+          if (profile) name = profile.name;
+        }
+        if (!name && typeof API.getUserById === 'function') {
+          const user = await API.getUserById(1);
+          if (user) name = user.name;
+        }
+      }
+      setText('creator', name);
+    })();
 
     /* Two figures the snapshot does not carry, kept from the item page this
      * one replaces: how many different players are selling, and the top ask. */

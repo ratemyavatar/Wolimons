@@ -1,23 +1,28 @@
 /*
- * Wolimons comments - the shared comment section.
- * -----------------------------------------------
- * One section, used at the bottom of player profiles and trade ad detail
- * pages. The server keeps the comments (see proxy/store.js); they are
- * permanent and visible to everyone, so the section renders identically for
- * a signed-out visitor and the person who wrote them.
+ * Wolimons comments - the shared comment section + the inbox.
+ * -----------------------------------------------------------
+ * One comment section, used at the bottom of player profiles and trade ad
+ * detail pages, and one inbox that collects every comment left on the linked
+ * account's own profile and trade ads. The server keeps the comments (see
+ * proxy/store.js); they are permanent and visible to everyone, so the section
+ * renders identically for a signed-out visitor and the person who wrote them.
  *
- * Everything here is reused from the site's existing kit: the rows are the
- * trade ad picker's row shape (44px headshot beside the text), the input is
- * the admin panel's note box, the buttons are the site's buttons. Posting
- * needs the same identity token trade ads use, so every comment is attached
- * to an account the poster proved they control; you can delete your own, and
- * the admin panel can take any down.
+ * Each comment is its own card: a darker tile in the same grey family as the
+ * pane it sits in, with the commenter's headshot, name, how long ago, and the
+ * text. The card is styled inline rather than through the picker-row classes,
+ * because those classes are scoped to specific page body classes and would
+ * not apply on the profile or trade ad detail pages - so the cards carry
+ * their own look and render the same everywhere.
  *
- *   WolimonsComments.mount({ target, listId, boxId })
+ * Posting needs the same identity token trade ads use, so every comment is
+ * attached to an account the poster proved they control; you can delete your
+ * own, and the admin panel can take any down.
+ *
+ *   WolimonsComments.mount({ target, listId, boxId })   a comment section
+ *   WolimonsComments.mountInbox({ listId, statusId })   the inbox list
  *
  * target is the namespaced page the comments sit on - "player:<userId>" or
- * "ad:<adId>" - and the two ids are the empty containers the host page
- * provides for the list and the posting box.
+ * "ad:<adId>" - and the ids are the empty containers the host page provides.
  */
 (() => {
   'use strict';
@@ -27,6 +32,11 @@
   const ACCOUNT = window.WolimonsAccount;
 
   const API_BASE = CONFIG.apiBase || '';
+
+  /* The palette the cards draw from: the pane grey and one step darker, so a
+   * comment reads as its own tile inside the section that holds it. */
+  const CARD_BG = 'rgb(36, 38, 42)';
+  const CARD_BORDER = 'rgb(58, 63, 68)';
 
   function el(tag, className, text) {
     const node = document.createElement(tag);
@@ -68,58 +78,64 @@
   }
 
   /*
-   * One comment, in the picker's row shape. The headshot is a placeholder
-   * until the batched headshot call paints the real one.
+   * One comment as its own card. Styled inline so it does not depend on the
+   * picker-row classes, which are scoped to other pages' body classes. The
+   * headshot is a placeholder until the batched headshot call paints it.
    */
-  function commentRow(comment, { canDelete, onDelete }) {
-    const row = el('div', 'trade_ad_picker_row');
-    row.style.cursor = 'default';
+  function commentCard(comment, { canDelete, onDelete, contextNode }) {
+    const card = el('div');
+    card.style.cssText = `background:${CARD_BG};border:1px solid ${CARD_BORDER};`
+      + 'border-radius:6px;padding:10px 12px;margin-bottom:8px;display:flex;'
+      + 'gap:10px;align-items:flex-start;';
 
     const img = el('img');
     img.width = 44;
     img.height = 44;
     img.loading = 'lazy';
     img.alt = '';
-    img.style.borderRadius = '33%';
-    img.style.backgroundColor = '#23272b';
+    img.style.cssText = 'border-radius:33%;background-color:#23272b;flex:0 0 auto;';
     img.dataset.commentHeadshot = String(comment.userId);
-    row.appendChild(img);
+    card.appendChild(img);
 
-    const body = el('div', 'flex-grow-1');
+    const body = el('div');
+    body.style.cssText = 'flex:1 1 auto;min-width:0;';
 
-    const head = el('div', 'd-flex align-items-center flex-wrap');
-    const name = el('a', 'text-truncate', comment.name || `User ${comment.userId}`);
+    const head = el('div');
+    head.style.cssText = 'display:flex;align-items:center;flex-wrap:wrap;gap:6px;';
+    const name = el('a', null, comment.name || `User ${comment.userId}`);
     name.href = `/player/?id=${comment.userId}`;
-    name.style.color = '#e9ecef';
-    name.style.fontWeight = '600';
+    name.style.cssText = 'color:#e9ecef;font-weight:600;text-decoration:none;';
     head.appendChild(name);
-    const when = el('span', 'small ml-2', ago(comment.at));
-    when.style.color = '#7a8288';
+    const when = el('span', null, ago(comment.at));
+    when.style.cssText = 'color:#7a8288;font-size:12px;';
     head.appendChild(when);
 
+    /* The inbox adds a "on your profile / trade ad" chip ahead of the row. */
+    if (contextNode) head.insertBefore(contextNode, head.firstChild);
+
     if (canDelete) {
-      const remove = el('button', 'btn btn-flat-dark-gray-sm rounded-pill ml-auto', 'Remove');
+      const remove = el('button', null, 'Remove');
       remove.type = 'button';
-      remove.style.fontSize = '12px';
+      remove.style.cssText = 'margin-left:auto;background:rgb(58,63,68);color:#c3c8cd;'
+        + 'border:0;border-radius:12px;padding:2px 10px;font-size:12px;cursor:pointer;';
       remove.addEventListener('click', () => onDelete(comment, remove));
       head.appendChild(remove);
     }
     body.appendChild(head);
 
-    const text = el('div', 'small mt-1', comment.text);
-    text.style.color = '#c3c8cd';
-    text.style.whiteSpace = 'pre-wrap';
-    text.style.overflowWrap = 'anywhere';
+    const text = el('div', null, comment.text);
+    text.style.cssText = 'color:#c3c8cd;font-size:13px;margin-top:4px;'
+      + 'white-space:pre-wrap;overflow-wrap:anywhere;';
     body.appendChild(text);
 
-    row.appendChild(body);
-    return row;
+    card.appendChild(body);
+    return card;
   }
 
-  /* Batched headshots for whoever has commented, painted onto the rows. */
-  async function paintHeadshots(list) {
-    if (!API) return;
-    const images = [...list.querySelectorAll('img[data-comment-headshot]')];
+  /* Batched headshots for whoever has commented, painted onto the cards. */
+  async function paintHeadshots(container) {
+    if (!API || !container) return;
+    const images = [...container.querySelectorAll('img[data-comment-headshot]')];
     const ids = [...new Set(images.map(img => Number(img.dataset.commentHeadshot)))]
       .filter(id => Number.isSafeInteger(id) && id > 0);
     if (!ids.length) return;
@@ -212,8 +228,14 @@
     });
   }
 
+  function emptyNote(container, message) {
+    const empty = el('div', null, message);
+    empty.style.cssText = 'color:#7a8288;font-size:13px;padding:8px 0;';
+    container.replaceChildren(empty);
+  }
+
   /*
-   * Build the whole section into the host page's two containers.
+   * Build a whole comment section into the host page's two containers.
    */
   async function mount({ target, listId, boxId }) {
     const list = document.getElementById(listId);
@@ -231,22 +253,18 @@
           `/api/comments?target=${encodeURIComponent(target)}&limit=200`);
         comments = Array.isArray(payload.comments) ? payload.comments : [];
       } catch (error) {
-        const failed = el('div', 'small py-2', 'Comments could not be loaded.');
-        failed.style.color = '#7a8288';
-        list.appendChild(failed);
+        emptyNote(list, 'Comments could not be loaded.');
         return;
       }
 
       if (!comments.length) {
-        const empty = el('div', 'small py-2', 'No comments yet - be the first.');
-        empty.style.color = '#7a8288';
-        list.appendChild(empty);
+        emptyNote(list, 'No comments yet - be the first.');
         return;
       }
 
       comments.forEach(comment => {
         const own = myId > 0 && comment.userId === myId && Boolean(token());
-        list.appendChild(commentRow(comment, {
+        list.appendChild(commentCard(comment, {
           canDelete: own,
           onDelete: async (item, button) => {
             button.disabled = true;
@@ -271,5 +289,83 @@
     await refresh();
   }
 
-  window.WolimonsComments = { mount };
+  /*
+   * The inbox: every comment left on the linked account's own profile or
+   * trade ads, newest first. Needs a linked + verified account; otherwise it
+   * says so and points at the verify page.
+   */
+  async function mountInbox({ listId, statusId }) {
+    const list = document.getElementById(listId);
+    const status = statusId ? document.getElementById(statusId) : null;
+    if (!list) return;
+
+    const say = (message, tone) => {
+      if (!status) return;
+      status.textContent = message || '';
+      status.style.color = tone === 'bad' ? '#e57373' : '#adb5bd';
+      status.classList.toggle('d-none', !message);
+    };
+
+    const account = ACCOUNT ? ACCOUNT.get() : null;
+    if (!account || !token()) {
+      const note = el('div');
+      note.style.cssText = 'color:#7a8288;font-size:14px;padding:8px 0;';
+      note.append('Link your Wanwood account on the ');
+      const link = el('a', null, 'verify page');
+      link.href = '/verify';
+      link.style.color = '#7ab8f5';
+      note.appendChild(link);
+      note.append(' to see when someone comments on your profile or trade ads.');
+      list.replaceChildren(note);
+      return;
+    }
+
+    say('Loading\u2026');
+    let comments = [];
+    try {
+      const payload = await apiCall('/api/inbox?limit=200');
+      comments = Array.isArray(payload.comments) ? payload.comments : [];
+    } catch (error) {
+      say(error.message, 'bad');
+      return;
+    }
+
+    if (!comments.length) {
+      say('');
+      emptyNote(list, 'Nothing yet. When someone comments on your profile or a trade ad you posted, it shows up here.');
+      return;
+    }
+
+    say(`You have ${comments.length} new comment${comments.length === 1 ? '' : 's'}.`);
+    list.replaceChildren();
+    comments.forEach(comment => {
+      const isAd = comment.target.startsWith('ad:');
+      const ref = isAd ? comment.target.slice(3) : comment.target.slice(7);
+
+      /* A small chip saying where the comment landed, linking to the page. */
+      const context = el('a', null, isAd ? 'your trade ad' : 'your profile');
+      context.href = isAd ? `/tradead/?id=${encodeURIComponent(ref)}` : `/player/?id=${ref}`;
+      context.style.cssText = 'color:#7ab8f5;font-size:12px;text-decoration:none;'
+        + 'background:rgb(58,63,68);border-radius:10px;padding:1px 8px;';
+
+      list.appendChild(commentCard(comment, { canDelete: false, contextNode: context }));
+    });
+    paintHeadshots(list);
+  }
+
+  /* The inbox page is recognised by its list container; nothing else on the
+   * site has one, so this auto-mounts there and nowhere else. */
+  function autoMountInbox() {
+    if (document.getElementById('inbox_notifications_list')) {
+      mountInbox({ listId: 'inbox_notifications_list', statusId: 'inbox_status' });
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', autoMountInbox);
+  } else {
+    autoMountInbox();
+  }
+
+  window.WolimonsComments = { mount, mountInbox };
 })();

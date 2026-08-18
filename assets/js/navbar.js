@@ -507,6 +507,9 @@
    */
   (async function loadAnnouncement() {
     try {
+      /* Never insert twice, however many times this runs. */
+      if (document.getElementById('global_announcement_banner')) return;
+
       const base = (window.WOLIMONS_CONFIG && window.WOLIMONS_CONFIG.apiBase) || '';
       const response = await fetch(`${base}/api/announcement`, {
         headers: { Accept: 'application/json' },
@@ -516,11 +519,15 @@
       const announcement = payload && payload.announcement;
       if (!announcement || !String(announcement.text || '').trim()) return;
 
+      /* Re-check after the await - another copy may have landed meanwhile. */
+      if (document.getElementById('global_announcement_banner')) return;
+
       const banner = document.createElement('div');
       banner.id = 'global_announcement_banner';
       banner.style.cssText = 'background: rgb(0, 132, 221); color: #fff; '
         + 'font-weight: bold; text-align: center; padding: 9px 40px; '
-        + 'font-size: 15px; line-height: 1.45; position: relative;';
+        + 'font-size: 15px; line-height: 1.45; position: relative; '
+        + 'width: 100%; z-index: 2100;';
 
       const text = String(announcement.text).trim();
       if (announcement.link) {

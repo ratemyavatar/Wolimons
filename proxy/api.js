@@ -1033,6 +1033,34 @@ async function handle(req, res, url, readBody) {
       return true;
     }
 
+    /*
+     * The inbox: every comment left on the requesting account's own profile
+     * or trade ads, newest first. The account comes from the identity token,
+     * never from a query parameter, so an inbox always belongs to whoever
+     * proved they own it. The data itself is public - those pages show their
+     * comments to everyone - this just gathers one person's in one place.
+     */
+    if (req.method === 'GET' && route === '/api/inbox') {
+      const userId = readIdentity(bearer(req));
+      if (!userId) {
+        send(res, 401, {
+          ok: false,
+          error: 'Verify your Wanwood account to see your inbox.',
+        });
+        return true;
+      }
+
+      const targets = new Set([`player:${userId}`]);
+      const myAds = await store.ads({ creatorId: userId });
+      myAds.forEach(ad => targets.add(`ad:${ad.id}`));
+
+      const all = await store.allComments({ limit: 5000 });
+      const mine = all.filter(comment => targets.has(comment.target))
+        .slice(0, Math.min(Math.max(Number(url.searchParams.get('limit')) || 200, 1), 500));
+      send(res, 200, { ok: true, comments: mine });
+      return true;
+    }
+
     if (req.method === 'POST' && route === '/api/comments/moderate') {
       const payload = readJson(await readBody(req));
       const auth = await authorize(req, payload, { need: 'staff' });

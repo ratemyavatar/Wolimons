@@ -649,6 +649,27 @@
     return verified;
   }
 
+  /*
+   * GET /apisite/users/v1/users/{id} -> the account's profile document, the
+   * same one the server reads when it confirms a commenter's name. Carries
+   * .name and .isVerified. getUserById's api/users/{id} route occasionally
+   * comes back empty for real accounts, so anything that must not be wrong -
+   * the item-page creator, for one - resolves through this endpoint instead.
+   */
+  async function getProfileById(id) {
+    const userId = Number(id);
+    if (!Number.isSafeInteger(userId) || userId <= 0) return null;
+    try {
+      const result = await fetchJson(`${API_BASE}/apisite/users/v1/users/${userId}`);
+      if (!isPlainObject(result)) return null;
+      const name = String(result.name ?? result.Name ?? result.username ?? '').trim();
+      if (!name || name === '?') return null;
+      return { id: userId, name, verified: result.isVerified === true };
+    } catch (error) {
+      return null;
+    }
+  }
+
   /* The same thing for a handful of ids at once. Only ever call this with the
    * players actually on screen - it is one request each. */
   async function fetchVerifiedFlags(ids) {
@@ -1074,6 +1095,7 @@
     proxied,
     getUserById,
     getUserByUsername,
+    getProfileById,
     isUserVerified,
     fetchVerifiedFlags,
     searchGroups,

@@ -49,14 +49,17 @@
    *   'grant' - owners only, 'value' - the value team and up,
    *   'role'  - any rank at all. Absent means the page is open to look at.
    */
+  /* Every page is gated - the panel is for whitelisted admins only, and the
+   * whitelist is the staff roster the server checks on every write. 'role'
+   * means any rank at all, 'value' the value team and up, 'grant' owners. */
   const PAGES = [
-    { id: 'dashboard', label: 'Dashboard', section: 'Overview' },
+    { id: 'dashboard', label: 'Dashboard', section: 'Overview', need: 'role' },
     { id: 'values', label: 'Item Values', section: 'Editing', need: 'value' },
     { id: 'roles', label: 'Staff Ranks', section: 'Editing', need: 'grant' },
     { id: 'badges', label: 'Player Badges', section: 'Editing', need: 'grant' },
     { id: 'ads', label: 'Trade Ads', section: 'Moderation', need: 'role' },
-    { id: 'changes', label: 'Change Log', section: 'Moderation' },
-    { id: 'api', label: 'Public API', section: 'Site' },
+    { id: 'changes', label: 'Change Log', section: 'Moderation', need: 'role' },
+    { id: 'api', label: 'Public API', section: 'Site', need: 'role' },
     { id: 'server', label: 'Server', section: 'Site', need: 'role' },
   ];
 
@@ -174,10 +177,15 @@
   }
 
   async function apiCall(path, options = {}) {
+    /* Every write is checked server-side against the roster, and the proof
+     * that this browser is who it claims is the identity token from
+     * /verify - so it rides along on every call. */
+    const token = ACCOUNT && typeof ACCOUNT.getToken === 'function' ? ACCOUNT.getToken() : '';
     const response = await fetch(`${API_BASE}${path}`, {
       ...options,
       headers: {
         'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...(options.headers || {}),
       },
     });
@@ -256,9 +264,16 @@
   const canGrant = () => Boolean(state.me && state.me.canGrantRoles);
   const canValue = () => Boolean(state.me && state.me.canSetValues);
   const hasRole = () => Boolean(state.me && state.me.role);
+  /* The server proves who is writing with the identity token from /verify,
+   * so a ranked account whose proof has expired is locked out too - the
+   * panel says so instead of letting every save fail. */
+  const identityToken = () => (ACCOUNT && typeof ACCOUNT.getToken === 'function'
+    ? ACCOUNT.getToken()
+    : '');
 
   function allowedFor(need) {
     if (!need) return true;
+    if (!identityToken()) return false;
     if (need === 'grant') return canGrant();
     if (need === 'value') return canValue();
     return hasRole();
@@ -295,9 +310,16 @@
     }
     if (!hasRole()) {
       return {
-        message: `${state.account.name} is not on the staff roster, so these functions stay locked.`,
+        message: `${state.account.name} is not on the staff whitelist, so these functions stay locked.`,
         link: false,
         hint: '',
+      };
+    }
+    if (!identityToken()) {
+      return {
+        message: `${state.account.name} is whitelisted, but the verification for this browser has expired, so these functions stay locked.`,
+        link: true,
+        hint: ' again to unlock them.',
       };
     }
     if (need === 'grant') {
@@ -409,12 +431,12 @@
      * what is unlocked. */
     const page = PAGES.find(entry => entry.id === known);
     const allowed = allowedFor(page ? page.need : null);
-    if (known === 'dashboard') loadDashboard();
+    if (known === 'dashboard' && allowed) loadDashboard();
     if (known === 'roles' && allowed && !state.loaded.has('roles')) loadRoles();
     if (known === 'badges' && allowed && !state.loaded.has('badges')) loadGrants();
     if (known === 'ads' && allowed) loadAds();
-    if (known === 'changes') loadChanges();
-    if (known === 'api' && !state.loaded.has('api')) renderApiPage();
+    if (known === 'changes' && allowed) loadChanges();
+    if (known === 'api' && allowed && !state.loaded.has('api')) renderApiPage();
     if (known === 'server' && allowed) loadServer();
 
     window.scrollTo({ top: 0 });

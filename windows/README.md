@@ -26,7 +26,16 @@ Do **1**, then **3**, then **4**. Option 2 is just for a quick look.
 
 ## Updating later
 
-Option **8**, or just double-click `update.bat`. One step, about ten seconds.
+Three ways, all one double-click:
+
+- **`git-pull.cmd`** — if the site folder is a git clone (e.g. you set it up
+  with `git clone`). Pulls the newest code with git, fast-forward only, and
+  never touches `proxy\.env` or `proxy\data\` (both are gitignored). Restart
+  the service afterwards. If the folder isn't a clone it tells you the
+  one-time `git clone` command to run.
+- **`update.bat`** (or setup.bat option **8**) — the no-git way: downloads a
+  fresh copy of the code and swaps it in, keeping your values.
+- Either one takes about ten seconds.
 It backs up your values first, then replaces only the code — `proxy\data\`
 (your values, history and roles) and `proxy\.env` (your settings) are never
 touched, because neither is in the download.

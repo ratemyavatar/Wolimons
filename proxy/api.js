@@ -178,11 +178,13 @@ function readJson(body) {
  * Who is asking, and are they an admin?
  *
  * There is still no key - but "open" does not mean "anyone". Every write
- * names the Wanwood account making it, and that name has to be on the staff
- * roster: an owner for ranks and badges, any ranked member for values, a
- * ranked member for moderation. The roster is the door now instead of a
- * password. The name is checked against it here on the server, so editing
- * the panel in a browser cannot widen what a visitor may do.
+ * carries the identity token from /verify, which proves the browser controls
+ * the Wanwood account it claims. The server reads the account's real name
+ * back from Wanwood itself - the name in the request body is never trusted -
+ * and that name has to be on the staff roster: an owner for ranks and
+ * badges, any ranked member for values, a ranked member for moderation. The
+ * roster is the door now instead of a password, and the token is the proof
+ * that the person walking through it is who the roster says.
  *
  * need: 'owner'  - site owners only
  *       'valuer' - owner, value manager or value team
@@ -190,13 +192,38 @@ function readJson(body) {
  */
 const ROLE_RANK = { owner: 3, value_manager: 2, staff: 1 };
 
+/*
+ * The Wanwood username an identity token stands for, confirmed upstream and
+ * cached briefly - a write must not fan out to Wanwood every time, but a
+ * rename must also not stay cached forever.
+ */
+async function verifiedName(userId) {
+  const cacheKey = `identity-name:${userId}`;
+  const cached = cacheRead(cacheKey);
+  if (cached) return cached;
+
+  const profile = await fetchProfile(userId);
+  const name = profile ? String(profile.name || '').trim() : '';
+  if (!name) return '';
+  return cacheWrite(cacheKey, name, 5 * 60 * 1000);
+}
+
 async function authorize(req, payload, { need }) {
-  const name = String(payload?.name || '').trim().slice(0, 60);
-  if (!name) {
+  const userId = readIdentity(bearer(req));
+  if (!userId) {
     return {
       ok: false,
       status: 401,
-      error: 'Link your Wanwood account to the admin panel first.',
+      error: 'Link your Wanwood account on the verify page first.',
+    };
+  }
+
+  const name = await verifiedName(userId);
+  if (!name) {
+    return {
+      ok: false,
+      status: 502,
+      error: 'Wanwood could not be reached to confirm the account. Try again in a moment.',
     };
   }
 

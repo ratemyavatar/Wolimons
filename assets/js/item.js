@@ -47,12 +47,12 @@
  * ---------------------------------------------------------------------------
  * EDITING VALUES FROM THIS PAGE
  * ---------------------------------------------------------------------------
- * A signed-in owner, value manager or staff member gets an editor inside the
+ * A linked owner, value manager or staff member gets an editor inside the
  * Valuation tab. It posts to the same POST /api/values/set the admin panel
- * uses, with the same shared-key bearer token, so there is one code path on
- * the server and one set of rules about who may write. Everyone else never
- * sees it: the block stays hidden and the backend would refuse the write
- * anyway.
+ * uses, carrying the identity token from /verify - the server confirms the
+ * account behind the token and re-checks its rank before it saves. Everyone
+ * else never sees it: the block stays hidden and the backend would refuse
+ * the write anyway.
  */
 (() => {
   'use strict';
@@ -63,10 +63,6 @@
   const CHART = window.WolimonsHistoryChart;
   const TABLE = window.WolimonsTable;
   const ACCOUNT = window.WolimonsAccount;
-
-  /* Where the admin panel keeps the shared-key session. The same token is
-   * reused here rather than asking for the key a second time. */
-  const TOKEN_KEY = 'wolimons_admin_token_v1';
 
   /* Read values.js defensively: a browser holding an older cached copy has no
    * demand() on it, and a missing accessor must not take the page down. */
@@ -755,10 +751,11 @@
    * item this page is already showing. Same controls, same request, same
    * server-side rules about who may write - see proxy/api.js.
    *
-   * Two things have to be true before it appears: this browser holds an admin
-   * session, and the linked Wanwood account has a rank that may set values.
-   * The backend re-checks both, so a hidden editor is a convenience rather
-   * than the security boundary.
+   * Two things have to be true before it appears: the linked Wanwood account
+   * has a rank that may set values, and the browser still holds the identity
+   * token that proves it controls that account - the server checks both on
+   * every save, so a hidden editor is a convenience rather than the security
+   * boundary.
    */
   const editor = {
     id: null,
@@ -767,14 +764,6 @@
     method: '',
     categories: new Set(),
     can: false,
-  };
-
-  const readToken = () => {
-    try {
-      return window.localStorage.getItem(TOKEN_KEY) || '';
-    } catch (error) {
-      return '';
-    }
   };
 
   function notice(message, tone) {
@@ -879,6 +868,11 @@
       notice('Link your Wanwood account first, on the Verify page.', 'bad');
       return;
     }
+    const token = ACCOUNT && typeof ACCOUNT.getToken === 'function' ? ACCOUNT.getToken() : '';
+    if (!token) {
+      notice('Your verification has expired - link the account again on the Verify page.', 'bad');
+      return;
+    }
 
     const amountBox = field('editor-value');
     const raw = amountBox ? amountBox.value.trim() : '';
@@ -895,6 +889,7 @@
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           name: account.name,
@@ -921,17 +916,17 @@
   }
 
   /*
-   * Decide whether this visitor may edit, and show or hide the block. The
-   * admin key is gone - the panel and this editor are open the same way -
-   * so the only condition left is having a linked Wanwood account to put a
-   * name under the change. The server still records that name as
-   * attribution, not as a check.
+   * Decide whether this visitor may edit, and show or hide the block. Writes
+   * are locked to the staff roster now, so the editor only appears when the
+   * linked account is ranked and the browser still holds the identity token
+   * to prove it - otherwise saving would just be refused.
    */
   async function refreshEditorAccess(id) {
     const account = ACCOUNT ? ACCOUNT.get() : null;
     editor.can = false;
 
-    if (account && account.name) {
+    const token = ACCOUNT && typeof ACCOUNT.getToken === 'function' ? ACCOUNT.getToken() : '';
+    if (account && account.name && token) {
       try {
         const response = await fetch(
           `${API.API_BASE}/api/me?name=${encodeURIComponent(account.name)}`);

@@ -82,6 +82,10 @@
                                 <div class="small" id="admin_dashboard_account" style="color: rgb(122, 130, 136);"></div>
                             </div>
 
+                            <div class="admin_page_lock trade_ads_empty_state mx-0 mt-3 d-none">
+                                <div class="px-3" style="color: #adb5bd;"><span class="admin_lock_message"></span> <a class="admin_lock_link d-none" href="/verify">Link your Wanwood account</a><span class="admin_lock_hint"></span></div>
+                            </div>
+                            <div class="admin_page_body">
                             <!-- The stat wall. Same cells as the trade ad
                                  detail page's header pane. -->
                             <div class="row shadow mx-0 mt-3" style="background-color: #2e3337;">
@@ -104,6 +108,7 @@
                                 <div class="w-100 px-2 px-sm-3 py-3">
                                     <div class="trade_ad_picker_results" id="admin_dash_ads"></div>
                                 </div>
+                            </div>
                             </div>
                         </section>
 
@@ -269,11 +274,16 @@
                                 <h2 class="section_header">Change log</h2>
                                 <input class="btn btn-flat-light-blue-sm rounded-pill shadow" id="admin_changes_refresh" type="submit" value="Refresh">
                             </div>
+                            <div class="admin_page_lock trade_ads_empty_state mx-0 mt-3 d-none">
+                                <div class="px-3" style="color: #adb5bd;"><span class="admin_lock_message"></span> <a class="admin_lock_link d-none" href="/verify">Link your Wanwood account</a><span class="admin_lock_hint"></span></div>
+                            </div>
+                            <div class="admin_page_body">
                             <div class="row shadow mx-0 mt-2" style="background-color: #2e3337;">
                                 <div class="w-100 px-3 px-sm-4 py-4">
                                     <div class="small mb-3 admin_page_note">Every value, demand and trend edit the panel has made, newest first. This is the same history the Value Changes page shows the public - here it is the audit copy.</div>
                                     <div class="trade_ad_picker_results" id="admin_changes_list"></div>
                                 </div>
+                            </div>
                             </div>
                         </section>
 
@@ -286,6 +296,10 @@
                                     <a class="btn btn-flat-light-blue-sm rounded-pill shadow" href="/api" target="_blank" rel="noopener" role="button"><span class="text-nowrap">Open the endpoint index</span></a>
                                 </div>
                             </div>
+                            <div class="admin_page_lock trade_ads_empty_state mx-0 mt-3 d-none">
+                                <div class="px-3" style="color: #adb5bd;"><span class="admin_lock_message"></span> <a class="admin_lock_link d-none" href="/verify">Link your Wanwood account</a><span class="admin_lock_hint"></span></div>
+                            </div>
+                            <div class="admin_page_body">
                             <div class="row shadow mx-0 mt-2" style="background-color: #2e3337;">
                                 <div class="w-100 px-3 px-sm-4 py-4">
                                     <div class="small admin_page_note">Wolimons answers a public, keyless JSON API - the Rolimons-style one tools and bots can build on. Everything below is live right now on this server; open any row in a new tab to see the answer. The machine-readable version of this list is served at <span style="color:#e9ecef;">/api</span>, and the full documentation lives at <a class="admin_lock_link" href="/apidocs/">/apidocs</a>.</div>
@@ -294,6 +308,7 @@
                                     <div class="trade_ad_picker_results mt-3" id="admin_api_list"></div>
                                     <div class="small mt-3 admin_page_note">All public endpoints answer GET requests with JSON and send CORS headers, so a page on any domain may call them straight from the browser. Item names, RAP and lowest prices are fetched from Wanwood and cached for ten minutes, so a refresh after changing values may take a moment to show new upstream data.</div>
                                 </div>
+                            </div>
                             </div>
                         </section>
 

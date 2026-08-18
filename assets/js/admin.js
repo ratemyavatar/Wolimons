@@ -1313,6 +1313,85 @@
     return row;
   }
 
+  /*
+   * Live formatting for the paste box. The same rules the parser uses, run
+   * in reverse: whatever shape a line arrives in, it is rewritten into the
+   * canonical one - arrows as ` --> `, demand and trend in the site's own
+   * capitalisation, numbers with commas, the explanation under its own
+   * label. Typing `demand:low` or `DEMAND->  low` quietly becomes
+   * `demand --> Low`, so nobody has to fight the format.
+   *
+   * Lines that cannot be recognised are kept exactly as written - the
+   * formatter must never eat words.
+   */
+  function formatValuationLine(line) {
+    const noteMatch = /^(?:explanation|note)\s*(?:-->|->|=>|:|\u2192)\s*(.*)$/i.exec(line);
+    if (noteMatch) {
+      const rest = noteMatch[1].trim();
+      return rest ? `explanation: ${rest}` : 'explanation:';
+    }
+    if (!VALUE_ARROW.test(line)) return line;
+
+    const halves = line.split(VALUE_ARROW);
+    const key = halves[0].trim();
+    let value = halves.slice(1).join(' ').trim();
+    const keyLower = key.toLowerCase();
+
+    if (/demand/.test(keyLower)) {
+      const match = matchVocab(value, VALUE_VOCAB.demand);
+      return `demand --> ${match || value}`;
+    }
+    if (/trend/.test(keyLower)) {
+      const match = matchVocab(value, VALUE_VOCAB.trend);
+      return `trend --> ${match || value}`;
+    }
+    if (/method|valuation/.test(keyLower)) {
+      let method = value;
+      if (/proof/i.test(value)) method = 'Proof-Based';
+      else if (/rap/i.test(value)) method = 'RAP-Based';
+      return `method --> ${method}`;
+    }
+
+    /* The value line keeps whatever label was written ("unvalued" included)
+     * and just tidies the number. */
+    const cleaned = value.replace(/,/g, '').replace(/\b(?:robux|r\$)\b.*$/i, '').trim();
+    const amount = Number(cleaned);
+    if (Number.isFinite(amount) && amount >= 0 && cleaned !== '') {
+      value = formatNumber(Math.round(amount));
+    }
+    return `${key} --> ${value}`;
+  }
+
+  function formatValuationText(raw) {
+    const lines = String(raw || '').split(/\r?\n/).map(line => line.trim());
+    const formatted = lines.map(line => (line ? formatValuationLine(line) : ''));
+    return formatted.join('\n').replace(/\n{3,}/g, '\n\n').replace(/\s+$/, '');
+  }
+
+  /* Reformat the box in place, keeping the caret on the line it was on -
+   * running after every keystroke would fight the typist, so the caller
+   * debounces it. */
+  function autoFormatValueText() {
+    const box = dom.valueText;
+    if (!box || !box.value.trim()) return;
+    const before = box.value;
+    const after = formatValuationText(before);
+    if (after === before) return;
+
+    const caretLine = before.slice(0, box.selectionStart).split('\n').length - 1;
+    box.value = after;
+    const lines = after.split('\n');
+    const target = Math.min(caretLine, lines.length - 1);
+    let position = 0;
+    for (let i = 0; i < target; i += 1) position += lines[i].length + 1;
+    position += lines[target].length;
+    try {
+      box.setSelectionRange(position, position);
+    } catch (error) {
+      /* Some browsers refuse the selection on a hidden box - harmless. */
+    }
+  }
+
   async function applyValuationText() {
     const parsed = parseValuationText(dom.valueText ? dom.valueText.value : '');
 
@@ -1630,6 +1709,15 @@
     });
     dom.valueSave?.addEventListener('click', saveValue);
     dom.valueTextApply?.addEventListener('click', applyValuationText);
+
+    /* The paste box formats itself while you type - a short pause after the
+     * last keystroke, and again when it loses focus. */
+    let valueTextTimer = null;
+    dom.valueText?.addEventListener('input', () => {
+      window.clearTimeout(valueTextTimer);
+      valueTextTimer = window.setTimeout(autoFormatValueText, 600);
+    });
+    dom.valueText?.addEventListener('blur', autoFormatValueText);
 
     dom.adsRefresh?.addEventListener('click', () => { if (hasRole()) loadAds(); });
     dom.changesRefresh?.addEventListener('click', loadChanges);

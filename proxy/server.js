@@ -498,7 +498,7 @@ async function serveStatic(req, res, url) {
     const guardHeaders = {
       'Content-Type': type,
       'Content-Length': body.length,
-      'Cache-Control': 'public, max-age=300',
+      'Cache-Control': 'no-cache',
       ETag: guardTag,
     };
     if (req.headers['if-none-match'] === guardTag) {
@@ -521,7 +521,7 @@ async function serveStatic(req, res, url) {
   const headers = {
     'Content-Type': type,
     'Content-Length': info.size,
-    'Cache-Control': 'public, max-age=300',
+    'Cache-Control': 'no-cache',
     ETag: tag,
   };
 

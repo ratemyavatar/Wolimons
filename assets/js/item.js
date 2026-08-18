@@ -31,10 +31,11 @@
  *                                     and the value team's note. All hand-set,
  *                                     never fetched.
  *
- * Wanwood has no source for Demand, Trend or an acronym, so those come from
- * values.js when a value manager has set them and stay blank otherwise - they
- * are never faked out of a price field. There is nowhere to get an acronym at
- * all, so the chip only appears once one is written down.
+ * Wanwood has no source for Demand or Trend, so those come from values.js
+ * when a value manager has set them and stay blank otherwise - they are never
+ * faked out of a price field. The acronym has no source either, but it is
+ * simply the name abbreviated, so it is derived from the name rather than
+ * left blank.
  *
  * ---------------------------------------------------------------------------
  * THE CHARTS
@@ -120,6 +121,22 @@
     .replace(/'/g, '')
     .replace(/[^a-zA-Z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '') || 'unnamed';
+
+  /*
+   * The acronym is just the name abbreviated: the first letter of each word,
+   * uppercased - "Red Energy Sword" becomes "RES". Parenthesized qualifiers
+   * like "(Gold)" don't count, and apostrophes stay inside their word so
+   * "Clockwork's Headphones" is "CH". Nothing is stored anywhere; it is
+   * derived fresh from whatever the item is called right now, so it can never
+   * drift out of step with the name.
+   */
+  const deriveAcronym = value => String(value || '')
+    .replace(/\([^)]*\)/g, ' ')
+    .split(/[^A-Za-z0-9']+/)
+    .map(word => word.replace(/^'+|'+$/g, '').charAt(0))
+    .filter(Boolean)
+    .join('')
+    .toUpperCase();
 
   const fields = name => [...document.querySelectorAll(`[data-item-field="${name}"]`)];
   const field = name => document.querySelector(`[data-item-field="${name}"]`);
@@ -1046,6 +1063,12 @@
     /* Head + title -------------------------------------------------- */
     document.title = `${name} - Wolimons`;
     setText('name', name);
+    /* The acronym chip beside the title and the Acronym cell in the grid are
+     * the same figure; the chip hides itself when there is nothing to say. */
+    const acronym = deriveAcronym(name);
+    setText('acronym', acronym || null);
+    setText('acronym-2', acronym || null);
+    show('acronym', Boolean(acronym));
     setText('subtitle', isLimitedUnique
       ? 'Wanwood Limited U'
       : (isLimited ? 'Wanwood Limited' : 'Wanwood Item'));

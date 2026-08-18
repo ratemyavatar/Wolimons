@@ -250,6 +250,30 @@
                                     </div>
                                 </div>
                             </div>
+
+                            <!-- Paste a valuation. Same pane parts as the
+                                 editor above; the note box becomes a
+                                 textarea because explanations run long. -->
+                            <div class="row mx-0 mt-4"><h2 class="section_header">Paste a valuation</h2></div>
+                            <div class="row shadow mx-0 mt-2" style="background-color: #2e3337;">
+                                <div class="w-100 px-3 px-sm-4 py-4">
+                                    <div class="small mb-2 admin_page_note">Paste a valuation as text - the item name on its own line first, then any of these: <span style="color:#e9ecef;">unvalued --&gt; 325</span> &nbsp; <span style="color:#e9ecef;">demand --&gt; low</span> &nbsp; <span style="color:#e9ecef;">trend --&gt; unstable</span> &nbsp; <span style="color:#e9ecef;">explanation: ...</span>. Leave out whatever you do not want to touch - only the lines you list are applied, and the rest of the item's row stays as it was. An acronym in brackets after the name is used as a backup search.</div>
+                                    <textarea class="form-control rounded-0 shadow border-0" id="admin_value_text" rows="8" style="background-color: #eee; resize: vertical; font-family: inherit;" placeholder="red energy sword (res)
+
+unvalued --&gt; 325
+
+demand --&gt; low
+
+trend --&gt; unstable
+
+explanation: sold for 100 and 150 robux after a lowball trade, so the trend is unstable" autocapitalize="off" spellcheck="false"></textarea>
+                                    <div class="mt-3">
+                                        <input class="btn btn-flat-light-blue shadow" id="admin_value_text_apply" type="submit" value="Apply text">
+                                    </div>
+                                    <div class="mt-2 small" id="admin_value_text_notice" style="color: #7a8288;"></div>
+                                    <div class="trade_ad_picker_results mt-2 d-none" id="admin_value_text_results"></div>
+                                </div>
+                            </div>
                         </section>
 
                         <!-- ================= STAFF RANKS ================= -->

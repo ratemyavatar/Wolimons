@@ -233,6 +233,11 @@
     dom.valueSave = document.getElementById('admin_value_save');
     dom.valuesNotice = document.getElementById('admin_values_notice');
 
+    dom.valueText = document.getElementById('admin_value_text');
+    dom.valueTextApply = document.getElementById('admin_value_text_apply');
+    dom.valueTextNotice = document.getElementById('admin_value_text_notice');
+    dom.valueTextResults = document.getElementById('admin_value_text_results');
+
     dom.roleName = document.getElementById('admin_role_name');
     dom.roleChoices = document.getElementById('admin_role_choices');
     dom.roleSave = document.getElementById('admin_role_save');
@@ -1108,6 +1113,260 @@
   }
 
   /* ------------------------------------------------------------------ */
+  /* Paste a valuation                                                   */
+  /* ------------------------------------------------------------------ */
+
+  /*
+   * The text form the value team writes valuations in:
+   *
+   *     red energy sword (res)
+   *
+   *     unvalued --> 325
+   *
+   *     demand --> low
+   *
+   *     trend --> unstable
+   *
+   *     explanation: sold for 100 and 150 robux, so unstable
+   *
+   * Every field after the name is optional; only the lines present are
+   * applied, and anything left out keeps whatever the item already had.
+   * The arrow may be written -->, ->, => or a real arrow character, and the
+   * explanation may use a colon instead. An acronym in brackets after the
+   * name is remembered as a backup search in case the full name finds
+   * nothing.
+   */
+  const VALUE_ARROW = /-->|->|=>|\u2192/;
+  const VALUE_VOCAB = {
+    demand: ['High', 'Decent', 'Low', 'Terrible'],
+    trend: ['Raising', 'Stable', 'Lowering', 'Unstable', 'Fluctuating'],
+  };
+
+  function matchVocab(raw, allowed) {
+    const word = String(raw || '').trim().toLowerCase();
+    if (!word) return null;
+    const first = word.split(/\s+/)[0];
+    return allowed.find(name => {
+      const lower = name.toLowerCase();
+      return lower === word || lower === first;
+    }) || null;
+  }
+
+  function parseValuationText(raw) {
+    const result = { title: '', acronym: '', searchName: '', fields: {}, note: '', problems: [] };
+    let inNote = false;
+
+    const parseLine = (line) => {
+      const noteMatch = /^(?:explanation|note)\s*(?:-->|->|=>|:|\u2192)\s*(.*)$/i.exec(line);
+      if (noteMatch) {
+        const text = noteMatch[1].trim();
+        if (text) result.note += (result.note ? ' ' : '') + text;
+        inNote = true;
+        return;
+      }
+
+      if (!VALUE_ARROW.test(line)) {
+        /* The first plain line is the item. */
+        if (!result.title) {
+          result.title = line;
+          const paren = /\(([^()]+)\)\s*$/.exec(line);
+          if (paren) result.acronym = paren[1].trim();
+          result.searchName = line.replace(/\s*\(([^()]+)\)\s*$/, '').trim();
+        }
+        return;
+      }
+
+      const halves = line.split(VALUE_ARROW);
+      const key = halves[0].trim().toLowerCase();
+      const value = halves.slice(1).join(' ').trim();
+
+      if (/demand/.test(key)) {
+        const demand = matchVocab(value, VALUE_VOCAB.demand);
+        if (demand) result.fields.demand = demand;
+        else result.problems.push(`could not read the demand \u201c${value}\u201d`);
+      } else if (/trend/.test(key)) {
+        const trend = matchVocab(value, VALUE_VOCAB.trend);
+        if (trend) result.fields.trend = trend;
+        else result.problems.push(`could not read the trend \u201c${value}\u201d`);
+      } else if (/method|valuation/.test(key)) {
+        if (/proof/i.test(value)) result.fields.method = 'proof';
+        else if (/rap/i.test(value)) result.fields.method = 'rap';
+        else result.problems.push(`could not read the valuation method \u201c${value}\u201d`);
+      } else {
+        /* "unvalued --> 325", "value --> 325", or any other label - the
+         * number on the right is what matters. */
+        const cleaned = value.replace(/,/g, '').replace(/\b(?:robux|r\$)\b.*$/i, '').trim();
+        const amount = Number(cleaned);
+        if (Number.isFinite(amount) && amount >= 0 && cleaned !== '') {
+          result.fields.value = Math.round(amount);
+        } else {
+          result.problems.push(`could not read a value from \u201c${value}\u201d`);
+        }
+      }
+    };
+
+    String(raw || '').split(/\r?\n/).forEach(rawLine => {
+      const line = rawLine.trim();
+      if (!line) {
+        /* A blank line ends an explanation's extra lines; the next real line
+         * is parsed normally. */
+        inNote = false;
+        return;
+      }
+      if (inNote) {
+        if (VALUE_ARROW.test(line) || /^(?:explanation|note)\b/i.test(line)) {
+          inNote = false;
+          parseLine(line);
+        } else {
+          result.note += (result.note ? ' ' : '') + line;
+        }
+        return;
+      }
+      parseLine(line);
+    });
+
+    return result;
+  }
+
+  async function searchValuationTargets(keyword) {
+    const search = await API.searchItems({ keyword, limit: SEARCH_LIMIT, cursor: 0 });
+    if (!search.ids.length) return [];
+    const details = await API.getItemDetails(search.ids, { includePrice: false });
+    return details.filter(item => item && item.name);
+  }
+
+  function valuationSummary(parsed) {
+    const parts = [];
+    if ('value' in parsed.fields) parts.push(`value ${formatNumber(parsed.fields.value)}`);
+    if (parsed.fields.demand) parts.push(`demand ${parsed.fields.demand}`);
+    if (parsed.fields.trend) parts.push(`trend ${parsed.fields.trend}`);
+    if (parsed.fields.method) {
+      parts.push(parsed.fields.method === 'proof' ? 'Proof-Based method' : 'RAP-Based method');
+    }
+    if (parsed.note) parts.push('explanation');
+    return parts;
+  }
+
+  /* Apply the parsed fields to one item. Only the fields that were listed
+   * go into the request, so everything else on the item's row is left
+   * exactly as it was. */
+  async function applyParsedToItem(item, parsed) {
+    if ('value' in parsed.fields && parsed.fields.value >= 1000000) {
+      const sure = window.confirm(
+        `Set ${item.name} to ${formatNumber(parsed.fields.value)}?\n\n`
+        + 'A value this large changes every holder\'s total, badges and '
+        + 'leaderboard position as soon as it is saved.',
+      );
+      if (!sure) {
+        notice(dom.valueTextNotice, 'Not saved.');
+        return;
+      }
+    }
+
+    notice(dom.valueTextNotice, `Saving ${item.name}...`);
+    try {
+      const body = { name: actorName(), id: item.id, ...parsed.fields };
+      if (parsed.note) body.note = parsed.note;
+      await apiCall('/api/values/set', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      });
+      if (VALUES && typeof VALUES.refresh === 'function') await VALUES.refresh();
+
+      /* Show the result in the manual editor so it can be eyeballed. */
+      loadItemIntoEditor(item);
+      if (dom.valueText) dom.valueText.value = '';
+      if (dom.valueTextResults) {
+        dom.valueTextResults.replaceChildren();
+        dom.valueTextResults.classList.add('d-none');
+      }
+      const skipped = parsed.problems.length
+        ? ` (skipped: ${parsed.problems.join('; ')})`
+        : '';
+      notice(dom.valueTextNotice,
+        `Saved ${item.name} - ${valuationSummary(parsed).join(', ')}.${skipped}`, 'good');
+    } catch (error) {
+      notice(dom.valueTextNotice, error.message, 'bad');
+    }
+  }
+
+  function textMatchRow(item, parsed) {
+    const row = el('div', 'trade_ad_picker_row');
+    const img = el('img');
+    img.width = 44;
+    img.height = 44;
+    img.loading = 'lazy';
+    img.alt = '';
+    img.src = item.thumbnail || (API ? API.thumbnailUrl(item.id) : '');
+    row.appendChild(img);
+
+    const text = el('div', 'flex-grow-1');
+    text.appendChild(el('div', 'text-truncate', item.name));
+    const stats = el('div', 'small',
+      `Value ${VALUES && VALUES.get(item.id) ? formatNumber(VALUES.get(item.id)) : '-'} `
+      + `\u00b7 RAP ${Number.isFinite(item.rap) ? formatNumber(item.rap) : '-'}`);
+    stats.style.color = '#7a8288';
+    text.appendChild(stats);
+    row.appendChild(text);
+
+    row.addEventListener('click', () => applyParsedToItem(item, parsed));
+    return row;
+  }
+
+  async function applyValuationText() {
+    const parsed = parseValuationText(dom.valueText ? dom.valueText.value : '');
+
+    if (!parsed.title) {
+      notice(dom.valueTextNotice, 'Start with the item name on its own line.', 'bad');
+      return;
+    }
+    if (!Object.keys(parsed.fields).length && !parsed.note) {
+      notice(dom.valueTextNotice,
+        'Nothing to apply - add a value, demand, trend or explanation line.', 'bad');
+      return;
+    }
+
+    if (dom.valueTextResults) {
+      dom.valueTextResults.replaceChildren();
+      dom.valueTextResults.classList.add('d-none');
+    }
+    notice(dom.valueTextNotice, `Looking for \u201c${parsed.searchName}\u201d...`);
+
+    let items = [];
+    try {
+      items = await searchValuationTargets(parsed.searchName);
+      if (!items.length && parsed.acronym) {
+        items = await searchValuationTargets(parsed.acronym);
+      }
+    } catch (error) {
+      notice(dom.valueTextNotice, 'Wanwood could not be reached. Try again in a moment.', 'bad');
+      return;
+    }
+
+    if (!items.length) {
+      notice(dom.valueTextNotice, `No item matched \u201c${parsed.searchName}\u201d.`, 'bad');
+      return;
+    }
+
+    if (items.length === 1) {
+      await applyParsedToItem(items[0], parsed);
+      return;
+    }
+
+    /* Several candidates: make the human pick, so a wrong match is never
+     * saved silently. */
+    notice(dom.valueTextNotice,
+      `${items.length} items matched - pick the right one to save the valuation:`,
+      parsed.problems.length ? 'bad' : '');
+    if (dom.valueTextResults) {
+      items.slice(0, SEARCH_LIMIT).forEach(item => {
+        dom.valueTextResults.appendChild(textMatchRow(item, parsed));
+      });
+      dom.valueTextResults.classList.remove('d-none');
+    }
+  }
+
+  /* ------------------------------------------------------------------ */
   /* Trade ads                                                           */
   /* ------------------------------------------------------------------ */
 
@@ -1370,6 +1629,7 @@
       });
     });
     dom.valueSave?.addEventListener('click', saveValue);
+    dom.valueTextApply?.addEventListener('click', applyValuationText);
 
     dom.adsRefresh?.addEventListener('click', () => { if (hasRole()) loadAds(); });
     dom.changesRefresh?.addEventListener('click', loadChanges);

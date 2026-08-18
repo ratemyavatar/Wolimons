@@ -16,7 +16,7 @@ rem ===========================================================================
 set "HERE=%~dp0"
 if "%HERE:~-1%"=="\" set "HERE=%HERE:~0,-1%"
 
-set "BRANCH=arena/019fff2c-wolimons"
+set "BRANCH=arena/01a013ce-wolimons"
 set "EXTRA="
 if /i "%~1"=="all" set "EXTRA=-All"
 

@@ -898,6 +898,30 @@ async function removeAd({ id, creatorId }) {
 }
 
 /*
+ * Take any ad down, from the admin panel.
+ *
+ * The public board only lets an author delete their own ad - removeAd checks
+ * that. Moderation is deliberately different: the panel has no author to
+ * compare against, and whoever can reach the panel may clear the board. The
+ * removal is recorded with the name the panel sends, so the log can say who
+ * did it even though nothing was checked.
+ */
+async function moderateAd({ id, removedBy }) {
+  const wanted = String(id || '');
+  if (!wanted) throw new Error('Which ad?');
+
+  await load();
+  const ad = (data.ads || []).find(row => row.id === wanted);
+  if (!ad) throw new Error('That ad no longer exists.');
+
+  const by = String(removedBy || '').trim() || 'Admin panel';
+  await mutate(`Moderate trade ad ${wanted} (${by})`, current => {
+    current.ads = (current.ads || []).filter(row => row.id !== wanted);
+  });
+  return ad;
+}
+
+/*
  * The change log, newest first.
  *
  * `since` filters to entries newer than a timestamp, so a page that is
@@ -933,6 +957,7 @@ module.exports = {
   adById,
   addAd,
   removeAd,
+  moderateAd,
   AD_LIMIT,
   ADS_PER_USER,
   CHANGE_FIELDS,

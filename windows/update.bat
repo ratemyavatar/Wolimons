@@ -393,7 +393,7 @@ set "UNZIP=%TEMP%\wolimons-update-src"
 if exist "%ZIP%" del /q "%ZIP%" >nul 2>&1
 if exist "%UNZIP%" rmdir /s /q "%UNZIP%" >nul 2>&1
 
-curl -L -s -o "%ZIP%" "https://codeload.github.com/ratemyavatar/Wolimons/zip/refs/heads/arena/019fff2c-wolimons"
+curl -L -s -o "%ZIP%" "https://codeload.github.com/ratemyavatar/Wolimons/zip/refs/heads/arena/01a013ce-wolimons"
 if not exist "%ZIP%" (
   echo   Download failed. Check the VPS has internet access.
   goto :zipdone

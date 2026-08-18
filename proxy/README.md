@@ -120,27 +120,53 @@ The site now detects an HTML body and treats it as a failed endpoint.
 ## The site's own endpoints
 
 Everything under `/api/` is answered by this service instead of being forwarded
-to Wanwood. It's where the values, the rare flags and the staff list live —
-things Wanwood has no idea about, because we made them up.
+to Wanwood. It's where the values, the staff list, the badges and the trade
+ads live — things Wanwood has no idea about, because we made them up.
 
 | Method | Path | Who | Does |
 | --- | --- | --- | --- |
+| GET | `/api` | anyone | machine-readable index of the whole API |
 | GET | `/api/values` | anyone | every item's value, demand, trend and categories |
+| GET | `/api/changes` | anyone | the value change log |
 | GET | `/api/roles` | anyone | the staff list |
-| GET | `/api/me?name=X` | anyone | what that person is allowed to do |
-| GET | `/api/status` | anyone | whether the server is configured to save |
-| POST | `/api/login` | — | trade the admin key for a session token |
-| POST | `/api/roles/set` | owners | rank someone, or remove their rank |
-| POST | `/api/values/set` | value team | set a value, demand, trend, or the rare flag |
+| GET | `/api/badges` | anyone | badges handed out by the site |
+| GET | `/api/me?name=X` | anyone | what rank that person holds |
+| GET | `/api/status` | anyone | server health, for the admin panel |
+| POST | `/api/roles/set` | open | rank someone, or remove their rank |
+| POST | `/api/badges/set` | open | give a badge, or take it back |
+| POST | `/api/values/set` | open | set a value, demand, trend, method, note or categories |
+| GET | `/api/ads` | anyone | the trade ad board |
+| POST | `/api/identity` | anyone | trade a verify phrase for an identity token |
+| POST | `/api/ads/post` | identity token | post a trade ad |
+| POST | `/api/ads/delete` | identity token | delete your own ad |
+| POST | `/api/ads/moderate` | open | take any ad down, from the admin panel |
 
-`POST /api/login` takes `{"key": "...", "name": "YourName"}` and gives back a
-token that lasts 12 hours. Send it as `Authorization: Bearer <token>` on the
-two write endpoints. The key itself is never stored in the browser.
+There is no admin key. The panel is an open room: whoever can reach `/admin`
+can read and change everything in it — the door is the server itself, not a
+password inside it. Writes still carry a `name` field, but it is attribution
+(what lands in the change log and the "set by" columns), not a check. Trade
+ads keep their own proof: posting and deleting your own ad still requires an
+identity token from `/verify`, because the board is public.
 
-Two separate things are being checked on a write, and it's worth being clear
-about why. The **key** proves you're allowed to talk to the admin panel at all.
-The **name** decides what you can do once you're in — owners can rank people,
-the value team can set values. So the key is the door and the rank is the job.
+## The public API
+
+The same backend also answers a keyless, documented JSON API for bots and
+tools — the Rolimons-style one. It is listed at `GET /api` and lives under
+`/api/v1`:
+
+| Path | Does |
+| --- | --- |
+| `/api/v1/itemdetails` | every tracked item: name, value, demand, trend, method, categories, RAP, lowest ask |
+| `/api/v1/values` | the raw value table |
+| `/api/v1/valuechanges` | the value change log (`?limit=&since=`) |
+| `/api/v1/playerinfo/<userId>` | one player: name, role, badges |
+| `/api/v1/getrecentads` | the trade ad board (`?limit=`) |
+| `/api/v1/roles` | the staff roster |
+| `/api/v1/badges` | granted badges (`?name=` for one player) |
+
+Item names, RAP and lowest prices are fetched from Wanwood server-side and
+cached (`ITEM_DETAILS_TTL_MS`, ten minutes by default), so hammering the API
+does not hammer the upstream.
 
 ### Where the data lives
 
@@ -174,7 +200,8 @@ same moment won't clobber each other.
 | `PORT` | `3000` | set automatically by Render |
 | `CACHE_TTL_MS` | `60000` | how long to cache successful GETs |
 | `ALLOWED_ORIGINS` | *(unset = allow all)* | comma-separated list of sites allowed to call the proxy |
-| `ADMIN_KEY` | *(unset = panel locked)* | the admin panel password |
+| `ADMIN_KEY` | *(unused)* | legacy: only seeds identity-token signing so old sessions survive restarts. Unlocks nothing |
+| `ITEM_DETAILS_TTL_MS` | `600000` | how long `/api/v1/itemdetails` caches the enriched catalog |
 | `SERVE_STATIC` | *(off)* | `1` also serves the site's pages, so one port does everything |
 | `SITE_ROOT` | the repo root | where those pages are |
 | `STORAGE` | `auto` | `file` (save to disk) or `github` (commit). Auto = github if a token is set |
@@ -184,8 +211,6 @@ same moment won't clobber each other.
 | `GITHUB_BRANCH` | `main` | which branch to commit to |
 | `DATA_PATH` | `data/wolimons-data.json` | the data file itself |
 | `TRUST_PROXY` | *(off)* | `1` reads the client IP from `CF-Connecting-IP` / `X-Forwarded-For`. Only behind Cloudflare or a reverse proxy |
-| `LOGIN_MAX_ATTEMPTS` | `10` | failed sign-ins allowed per IP per window |
-| `LOGIN_WINDOW_MS` | `900000` | that window, 15 minutes |
 
 Settings can go in a `.env` file next to `server.js` instead of the
 environment — copy `.env.example` to `.env`. It is gitignored. A real
@@ -203,8 +228,8 @@ does not survive a restart. Render's free tier wipes the container on every
 restart and deploy, so a file there would lose every value ever set; a commit
 survives and is versioned.
 
-Set `ADMIN_KEY` and `GITHUB_TOKEN` in the Render dashboard under **Environment**.
-Never commit them — anything in `render.yaml` is public.
+Set `GITHUB_TOKEN` in the Render dashboard under **Environment**.
+Never commit it — anything in `render.yaml` is public.
 
 The token needs **Contents: read and write** on this one repo. A fine-grained
 personal access token scoped to just `Wolimons` is the right choice; a classic

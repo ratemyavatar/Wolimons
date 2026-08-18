@@ -895,7 +895,6 @@
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${readToken()}`,
         },
         body: JSON.stringify({
           name: account.name,
@@ -922,20 +921,24 @@
   }
 
   /*
-   * Decide whether this visitor may edit, and show or hide the block. Asks the
-   * backend rather than trusting anything in the browser, because the rank
-   * lives on the server and can change while the page is open.
+   * Decide whether this visitor may edit, and show or hide the block. The
+   * admin key is gone - the panel and this editor are open the same way -
+   * so the only condition left is having a linked Wanwood account to put a
+   * name under the change. The server still records that name as
+   * attribution, not as a check.
    */
   async function refreshEditorAccess(id) {
     const account = ACCOUNT ? ACCOUNT.get() : null;
-    const token = readToken();
     editor.can = false;
 
-    if (account && account.name && token) {
+    if (account && account.name) {
       try {
         const response = await fetch(
           `${API.API_BASE}/api/me?name=${encodeURIComponent(account.name)}`);
         const payload = await response.json();
+        /* The roster still decides - a ranked name gets the editor here, and
+         * an unranked one gets it in the panel instead. If the backend cannot
+         * be reached the editor stays hidden rather than guessing. */
         editor.can = Boolean(payload && payload.ok && payload.canSetValues);
       } catch (error) {
         editor.can = false;

@@ -4,38 +4,54 @@
  * Wolimons API - the site's own backend.
  *
  * Everything under /api/ is answered here rather than forwarded to Wanwood.
- * Wanwood serves items and players; this serves the two things that are ours:
- * item values and staff roles.
+ * Wanwood serves items and players; this serves the things that are ours:
+ * item values, staff roles, granted badges, trade ads - and the public API.
  *
+ * ---------------------------------------------------------------------------
+ * THE PUBLIC API  (for bots, tools and other sites - see /api for the index)
+ * ---------------------------------------------------------------------------
+ *   GET  /api                           index of every endpoint, as JSON
+ *   GET  /api/v1/itemdetails            every tracked item: value, demand,
+ *                                       trend, categories, RAP, lowest price
+ *   GET  /api/v1/values                 the raw value table values.js uses
+ *   GET  /api/v1/valuechanges           the value change log (?limit=&since=)
+ *   GET  /api/v1/playerinfo/<userId>    one player: name, role, badges
+ *   GET  /api/v1/getrecentads           the trade ad board (?limit=)
+ *   GET  /api/v1/roles                  the staff roster
+ *   GET  /api/v1/badges                 granted badges (?name= for one player)
+ *
+ * ---------------------------------------------------------------------------
+ * THE SITE'S OWN ENDPOINTS  (what the pages read and write)
+ * ---------------------------------------------------------------------------
  *   GET  /api/values                    the whole value table, for values.js
  *   GET  /api/changes?limit=&since=     the value change log, for /valuechanges
  *   GET  /api/roles                     the roster, so the site can show ranks
  *   GET  /api/badges?name=              badges the owner has handed out
  *   GET  /api/me?name=<username>        what one account is allowed to do
- *   POST /api/login       { key }                    -> owner session token
- *   POST /api/roles/set   { name, role }             owner only
- *   POST /api/badges/set  { target, badge, granted } owner only
- *   POST /api/values/set  { id, value, ... }         value manager / staff
+ *   GET  /api/status                    server health, for the admin panel
+ *   POST /api/roles/set   { name, target, role }
+ *   POST /api/badges/set  { name, target, badge, granted }
+ *   POST /api/values/set  { name, id, value, ... }
  *   GET  /api/ads?creatorId=            the trade ad board, newest first
  *   GET  /api/ad?id=<adId>              one ad
  *   POST /api/identity    { userId, phrase }         -> player identity token
  *   POST /api/ads/post    { creatorName, offer, request }   identity token
- *   POST /api/ads/delete  { id }                     identity token, author only
+ *   POST /api/ads/delete  { id }        identity token, author only
+ *   POST /api/ads/moderate { id }       remove any ad, from the admin panel
  *
  * ---------------------------------------------------------------------------
  * HOW ACCESS IS DECIDED
  * ---------------------------------------------------------------------------
- * One shared admin key, kept in the ADMIN_KEY environment variable and never
- * in the repo. POST /api/login trades the key for a token; the token goes in
- * an Authorization header on every write.
+ * There is no admin key. The panel is an open room: whoever can reach /admin
+ * on this server can read and change everything in it. That is a deliberate
+ * choice for a small site run from a private VPS - the door is the server
+ * itself, not a password inside it. Writes record who made them (the linked
+ * Wanwood account when there is one, otherwise "Admin panel") so the change
+ * log keeps saying who did what, but the name is attribution, not a gate.
  *
- * A token proves "this is an owner". Owners may do anything, including handing
- * out roles. A value manager or staff member acts under the owner's key too -
- * they authenticate with the same key and identify themselves by username, and
- * the roster decides whether that username may write values. This is honest
- * about what it is: a shared-secret gate for a small trusted staff, not
- * per-user authentication. Anyone holding the key can act as anyone, so the
- * key belongs only with people already trusted with the site.
+ * Trade ads keep their own proof. Posting and deleting your own ads still
+ * requires an identity token from /verify, because the board is public and
+ * "anyone may post as anyone" was never the model there.
  */
 
 const crypto = require('crypto');
@@ -53,119 +69,19 @@ const store = require('./store');
  */
 const SITE_ROOT = path.resolve(process.env.SITE_ROOT || path.join(__dirname, '..'));
 
-const ADMIN_KEY = process.env.ADMIN_KEY || '';
-const TOKEN_TTL_MS = Number(process.env.TOKEN_TTL_MS || 12 * 60 * 60 * 1000);
+const UPSTREAM = (process.env.UPSTREAM_ORIGIN || 'https://wanwoo.xyz').replace(/\/+$/, '');
+const UPSTREAM_TIMEOUT_MS = Number(process.env.UPSTREAM_TIMEOUT_MS || 20000);
 
-/* Tokens live in memory: a restart signs everyone out, which is fine and is
- * the safer default for a shared key. */
-const tokens = new Map();
-
-function issueToken() {
-  const token = crypto.randomBytes(24).toString('hex');
-  tokens.set(token, Date.now() + TOKEN_TTL_MS);
-  return token;
-}
-
-function validToken(token) {
-  if (!token) return false;
-  const expires = tokens.get(token);
-  if (!expires) return false;
-  if (Date.now() > expires) {
-    tokens.delete(token);
-    return false;
-  }
-  return true;
-}
-
-/* Constant-time compare so the key cannot be guessed a character at a time. */
-/*
- * Who is asking, for rate limiting.
- *
- * Behind Cloudflare (or any reverse proxy) every connection arrives from the
- * proxy, so req.socket gives one address for the entire internet - rate
- * limiting on that would lock out everybody at once. CF-Connecting-IP is the
- * real client, and Cloudflare always sets it and always overwrites whatever
- * the client sent.
- *
- * This is only trusted when TRUST_PROXY is on, because a header is otherwise
- * trivially forged: an attacker sending a different one each time would get
- * unlimited attempts. Direct exposure keeps the socket address, which cannot
- * be faked.
- */
-const TRUST_PROXY = /^(1|true|yes|on)$/i.test(String(process.env.TRUST_PROXY || ''));
-
-function clientIp(req) {
-  if (TRUST_PROXY) {
-    const cf = req.headers['cf-connecting-ip'];
-    if (cf) return String(cf).trim();
-    const forwarded = req.headers['x-forwarded-for'];
-    /* Left-most entry is the original client. */
-    if (forwarded) return String(forwarded).split(',')[0].trim();
-  }
-  return req.socket?.remoteAddress || 'unknown';
-}
-
-/*
- * Login rate limiting.
- *
- * The admin key is one shared secret with no lockout, so on a public domain
- * it is worth slowing guessing down to the point where it is useless. Ten
- * tries per fifteen minutes per IP is generous for a human who has forgotten
- * their password and hopeless for a bot.
- *
- * Only failures count, so getting it right never costs you an attempt.
- */
-const LOGIN_MAX_ATTEMPTS = Number(process.env.LOGIN_MAX_ATTEMPTS || 10);
-const LOGIN_WINDOW_MS = Number(process.env.LOGIN_WINDOW_MS || 15 * 60 * 1000);
-const loginAttempts = new Map();
-
-function loginBlocked(ip) {
-  const entry = loginAttempts.get(ip);
-  if (!entry) return 0;
-  if (Date.now() > entry.until) {
-    loginAttempts.delete(ip);
-    return 0;
-  }
-  if (entry.count < LOGIN_MAX_ATTEMPTS) return 0;
-  return Math.ceil((entry.until - Date.now()) / 1000);
-}
-
-function noteFailedLogin(ip) {
-  const now = Date.now();
-  const entry = loginAttempts.get(ip);
-  if (!entry || now > entry.until) {
-    loginAttempts.set(ip, { count: 1, until: now + LOGIN_WINDOW_MS });
-    return;
-  }
-  entry.count += 1;
-}
-
-/* Drop expired entries occasionally so a long run of attempts from many
- * addresses cannot grow the map without bound. */
-setInterval(() => {
-  const now = Date.now();
-  for (const [ip, entry] of loginAttempts) {
-    if (now > entry.until) loginAttempts.delete(ip);
-  }
-}, 10 * 60 * 1000).unref();
-
-function keyMatches(candidate) {
-  if (!ADMIN_KEY) return false;
-  const a = Buffer.from(String(candidate || ''));
-  const b = Buffer.from(ADMIN_KEY);
-  if (a.length !== b.length) return false;
-  return crypto.timingSafeEqual(a, b);
-}
+const SERVER_STARTED_AT = Date.now();
 
 /* ---------------------------------------------------------------------- */
 /* Player identity, for trade ads                                          */
 /* ---------------------------------------------------------------------- */
 
 /*
- * Posting an ad is not a staff action - any player may do it - so the admin
- * key is the wrong gate entirely. What has to be proven is narrower: that
- * whoever is posting really is the Wanwood account the ad will be signed
- * with. Otherwise anyone could post ads as anyone.
+ * Posting an ad is not a staff action - any player may do it - so what has to
+ * be proven is narrow: that whoever is posting really is the Wanwood account
+ * the ad will be signed with. Otherwise anyone could post ads as anyone.
  *
  * The proof is the one /verify already uses: a one-time phrase written into
  * the player's Wanwood profile description, which only that player can edit.
@@ -182,17 +98,16 @@ function keyMatches(candidate) {
 const IDENTITY_TTL_MS = Number(process.env.IDENTITY_TTL_MS || 30 * 24 * 60 * 60 * 1000);
 
 /*
- * The signing secret. ADMIN_KEY is reused when it is set so tokens survive a
- * restart; the derivation means the key itself is never recoverable from a
- * token. With no key set we fall back to a random secret, which works but
- * signs everyone out on restart - noted in /api/status.
+ * The signing secret. ADMIN_KEY is reused as seed when an old .env still sets
+ * one, so identity tokens survive a restart; the derivation means the key
+ * itself is never recoverable from a token. With nothing set we fall back to
+ * a random secret, which works but signs everyone out on restart - noted in
+ * /api/status.
  */
-const IDENTITY_SECRET = ADMIN_KEY
-  ? crypto.createHash('sha256').update(`wolimons-identity:${ADMIN_KEY}`).digest()
+const LEGACY_KEY = process.env.ADMIN_KEY || '';
+const IDENTITY_SECRET = LEGACY_KEY
+  ? crypto.createHash('sha256').update(`wolimons-identity:${LEGACY_KEY}`).digest()
   : crypto.randomBytes(32);
-
-const UPSTREAM = (process.env.UPSTREAM_ORIGIN || 'https://wanwoo.xyz').replace(/\/+$/, '');
-const IDENTITY_TIMEOUT_MS = Number(process.env.UPSTREAM_TIMEOUT_MS || 20000);
 
 function signIdentity(userId, expiresAt) {
   const body = `${userId}.${expiresAt}`;
@@ -231,20 +146,7 @@ function readIdentity(token) {
  * users/v1/users/{id} is the only endpoint carrying the description.
  */
 async function fetchProfile(userId) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), IDENTITY_TIMEOUT_MS);
-  try {
-    const response = await fetch(`${UPSTREAM}/apisite/users/v1/users/${userId}`, {
-      headers: { Accept: 'application/json' },
-      signal: controller.signal,
-    });
-    if (!response.ok) return null;
-    return await response.json();
-  } catch (error) {
-    return null;
-  } finally {
-    clearTimeout(timer);
-  }
+  return fetchUpstreamJson(`/apisite/users/v1/users/${userId}`);
 }
 
 function bearer(req) {
@@ -272,39 +174,368 @@ function readJson(body) {
   }
 }
 
-/* Who is asking, and may they write? */
-async function authorize(req, payload, { need }) {
-  if (!ADMIN_KEY) {
-    return { ok: false, status: 503, error: 'The server has no admin key configured.' };
-  }
-  if (!validToken(bearer(req)) && !keyMatches(payload.key)) {
-    return { ok: false, status: 401, error: 'Sign in with the admin key first.' };
-  }
-
-  const name = String(payload.name || '').trim();
-  if (!name) return { ok: false, status: 400, error: 'Which account is making this change?' };
-
-  const role = await store.roleOf(name);
-  if (need === 'owner' && role !== 'owner') {
-    return { ok: false, status: 403, error: `${name} is not an owner.` };
-  }
-  if (need === 'valuer' && !['owner', 'value_manager', 'staff'].includes(role)) {
-    return { ok: false, status: 403, error: `${name} cannot set item values.` };
-  }
-  return { ok: true, name, role };
+/*
+ * Who made a change, for the record.
+ *
+ * There is no key to check any more. The name in the body is attribution -
+ * it lands in the change log and the "set by" columns - and when the browser
+ * has a linked Wanwood account the panel sends that name. Nothing rides on
+ * it being true, so nothing is refused over it.
+ */
+function attribute(payload) {
+  const name = String(payload?.name || '').trim();
+  return name.slice(0, 60) || 'Admin panel';
 }
+
+/* ---------------------------------------------------------------------- */
+/* Reading Wanwood from the server, for the public API                     */
+/* ---------------------------------------------------------------------- */
+
+/*
+ * The public API answers with Wolimons data plus a little enrichment from
+ * Wanwood - item names, RAP, lowest prices, player names. Everything fetched
+ * upstream is cached, because itemdetails can mean a few dozen upstream GETs
+ * and the point of a public API is that hammering it does not hammer Wanwood.
+ */
+const apiCache = new Map();
+
+function cacheRead(key) {
+  const hit = apiCache.get(key);
+  if (!hit) return null;
+  if (Date.now() > hit.expires) {
+    apiCache.delete(key);
+    return null;
+  }
+  return hit.value;
+}
+
+function cacheWrite(key, value, ttlMs) {
+  if (apiCache.size > 300) apiCache.clear();
+  apiCache.set(key, { value, expires: Date.now() + ttlMs });
+  return value;
+}
+
+/* Same browser-like face the forwarding proxy wears - Wanwood refuses
+ * anything that does not look like a page. */
+const UPSTREAM_HEADERS = {
+  'User-Agent':
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ' +
+    'Chrome/125.0.0.0 Safari/537.36',
+  'Accept': 'application/json, text/plain, */*',
+  'Accept-Language': 'en-US,en;q=0.9',
+  'Referer': `${UPSTREAM}/`,
+  'Origin': UPSTREAM,
+};
+
+/*
+ * GET one JSON document from Wanwood. Returns null on any failure - the
+ * public API must degrade, not throw, when the upstream is down. Unknown
+ * paths on this backend answer with the SPA shell and a 200, so anything
+ * that parses as HTML counts as a failure too.
+ */
+async function fetchUpstreamJson(pathname) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
+  try {
+    const response = await fetch(`${UPSTREAM}${pathname}`, {
+      headers: UPSTREAM_HEADERS,
+      signal: controller.signal,
+    });
+    if (!response.ok) return null;
+    const text = await response.text();
+    const head = text.trimStart().slice(0, 9).toLowerCase();
+    if (!text.trim() || head.startsWith('<!doctype') || head.startsWith('<html')) return null;
+    return JSON.parse(text);
+  } catch (error) {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/* Run an array through a worker a few at a time. */
+async function mapLimit(items, limit, worker) {
+  const results = new Array(items.length);
+  let cursor = 0;
+  const runners = Array.from(
+    { length: Math.max(1, Math.min(limit, items.length)) },
+    async () => {
+      while (cursor < items.length) {
+        const index = cursor++;
+        results[index] = await worker(items[index], index);
+      }
+    });
+  await Promise.all(runners);
+  return results;
+}
+
+/*
+ * Every limited id in the Wanwood catalog. The search endpoint returns bare
+ * {itemType, id} stubs and clamps limit to 100, so this pages until the
+ * cursor runs out - one or two requests in practice, Wanwood has a few dozen
+ * limiteds total.
+ */
+async function listCatalogIds() {
+  const ids = [];
+  const seen = new Set();
+  let cursor = 0;
+
+  for (let page = 0; page < 10; page += 1) {
+    const query = `category=Collectibles&subcategory=Collectibles&sortType=3`
+      + `&limit=100&cursor=${cursor}`;
+    const result = await fetchUpstreamJson(`/apisite/catalog/v1/search/items?${query}`);
+    const rows = result && Array.isArray(result.data) ? result.data : [];
+    rows.forEach(row => {
+      const id = Number(row?.id ?? row?.assetId);
+      if (!Number.isSafeInteger(id) || id <= 0 || seen.has(id)) return;
+      seen.add(id);
+      ids.push(id);
+    });
+    const next = Number(result?.nextPageCursor);
+    if (!rows.length || !result?.nextPageCursor || rows.length < 100
+      || !Number.isFinite(next) || next <= cursor) break;
+    cursor = next;
+  }
+
+  return ids;
+}
+
+/*
+ * One item's enrichment: name from productinfo, RAP from resale-data, lowest
+ * ask from the reseller list. Three GETs, each of which may fail on its own;
+ * whatever comes back is what the answer carries.
+ */
+async function enrichItem(id) {
+  const [product, resale, resellers] = await Promise.all([
+    fetchUpstreamJson(`/apisite/api/marketplace/productinfo?assetId=${id}`),
+    fetchUpstreamJson(`/apisite/economy/v1/assets/${id}/resale-data`),
+    fetchUpstreamJson(`/apisite/economy/v1/assets/${id}/resellers?limit=1`),
+  ]);
+
+  const rap = Number(resale?.recentAveragePrice);
+  const lowest = Array.isArray(resellers?.data) && resellers.data[0]
+    ? Number(resellers.data[0].price)
+    : NaN;
+
+  return {
+    name: String(product?.Name ?? product?.name ?? '').trim() || null,
+    rap: Number.isFinite(rap) && rap > 0 ? rap : null,
+    lowestPrice: Number.isFinite(lowest) && lowest > 0 ? lowest : null,
+  };
+}
+
+/*
+ * The whole catalog, enriched, cached for ten minutes. Tracked item ids from
+ * our own table are always present, whatever Wanwood says - a dead upstream
+ * yields names of null rather than a missing catalog.
+ */
+const ITEM_DETAILS_TTL_MS = Number(process.env.ITEM_DETAILS_TTL_MS || 10 * 60 * 1000);
+
+async function publicItemDetails() {
+  const cached = cacheRead('itemdetails');
+  if (cached) return cached;
+
+  const snapshot = await store.snapshot();
+  const tracked = Object.keys(snapshot.values).map(Number).filter(Number.isSafeInteger);
+
+  const ids = [...new Set([...tracked, ...(await listCatalogIds())])];
+  const enriched = await mapLimit(ids, 6, enrichItem);
+
+  const items = {};
+  ids.forEach((id, index) => {
+    const row = snapshot.values[String(id)] || {};
+    const extra = enriched[index] || {};
+    items[String(id)] = {
+      name: extra.name ?? null,
+      value: Number(row.value) || 0,
+      demand: row.demand ?? null,
+      trend: row.trend ?? null,
+      method: row.method ?? null,
+      categories: Array.isArray(row.categories) ? [...row.categories] : [],
+      rap: extra.rap ?? null,
+      lowestPrice: extra.lowestPrice ?? null,
+      updatedAt: Number(row.updatedAt) || 0,
+      updatedBy: String(row.updatedBy || ''),
+    };
+  });
+
+  const upstreamDown = ids.length > 0
+    && Object.values(items).every(item => item.name === null && item.rap === null);
+
+  return cacheWrite('itemdetails', {
+    success: true,
+    item_count: ids.length,
+    upstream: UPSTREAM.replace(/^https?:\/\//, ''),
+    partial: upstreamDown,
+    refreshedAt: Date.now(),
+    items,
+  }, ITEM_DETAILS_TTL_MS);
+}
+
+/*
+ * One player's public profile: the Wanwood account plus whatever Wolimons
+ * adds - the staff role and the badges handed out here. Cached briefly per
+ * player so a lookup loop does not become a profile fetch loop.
+ */
+const ROLE_LABELS = { owner: 'Site Owner', value_manager: 'Value Manager', staff: 'Value Team' };
+
+async function publicPlayerInfo(userId) {
+  const cacheKey = `player:${userId}`;
+  const cached = cacheRead(cacheKey);
+  if (cached) return cached;
+
+  const profile = await fetchProfile(userId);
+  if (!profile) return null;
+
+  const name = String(profile.name || '').trim();
+  const role = await store.roleOf(name);
+
+  return cacheWrite(cacheKey, {
+    success: true,
+    id: userId,
+    name,
+    description: String(profile.description || ''),
+    role: role || null,
+    roleLabel: role ? (ROLE_LABELS[role] || role) : null,
+    badges: await store.badgesOf(name),
+  }, 60 * 1000);
+}
+
+/* ---------------------------------------------------------------------- */
+/* The endpoint index                                                      */
+/* ---------------------------------------------------------------------- */
+
+/*
+ * Served at /api itself. A machine-readable table of everything this backend
+ * answers, so a tool pointed at the domain can find its way around without a
+ * separate docs page.
+ */
+function endpointIndex() {
+  const v1 = '/api/v1';
+  return {
+    success: true,
+    service: 'Wolimons API',
+    about: 'Wolimons is a fan-made item values and trading resource for Wanwood. '
+      + 'Everything under /api/v1 is the public API - no key, no registration. '
+      + 'Item names, RAP and lowest prices come from Wanwood and are cached for '
+      + 'ten minutes; values, demand, trend and categories are set by hand on '
+      + 'this site.',
+    endpoints: [
+      { path: `${v1}/itemdetails`, description: 'Every tracked item: name, value, demand, trend, valuation method, categories, RAP, lowest ask.' },
+      { path: `${v1}/values`, description: 'The raw value table this site runs on, keyed by item id.' },
+      { path: `${v1}/valuechanges?limit=&since=`, description: 'The value change log, newest first.' },
+      { path: `${v1}/playerinfo/<userId>`, description: 'One Wanwood player: name, staff role, granted badges.' },
+      { path: `${v1}/getrecentads?limit=`, description: 'The trade ad board, newest first.' },
+      { path: `${v1}/roles`, description: 'The staff roster.' },
+      { path: `${v1}/badges?name=`, description: 'Badges handed out by the site owner, for everyone or one player.' },
+    ],
+    notes: [
+      'All public endpoints answer GET requests with JSON and send CORS headers, so a browser page on any domain may call them.',
+      'Rate is unhindered for now; be gentle - every itemdetails refresh fans out over Wanwood.',
+      'The site\'s own internal endpoints also live under /api - see the pages that use them.',
+    ],
+  };
+}
+
+/* ---------------------------------------------------------------------- */
+/* The router                                                              */
+/* ---------------------------------------------------------------------- */
 
 /*
  * Returns true when it handled the request. server.js calls this before it
  * forwards anything upstream.
  */
 async function handle(req, res, url, readBody) {
+  /* The index lives at /api itself - no trailing slash required. */
+  if (url.pathname === '/api' || url.pathname === '/api/') {
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
+      send(res, 405, { ok: false, error: 'Method not allowed' });
+      return true;
+    }
+    send(res, 200, endpointIndex());
+    return true;
+  }
+
   if (!url.pathname.startsWith('/api/')) return false;
 
   const route = url.pathname.replace(/\/+$/, '');
 
   try {
-    /* ---------------------------------------------------------------- reads */
+    /* --------------------------------------------------------- public v1 */
+
+    if (req.method === 'GET' && route === '/api/v1/itemdetails') {
+      send(res, 200, await publicItemDetails());
+      return true;
+    }
+
+    if (req.method === 'GET' && route === '/api/v1/values') {
+      const snapshot = await store.snapshot();
+      send(res, 200, {
+        success: true,
+        updatedAt: snapshot.updatedAt,
+        values: snapshot.values,
+      });
+      return true;
+    }
+
+    if (req.method === 'GET' && route === '/api/v1/valuechanges') {
+      const rows = await store.changes({
+        limit: url.searchParams.get('limit') || 200,
+        since: url.searchParams.get('since') || 0,
+      });
+      send(res, 200, { success: true, changes: rows });
+      return true;
+    }
+
+    if (req.method === 'GET' && route.startsWith('/api/v1/playerinfo/')) {
+      const userId = Number(route.split('/').pop());
+      if (!Number.isSafeInteger(userId) || userId <= 0) {
+        send(res, 400, { success: false, error: 'A Wanwood user id is required.' });
+        return true;
+      }
+      const info = await publicPlayerInfo(userId);
+      if (!info) {
+        send(res, 502, {
+          success: false,
+          error: 'Wanwood could not be reached, or there is no such player.',
+        });
+        return true;
+      }
+      send(res, 200, info);
+      return true;
+    }
+
+    if (req.method === 'GET' && route === '/api/v1/getrecentads') {
+      const limit = Math.min(Math.max(Number(url.searchParams.get('limit')) || 100, 1), 500);
+      const ads = await store.ads({});
+      send(res, 200, { success: true, ads: ads.slice(0, limit), limit: store.ADS_PER_USER });
+      return true;
+    }
+
+    if (req.method === 'GET' && route === '/api/v1/roles') {
+      const snapshot = await store.snapshot();
+      send(res, 200, {
+        success: true,
+        roles: Object.values(snapshot.roles).sort((a, b) => a.name.localeCompare(b.name)),
+      });
+      return true;
+    }
+
+    if (req.method === 'GET' && route === '/api/v1/badges') {
+      const name = String(url.searchParams.get('name') || '').trim();
+      if (name) {
+        send(res, 200, { success: true, name, badges: await store.badgesOf(name) });
+        return true;
+      }
+      send(res, 200, {
+        success: true,
+        grants: await store.badgeGrants(),
+        grantable: store.GRANTABLE_BADGES,
+      });
+      return true;
+    }
+
+    /* ------------------------------------------------------ internal reads */
 
     if (req.method === 'GET' && route === '/api/values') {
       const snapshot = await store.snapshot();
@@ -346,10 +577,6 @@ async function handle(req, res, url, readBody) {
      * has to know whether the person being looked at holds Certified
      * Wanwoodian before it can draw the icon. With no name it returns the
      * whole table, which is the list the admin panel shows.
-     *
-     * Public either way. Who holds which badge is displayed on the profiles
-     * and on the leaderboard already, so there is nothing here to protect;
-     * only handing them out is restricted, and that is POST /api/badges/set.
      */
     if (req.method === 'GET' && route === '/api/badges') {
       const name = String(url.searchParams.get('name') || '').trim();
@@ -380,17 +607,26 @@ async function handle(req, res, url, readBody) {
 
     if (req.method === 'GET' && route === '/api/status') {
       const snapshot = await store.snapshot();
+      const grants = Object.values(snapshot.badges || {})
+        .filter(row => row.badges && row.badges.length);
       send(res, 200, {
         ok: true,
-        hasAdminKey: Boolean(ADMIN_KEY),
+        auth: 'open',
         siteRoot: SITE_ROOT,
+        upstream: UPSTREAM.replace(/^https?:\/\//, ''),
         canWrite: store.config.canWrite,
         storage: store.config.storage,
         location: store.config.location,
         repo: store.config.repo,
         branch: store.config.branch,
+        node: process.version,
+        port: Number(process.env.PORT) || 3000,
+        uptime: Math.floor((Date.now() - SERVER_STARTED_AT) / 1000),
         items: Object.keys(snapshot.values).length,
+        valued: Object.values(snapshot.values).filter(row => Number(row.value) > 0).length,
         staff: Object.keys(snapshot.roles).length,
+        badges: grants.length,
+        ads: (snapshot.ads || []).length,
         changes: (snapshot.changes || []).length,
       });
       return true;
@@ -398,60 +634,20 @@ async function handle(req, res, url, readBody) {
 
     /* --------------------------------------------------------------- writes */
 
-    if (req.method === 'POST' && route === '/api/login') {
-      const payload = readJson(await readBody(req));
-      if (!ADMIN_KEY) {
-        send(res, 503, { ok: false, error: 'The server has no admin key configured.' });
-        return true;
-      }
-      const ip = clientIp(req);
-      const wait = loginBlocked(ip);
-      if (wait) {
-        const minutes = Math.ceil(wait / 60);
-        res.setHeader('Retry-After', String(wait));
-        send(res, 429, {
-          ok: false,
-          error: `Too many sign-in attempts. Try again in ${minutes} minute${minutes === 1 ? '' : 's'}.`,
-        });
-        return true;
-      }
-      if (!keyMatches(payload.key)) {
-        noteFailedLogin(ip);
-        send(res, 401, { ok: false, error: 'That admin key was not accepted.' });
-        return true;
-      }
-      /* A correct key clears the record, so one typo does not count against
-       * you for the next quarter of an hour. */
-      loginAttempts.delete(ip);
-      const name = String(payload.name || '').trim();
-      const role = name ? await store.roleOf(name) : null;
-      send(res, 200, { ok: true, token: issueToken(), expiresIn: TOKEN_TTL_MS, name, role });
-      return true;
-    }
-
     if (req.method === 'POST' && route === '/api/roles/set') {
       const payload = readJson(await readBody(req));
-      const auth = await authorize(req, payload, { need: 'owner' });
-      if (!auth.ok) {
-        send(res, auth.status, { ok: false, error: auth.error });
-        return true;
-      }
+      const name = attribute(payload);
 
       const target = String(payload.target || '').trim();
       if (!target) {
         send(res, 400, { ok: false, error: 'Name the account you are ranking.' });
         return true;
       }
-      /* An owner may not demote themselves out of the panel by accident. */
-      if (target.toLowerCase() === auth.name.toLowerCase() && payload.role !== 'owner') {
-        send(res, 400, { ok: false, error: 'You cannot change your own owner rank.' });
-        return true;
-      }
 
       const updated = await store.setRole({
         name: target,
         role: String(payload.role || ''),
-        grantedBy: auth.name,
+        grantedBy: name,
       });
       send(res, 200, {
         ok: true,
@@ -460,20 +656,10 @@ async function handle(req, res, url, readBody) {
       return true;
     }
 
-    /*
-     * Give a player a badge, or take it back. Owners only.
-     *
-     * Deliberately narrower than /api/values/set: setting a value is the
-     * value team's job, but a badge is recognition from the site owner, so
-     * the value managers and staff cannot hand them out.
-     */
+    /* Give a player a badge, or take it back. */
     if (req.method === 'POST' && route === '/api/badges/set') {
       const payload = readJson(await readBody(req));
-      const auth = await authorize(req, payload, { need: 'owner' });
-      if (!auth.ok) {
-        send(res, auth.status, { ok: false, error: auth.error });
-        return true;
-      }
+      const name = attribute(payload);
 
       const target = String(payload.target || '').trim();
       if (!target) {
@@ -486,7 +672,7 @@ async function handle(req, res, url, readBody) {
         badge: String(payload.badge || ''),
         /* Absent means "give it" - the panel sends false to take one back. */
         granted: payload.granted !== false,
-        grantedBy: auth.name,
+        grantedBy: name,
       });
 
       send(res, 200, {
@@ -500,11 +686,6 @@ async function handle(req, res, url, readBody) {
 
     if (req.method === 'POST' && route === '/api/values/set') {
       const payload = readJson(await readBody(req));
-      const auth = await authorize(req, payload, { need: 'valuer' });
-      if (!auth.ok) {
-        send(res, auth.status, { ok: false, error: auth.error });
-        return true;
-      }
 
       const updated = await store.setValue({
         id: payload.id,
@@ -517,7 +698,7 @@ async function handle(req, res, url, readBody) {
          * older client that never sends them leaves them untouched. */
         method: payload.method,
         note: payload.note,
-        updatedBy: auth.name,
+        updatedBy: attribute(payload),
       });
       send(res, 200, {
         ok: true,
@@ -632,6 +813,19 @@ async function handle(req, res, url, readBody) {
 
       await store.removeAd({ id: payload.id, creatorId });
       send(res, 200, { ok: true, id: String(payload.id) });
+      return true;
+    }
+
+    /*
+     * Moderation: take any ad down, from the admin panel. The public board
+     * still only lets an author delete their own ad (/api/ads/delete); this
+     * path is the open-panel equivalent of the rest of /admin, and the
+     * removal is recorded with the name the panel sends.
+     */
+    if (req.method === 'POST' && route === '/api/ads/moderate') {
+      const payload = readJson(await readBody(req));
+      const ad = await store.moderateAd({ id: payload.id, removedBy: attribute(payload) });
+      send(res, 200, { ok: true, id: ad.id });
       return true;
     }
 

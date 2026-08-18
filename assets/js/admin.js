@@ -1,38 +1,36 @@
 /*
  * Admin panel - /admin
  *
- * Reached from the Admin entry in the navbar's More menu. Three things live
- * here:
+ * The panel is an open room: no key, no sign-in, no navbar. One top bar with
+ * the way back out, a sidebar of pages, and one page per function:
  *
- *   the greeting      who this browser is signed in as, and what it may do
- *   staff ranks       owners hand out Value Manager and Value Team
- *   player badges     owners hand out the badges nothing can work out itself
- *   item values       anyone ranked sets value, demand, trend and categories
+ *   Dashboard      the stat wall, the newest value changes and trade ads
+ *   Item Values    set value, demand, trend, method, categories and the note
+ *   Staff Ranks    the public roster - Site Owner, Value Manager, Value Team
+ *   Player Badges  hand out the badges nothing can work out itself
+ *   Trade Ads      moderate the public board - take any ad down
+ *   Change Log     every value/demand/trend edit, newest first
+ *   Public API     the keyless JSON API this server answers, live links
+ *   Server         what the backend reports about itself
  *
  * ---------------------------------------------------------------------------
  * WHO IS ALLOWED TO DO WHAT
  * ---------------------------------------------------------------------------
- * Two separate questions, answered in two different places.
+ * Everybody who can reach this page. The admin key is gone: the door is the
+ * server itself, not a password inside it. Writes still record who made
+ * them - the linked Wanwood account when there is one, otherwise "Admin
+ * panel" - so the change log keeps saying who did what. That is attribution,
+ * not a gate.
  *
- * The panel *shows* what /api/me says the signed-in name may do. That is a
- * convenience: it stops staff being shown a rank editor they cannot use, and
- * it is fetched, not guessed, so promoting somebody takes effect on their next
- * page load rather than requiring a code change.
- *
- * The panel does not *enforce* anything, and cannot. Every write carries the
- * shared admin key, and the backend re-checks the rank of the name making the
- * change before it saves. Editing this file, or the roster it renders, changes
- * nothing on the server. The key is the door; the rank is the job.
- *
- * The old owners list in config.js is still consulted, but only so the panel
- * has an answer before the backend replies - the server's word wins.
+ * Trade ads keep their own rules on the public board: players prove control
+ * of their account before they post or delete. The moderation page here uses
+ * its own route, /api/ads/moderate, which takes any ad down.
  */
 (() => {
   'use strict';
 
   const API = window.WanwoodAPI;
   const ACCOUNT = window.WolimonsAccount;
-  const CONFIG = window.WOLIMONS_CONFIG;
   const VALUES = window.WolimonsValues;
   const ROLE_ICONS = window.WolimonsRoleIcons;
   /* The badge catalog (names, tiers, artwork) and the table of who has been
@@ -40,23 +38,31 @@
   const BADGES = window.WolimonsBadges;
   const GRANTED = window.WolimonsGrantedBadges;
 
-  const API_BASE = (CONFIG && CONFIG.apiBase) || '';
-  const TOKEN_KEY = 'wolimons_admin_token_v1';
+  const API_BASE = (window.WOLIMONS_CONFIG && window.WOLIMONS_CONFIG.apiBase) || '';
   const SEARCH_LIMIT = 60;
+
+  /* The public API's own table, for the Public API page. Kept in step with
+   * proxy/api.js - that file serves the machine-readable copy at /api, and
+   * this is the human one with the same words. */
+  const PUBLIC_ENDPOINTS = [
+    ['/api/v1/itemdetails', 'Every tracked item: name, value, demand, trend, valuation method, categories, RAP and lowest ask. Cached ten minutes.'],
+    ['/api/v1/values', 'The raw value table this site runs on, keyed by item id.'],
+    ['/api/v1/valuechanges', 'The value change log, newest first. Add ?limit= and ?since= to narrow it.'],
+    ['/api/v1/playerinfo/&lt;userId&gt;', 'One Wanwood player: name, staff role and granted badges.'],
+    ['/api/v1/getrecentads', 'The trade ad board, newest first. Add ?limit= to narrow it.'],
+    ['/api/v1/roles', 'The staff roster.'],
+    ['/api/v1/badges', 'Badges handed out by the site. Add ?name= to ask about one player.'],
+    ['/api', 'The machine-readable index of every endpoint above.'],
+  ];
 
   const dom = {};
 
   const state = {
     account: null,
-    /* What the backend says this account may do. Null until it answers. */
-    me: null,
-    roles: [],
-    token: readToken(),
+    page: 'dashboard',
     /* The rank editor's pending selection. */
     roleChoice: '',
-    /* Everyone who has been given a badge, and the badge editor's pending
-     * selection. */
-    grants: [],
+    /* The badge editor's pending selection. */
     badgeChoice: '',
     /* The item being valued, and the row as it currently reads. */
     item: null,
@@ -65,6 +71,8 @@
     method: '',
     categories: new Set(),
     pickerSequence: 0,
+    /* What the dashboard has already loaded this visit. */
+    loaded: new Set(),
   };
 
   /* ------------------------------------------------------------------ */
@@ -80,24 +88,10 @@
 
   const formatNumber = number => Number(number).toLocaleString('en-US');
 
-  /* The session token, kept per browser. A restart of the backend invalidates
-   * it, which shows up as a 401 on the next save and sends the key row back. */
-  function readToken() {
-    try {
-      return window.localStorage.getItem(TOKEN_KEY) || '';
-    } catch (error) {
-      return '';
-    }
-  }
-
-  function writeToken(token) {
-    state.token = token || '';
-    try {
-      if (token) window.localStorage.setItem(TOKEN_KEY, token);
-      else window.localStorage.removeItem(TOKEN_KEY);
-    } catch (error) {
-      /* Private mode: the token simply lasts for this page only. */
-    }
+  /* The name a change is saved under. The server records it, never checks
+   * it; when no Wanwood account is linked the panel says what it is. */
+  function actorName() {
+    return state.account && state.account.name ? state.account.name : 'Admin panel';
   }
 
   /* The same UTC wording the trade ad detail page prints. */
@@ -109,12 +103,43 @@
       + `${pad(when.getUTCHours())}:${pad(when.getUTCMinutes())}:${pad(when.getUTCSeconds())} UTC`;
   }
 
+  function ago(timestamp) {
+    const seconds = Math.max(0, Math.floor((Date.now() - Number(timestamp)) / 1000));
+    if (seconds < 60) return 'just now';
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes} minute${minutes === 1 ? '' : 's'} ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours} hour${hours === 1 ? '' : 's'} ago`;
+    const days = Math.floor(hours / 24);
+    return `${days} day${days === 1 ? '' : 's'} ago`;
+  }
+
+  function uptimeText(seconds) {
+    const total = Math.max(0, Math.floor(Number(seconds) || 0));
+    const days = Math.floor(total / 86400);
+    const hours = Math.floor((total % 86400) / 3600);
+    const minutes = Math.floor((total % 3600) / 60);
+    const parts = [];
+    if (days) parts.push(`${days}d`);
+    if (hours || days) parts.push(`${hours}h`);
+    parts.push(`${minutes}m`);
+    return parts.join(' ');
+  }
+
   function notice(target, message, tone) {
     if (!target) return;
     target.textContent = message || '';
     target.style.color = tone === 'bad' ? '#e57373'
       : tone === 'good' ? '#81c784'
         : '#7a8288';
+  }
+
+  function emptyRow(target, message) {
+    if (!target) return;
+    target.replaceChildren();
+    const empty = el('div', 'small py-2', message);
+    empty.style.color = '#7a8288';
+    target.appendChild(empty);
   }
 
   /* Toggle one of the catalog's filter chips. */
@@ -129,7 +154,6 @@
       ...options,
       headers: {
         'Content-Type': 'application/json',
-        ...(state.token ? { Authorization: `Bearer ${state.token}` } : {}),
         ...(options.headers || {}),
       },
     });
@@ -141,47 +165,21 @@
       /* An HTML shell means the proxy is cold or something else answered. */
       throw new Error('The backend did not answer with JSON. It may still be starting up.');
     }
-    if (!response.ok || payload.ok === false) {
+    if (!response.ok || payload.ok === false || payload.success === false) {
       throw new Error(payload.error || `The backend refused that (${response.status}).`);
     }
     return payload;
   }
 
   function cacheDom() {
-    dom.greetingRow = document.getElementById('admin_greeting_row');
-    dom.greeting = document.getElementById('admin_greeting');
-    dom.dashboard = document.getElementById('admin_dashboard');
-    dom.avatar = document.getElementById('admin_avatar');
-    dom.username = document.getElementById('admin_username');
-    dom.userId = document.getElementById('admin_user_id');
-    dom.permissions = document.getElementById('admin_permissions');
-    dom.verifiedAt = document.getElementById('admin_verified_at');
-    dom.profileButton = document.getElementById('admin_profile_button');
-    dom.locked = document.getElementById('admin_locked');
-    dom.lockedMessage = document.getElementById('admin_locked_message');
+    dom.topbarStatus = document.getElementById('admin_topbar_status');
+    dom.nav = document.getElementById('admin_nav');
 
-    dom.keyRow = document.getElementById('admin_key_row');
-    dom.keyBox = document.getElementById('admin_key_textbox');
-    dom.keyButton = document.getElementById('admin_key_button');
-    dom.keyNotice = document.getElementById('admin_key_notice');
-    dom.keyHint = document.getElementById('admin_key_hint');
+    dom.dashboardAccount = document.getElementById('admin_dashboard_account');
+    dom.statsGrid = document.getElementById('admin_stats_grid');
+    dom.dashChanges = document.getElementById('admin_dash_changes');
+    dom.dashAds = document.getElementById('admin_dash_ads');
 
-    dom.rolesRow = document.getElementById('admin_roles_row');
-    dom.roleName = document.getElementById('admin_role_name');
-    dom.roleChoices = document.getElementById('admin_role_choices');
-    dom.roleSave = document.getElementById('admin_role_save');
-    dom.rolesNotice = document.getElementById('admin_roles_notice');
-    dom.rolesList = document.getElementById('admin_roles_list');
-
-    dom.badgesRow = document.getElementById('admin_badges_row');
-    dom.badgeName = document.getElementById('admin_badge_name');
-    dom.badgeChoices = document.getElementById('admin_badge_choices');
-    dom.badgeGive = document.getElementById('admin_badge_give');
-    dom.badgeTake = document.getElementById('admin_badge_take');
-    dom.badgesNotice = document.getElementById('admin_badges_notice');
-    dom.badgesList = document.getElementById('admin_badges_list');
-
-    dom.valuesRow = document.getElementById('admin_values_row');
     dom.valueImage = document.getElementById('admin_value_item_image');
     dom.valueName = document.getElementById('admin_value_item_name');
     dom.valueStats = document.getElementById('admin_value_item_stats');
@@ -195,6 +193,32 @@
     dom.valueSave = document.getElementById('admin_value_save');
     dom.valuesNotice = document.getElementById('admin_values_notice');
 
+    dom.roleName = document.getElementById('admin_role_name');
+    dom.roleChoices = document.getElementById('admin_role_choices');
+    dom.roleSave = document.getElementById('admin_role_save');
+    dom.rolesNotice = document.getElementById('admin_roles_notice');
+    dom.rolesList = document.getElementById('admin_roles_list');
+
+    dom.badgeName = document.getElementById('admin_badge_name');
+    dom.badgeChoices = document.getElementById('admin_badge_choices');
+    dom.badgeGive = document.getElementById('admin_badge_give');
+    dom.badgeTake = document.getElementById('admin_badge_take');
+    dom.badgesNotice = document.getElementById('admin_badges_notice');
+    dom.badgesList = document.getElementById('admin_badges_list');
+
+    dom.adsRefresh = document.getElementById('admin_ads_refresh');
+    dom.adsNotice = document.getElementById('admin_ads_notice');
+    dom.adsList = document.getElementById('admin_ads_list');
+
+    dom.changesRefresh = document.getElementById('admin_changes_refresh');
+    dom.changesList = document.getElementById('admin_changes_list');
+
+    dom.apiBase = document.getElementById('admin_api_base');
+    dom.apiList = document.getElementById('admin_api_list');
+
+    dom.serverRefresh = document.getElementById('admin_server_refresh');
+    dom.serverList = document.getElementById('admin_server_list');
+
     dom.pickerModal = document.getElementById('item_select_modal');
     dom.pickerSearch = document.getElementById('item_select_search_textbox');
     dom.pickerResults = document.getElementById('item_select_results');
@@ -202,96 +226,215 @@
   }
 
   /* ------------------------------------------------------------------ */
-  /* Greeting                                                            */
+  /* Pages - one per function, switched from the sidebar                 */
   /* ------------------------------------------------------------------ */
 
-  /* Every pane the panel can show has to be listed here. The badges row was
-   * missing, so signing out or losing a rank left the Give badge controls on
-   * screen underneath the locked notice. */
-  function showLocked(message) {
-    [dom.greetingRow, dom.dashboard, dom.keyRow, dom.rolesRow, dom.badgesRow,
-      dom.valuesRow, dom.profileButton]
-      .forEach(node => node && node.classList.add('d-none'));
-    if (dom.locked) dom.locked.classList.remove('d-none');
-    if (dom.lockedMessage) dom.lockedMessage.textContent = message;
+  const PAGES = ['dashboard', 'values', 'roles', 'badges', 'ads', 'changes', 'api', 'server'];
+
+  function showPage(name) {
+    const page = PAGES.includes(name) ? name : 'dashboard';
+    state.page = page;
+
+    PAGES.forEach(candidate => {
+      const section = document.getElementById(`admin_page_${candidate}`);
+      if (section) section.classList.toggle('d-none', candidate !== page);
+    });
+
+    if (dom.nav) {
+      dom.nav.querySelectorAll('[data-page]').forEach(button => {
+        const active = button.dataset.page === page;
+        button.classList.toggle('active', active);
+        button.setAttribute('aria-pressed', active ? 'true' : 'false');
+      });
+    }
+
+    /* Each page fills itself the first time it is shown, and the ones that
+     * go stale refill every time after. */
+    if (page === 'dashboard') loadDashboard();
+    if (page === 'roles' && !state.loaded.has('roles')) loadRoles();
+    if (page === 'badges' && !state.loaded.has('badges')) loadGrants();
+    if (page === 'ads') loadAds();
+    if (page === 'changes') loadChanges();
+    if (page === 'api' && !state.loaded.has('api')) renderApiPage();
+    if (page === 'server') loadServer();
+
+    window.scrollTo({ top: 0 });
   }
 
-  /* The words for what this account may do, straight from the backend when it
-   * has answered and from the local list until then. */
-  function permissionsLabel() {
-    if (state.me && state.me.role && ROLE_ICONS) return ROLE_ICONS.label(state.me.role);
-    if (state.me && !state.me.role) return 'None';
-    if (CONFIG && state.account && CONFIG.isOwner(state.account.name)) return 'Site Owner';
-    return '-';
+  function pageFromHash() {
+    const match = /^#\/?([a-z]+)/.exec(window.location.hash || '');
+    return match ? match[1] : 'dashboard';
   }
 
-  async function showDashboard(account) {
-    if (dom.locked) dom.locked.classList.add('d-none');
-    if (dom.greetingRow) dom.greetingRow.classList.remove('d-none');
-    if (dom.dashboard) dom.dashboard.classList.remove('d-none');
+  /* ------------------------------------------------------------------ */
+  /* Attribution and the top bar                                         */
+  /* ------------------------------------------------------------------ */
 
-    if (dom.greeting) dom.greeting.textContent = `Hello, ${account.name}`;
-    if (dom.username) {
-      dom.username.textContent = account.name;
-      dom.username.title = account.name;
+  function renderIdentity() {
+    const account = state.account;
+    if (dom.topbarStatus) {
+      dom.topbarStatus.textContent = account
+        ? `Saving changes as ${account.name}`
+        : 'Changes are saved as \u201cAdmin panel\u201d';
     }
-    if (dom.userId) dom.userId.textContent = String(account.id);
-    if (dom.verifiedAt) dom.verifiedAt.textContent = utcTimestamp(account.verifiedAt);
-    if (dom.profileButton) {
-      dom.profileButton.href = `/player/?id=${account.id}`;
-      dom.profileButton.classList.remove('d-none');
-    }
-    renderPermissions();
-
-    /* The headshot is a nicety - if Wanwood cannot be reached the pane just
-     * has no picture in it, rather than a broken one. */
-    try {
-      const url = await API?.fetchUserAvatar(account.id, { size: 420 });
-      if (url && dom.avatar) {
-        dom.avatar.src = url;
-        dom.avatar.alt = `${account.name} avatar`;
+    if (dom.dashboardAccount) {
+      dom.dashboardAccount.replaceChildren();
+      if (account) {
+        dom.dashboardAccount.append(`Signed in as ${account.name} (Wanwood ${account.id})`);
+      } else {
+        dom.dashboardAccount.append('No Wanwood account linked. Changes are saved as \u201cAdmin panel\u201d - ');
+        const link = el('a', null, 'link one on the verify page');
+        link.href = '/verify';
+        link.style.color = '#7ab8f5';
+        dom.dashboardAccount.appendChild(link);
+        dom.dashboardAccount.append('.');
       }
-    } catch (error) {
-      /* Leave the empty frame. */
     }
   }
 
-  /* The Permissions cell carries the rank's own icon beside its name, so the
-   * crown that marks an owner on the roster marks them here too. */
-  function renderPermissions() {
-    if (!dom.permissions) return;
-    dom.permissions.replaceChildren();
-    dom.permissions.appendChild(el('span', null, permissionsLabel()));
-    const icon = ROLE_ICONS && state.me ? ROLE_ICONS.iconFor(state.me.role) : null;
-    if (icon) dom.permissions.appendChild(icon);
+  /* ------------------------------------------------------------------ */
+  /* Dashboard                                                           */
+  /* ------------------------------------------------------------------ */
+
+  function statCell(header, value, title) {
+    const cell = el('div', 'admin_stat_cell');
+    const head = el('div', 'top-stat-header', header);
+    if (title) head.title = title;
+    const data = el('div', 'top-stat-data text-truncate', value);
+    if (title) data.title = title;
+    cell.appendChild(head);
+    cell.appendChild(data);
+    return cell;
   }
 
-  /* ------------------------------------------------------------------ */
-  /* Panes                                                               */
-  /* ------------------------------------------------------------------ */
+  /* One row of the change feed - the dashboard shows eight, the Change Log
+   * page shows the long form. */
+  function changeRow(change, long) {
+    const row = el('div', 'trade_ad_picker_row');
+    row.style.cursor = 'default';
 
-  const canGrantRoles = () => Boolean(state.me && state.me.canGrantRoles);
-  const canSetValues = () => Boolean(state.me && state.me.canSetValues);
+    const text = el('div', 'flex-grow-1');
+    const field = change.field === 'value' ? 'Value' : change.field === 'demand' ? 'Demand' : 'Trend';
+    const format = value => {
+      if (value === null || value === undefined || value === '') return 'unset';
+      return change.field === 'value' ? formatNumber(value) : String(value);
+    };
 
-  function renderPanes() {
-    const signedIn = Boolean(state.token);
+    const head = el('div', 'text-truncate');
+    head.append(`Item ${change.id} \u00b7 ${field}: ${format(change.old)} \u2192 ${format(change.new)}`);
+    text.appendChild(head);
 
-    /* Somebody with no rank sees neither editor - there is nothing they could
-     * successfully save. */
-    if (dom.keyRow) dom.keyRow.classList.toggle('d-none', !(canGrantRoles() || canSetValues()));
-    if (dom.rolesRow) dom.rolesRow.classList.toggle('d-none', !canGrantRoles());
-    /* Badges are the owner's to give, so the pane rides with the ranks one
-     * rather than with the value editor. */
-    if (dom.badgesRow) dom.badgesRow.classList.toggle('d-none', !canGrantRoles());
-    if (dom.valuesRow) dom.valuesRow.classList.toggle('d-none', !canSetValues());
+    const sub = el('div', 'small text-truncate');
+    sub.style.color = '#7a8288';
+    sub.textContent = `${change.by || 'someone'} \u00b7 ${long ? utcTimestamp(change.at) : ago(change.at)}`;
+    text.appendChild(sub);
+    row.appendChild(text);
 
-    if (dom.keyHint) {
-      dom.keyHint.textContent = signedIn
-        ? 'This browser is holding an admin session. Changes made here will be saved.'
-        : 'Enter the admin key to make changes. Reading works without it.';
+    const open = el('a', 'btn btn-flat-light-blue-sm rounded-pill my-auto', 'Item');
+    open.href = `/item/?id=${change.id}`;
+    open.setAttribute('role', 'button');
+    row.appendChild(open);
+    return row;
+  }
+
+  function adSummary(ad) {
+    const side = list => {
+      const slots = (list || []).filter(Boolean);
+      return slots.map(slot => (slot.kind === 'tag' ? `[${slot.slug}]` : slot.name || `#${slot.id}`)).join(', ') || '-';
+    };
+    return `${side(ad.offer)}  \u2192  ${side(ad.request)}`;
+  }
+
+  function adRow(ad, { moderate }) {
+    const row = el('div', 'trade_ad_picker_row');
+
+    const text = el('div', 'flex-grow-1');
+    const head = el('div', 'text-truncate', ad.creatorName);
+    text.appendChild(head);
+    const sub = el('div', 'small text-truncate', `${adSummary(ad)} \u00b7 ${ago(ad.createdAt)}`);
+    sub.style.color = '#7a8288';
+    text.appendChild(sub);
+    row.appendChild(text);
+
+    const open = el('a', 'btn btn-flat-light-blue-sm rounded-pill my-1 mx-1', 'View');
+    open.href = `/tradead/?id=${encodeURIComponent(ad.id)}`;
+    open.setAttribute('role', 'button');
+    row.appendChild(open);
+
+    if (moderate) {
+      const remove = el('button', 'btn btn-flat-dark-gray-sm rounded-pill my-1 mx-1', 'Remove');
+      remove.type = 'button';
+      remove.addEventListener('click', async () => {
+        remove.disabled = true;
+        remove.textContent = 'Removing...';
+        try {
+          await apiCall('/api/ads/moderate', {
+            method: 'POST',
+            body: JSON.stringify({ id: ad.id, name: actorName() }),
+          });
+          loadAds();
+        } catch (error) {
+          notice(dom.adsNotice, error.message, 'bad');
+          remove.disabled = false;
+          remove.textContent = 'Remove';
+        }
+      });
+      row.appendChild(remove);
     }
-    if (dom.keyButton) dom.keyButton.value = signedIn ? 'Sign out' : 'Sign in';
-    if (dom.keyBox) dom.keyBox.classList.toggle('d-none', signedIn);
+    return row;
+  }
+
+  async function loadDashboard() {
+    /* Everything the wall is made of, asked for together. Each one can fail
+     * on its own; a dead corner shows a dash rather than taking the page
+     * down. */
+    const [status, changes, ads] = await Promise.all([
+      apiCall('/api/status').catch(() => null),
+      apiCall('/api/changes?limit=8').catch(() => null),
+      apiCall('/api/ads').catch(() => null),
+    ]);
+
+    if (dom.statsGrid) {
+      dom.statsGrid.replaceChildren();
+      if (!status) {
+        dom.statsGrid.appendChild(statCell('Backend', 'Unreachable', 'The proxy did not answer /api/status'));
+      } else {
+        dom.statsGrid.appendChild(statCell(
+          'Items valued',
+          `${formatNumber(status.valued)} / ${formatNumber(status.items)}`,
+          'Items with a value above zero, out of every item the table knows',
+        ));
+        dom.statsGrid.appendChild(statCell('Value changes', formatNumber(status.changes), 'Edits recorded in the change log'));
+        dom.statsGrid.appendChild(statCell('Trade ads live', formatNumber(status.ads), 'Ads currently on the public board'));
+        dom.statsGrid.appendChild(statCell('Staff ranked', formatNumber(status.staff), 'Names on the staff roster'));
+        dom.statsGrid.appendChild(statCell('Badges granted', formatNumber(status.badges), 'Players holding a hand-given badge'));
+        dom.statsGrid.appendChild(statCell(
+          'Storage',
+          `${status.storage}${status.canWrite ? ' \u00b7 writable' : ' \u00b7 read-only'}`,
+          String(status.location || ''),
+        ));
+        dom.statsGrid.appendChild(statCell('Upstream', status.upstream || '-', 'Where items and players come from'));
+        dom.statsGrid.appendChild(statCell('Uptime', uptimeText(status.uptime), 'How long this server process has been running'));
+      }
+    }
+
+    if (dom.dashChanges) {
+      const rows = changes && Array.isArray(changes.changes) ? changes.changes : [];
+      if (!rows.length) emptyRow(dom.dashChanges, 'No value changes have been made yet.');
+      else {
+        dom.dashChanges.replaceChildren();
+        rows.forEach(change => dom.dashChanges.appendChild(changeRow(change, false)));
+      }
+    }
+
+    if (dom.dashAds) {
+      const rows = ads && Array.isArray(ads.ads) ? ads.ads.slice(0, 5) : [];
+      if (!rows.length) emptyRow(dom.dashAds, 'Nobody has posted a trade ad yet.');
+      else {
+        dom.dashAds.replaceChildren();
+        rows.forEach(ad => dom.dashAds.appendChild(adRow(ad, { moderate: false })));
+      }
+    }
   }
 
   /* ------------------------------------------------------------------ */
@@ -300,7 +443,6 @@
 
   function roleRow(entry) {
     const row = el('div', 'trade_ad_picker_row');
-    row.style.cursor = 'default';
 
     const icon = ROLE_ICONS ? ROLE_ICONS.iconFor(entry.role) : null;
     if (icon) {
@@ -326,7 +468,6 @@
 
     /* Tapping a row loads it into the editor above, which is quicker and
      * safer than retyping a username. */
-    row.style.cursor = 'pointer';
     row.addEventListener('click', () => {
       if (dom.roleName) dom.roleName.value = entry.name;
       chooseRole(entry.role);
@@ -337,10 +478,8 @@
   function renderRoles() {
     if (!dom.rolesList) return;
     dom.rolesList.replaceChildren();
-    if (!state.roles.length) {
-      const empty = el('div', 'small py-2', 'Nobody has been ranked yet.');
-      empty.style.color = '#7a8288';
-      dom.rolesList.appendChild(empty);
+    if (!state.roles || !state.roles.length) {
+      emptyRow(dom.rolesList, 'Nobody has been ranked yet.');
       return;
     }
     state.roles.forEach(entry => dom.rolesList.appendChild(roleRow(entry)));
@@ -358,6 +497,7 @@
     try {
       const payload = await apiCall('/api/roles');
       state.roles = Array.isArray(payload.roles) ? payload.roles : [];
+      state.loaded.add('roles');
     } catch (error) {
       state.roles = [];
       notice(dom.rolesNotice, error.message, 'bad');
@@ -381,7 +521,7 @@
       const payload = await apiCall('/api/roles/set', {
         method: 'POST',
         body: JSON.stringify({
-          name: state.account.name,
+          name: actorName(),
           target,
           role: state.roleChoice,
         }),
@@ -399,10 +539,6 @@
       chooseRole('');
     } catch (error) {
       notice(dom.rolesNotice, error.message, 'bad');
-      if (/sign in/i.test(error.message)) {
-        writeToken('');
-        renderPanes();
-      }
     }
   }
 
@@ -411,14 +547,12 @@
   /* ------------------------------------------------------------------ */
 
   /*
-   * The badges an owner can hand out are exactly the ones in badges.js with
-   * no earn rule - the fifteen whose requirement happens somewhere a browser
+   * The badges that can be handed out are exactly the ones in badges.js with
+   * no earn rule - the ones whose requirement happens somewhere a browser
    * cannot check. Deriving the list rather than repeating it means the panel
    * can never offer a badge that is actually earned, and cannot fall behind
-   * when the catalog changes.
-   *
-   * The server keeps its own copy of the same list and refuses anything not
-   * on it, so this is convenience, not enforcement.
+   * when the catalog changes. The server keeps its own copy of the same list
+   * and refuses anything not on it.
    */
   function grantableBadges() {
     if (!BADGES || !Array.isArray(BADGES.LIST)) return [];
@@ -430,17 +564,13 @@
     return badge ? badge.name : id;
   };
 
-  /* One chip per badge, using the catalog's filter buttons - the same control
-   * the ranks and categories rows are built from. */
   function renderBadgeChoices() {
     if (!dom.badgeChoices) return;
     dom.badgeChoices.replaceChildren();
 
     const list = grantableBadges();
     if (!list.length) {
-      const empty = el('div', 'small py-2', 'The badge catalog failed to load.');
-      empty.style.color = '#7a8288';
-      dom.badgeChoices.appendChild(empty);
+      emptyRow(dom.badgeChoices, 'The badge catalog failed to load.');
       return;
     }
 
@@ -465,11 +595,6 @@
     });
   }
 
-  /*
-   * One player's row in the list underneath: their name, the badges they
-   * hold, and the artwork for each. Same picker row the roster uses, so the
-   * two lists look like one thing.
-   */
   function grantRow(entry) {
     const row = el('div', 'trade_ad_picker_row');
 
@@ -498,7 +623,6 @@
 
     /* Tapping a row loads the player into the editor above, which is quicker
      * and safer than retyping a username. */
-    row.style.cursor = 'pointer';
     row.addEventListener('click', () => {
       if (dom.badgeName) dom.badgeName.value = entry.name;
       chooseBadge(entry.badges[0] || '');
@@ -513,11 +637,9 @@
     /* Only players who actually hold something. The server keeps an empty row
      * behind the scenes to remember a badge being taken back, and that is
      * bookkeeping rather than something to show. */
-    const rows = state.grants.filter(entry => entry.badges && entry.badges.length);
+    const rows = (state.grants || []).filter(entry => entry.badges && entry.badges.length);
     if (!rows.length) {
-      const empty = el('div', 'small py-2', 'Nobody has been given a badge yet.');
-      empty.style.color = '#7a8288';
-      dom.badgesList.appendChild(empty);
+      emptyRow(dom.badgesList, 'Nobody has been given a badge yet.');
       return;
     }
     rows.forEach(entry => dom.badgesList.appendChild(grantRow(entry)));
@@ -527,6 +649,7 @@
     try {
       const payload = await apiCall('/api/badges');
       state.grants = Array.isArray(payload.grants) ? payload.grants : [];
+      state.loaded.add('badges');
     } catch (error) {
       state.grants = [];
       notice(dom.badgesNotice, error.message, 'bad');
@@ -553,7 +676,7 @@
       const payload = await apiCall('/api/badges/set', {
         method: 'POST',
         body: JSON.stringify({
-          name: state.account.name,
+          name: actorName(),
           target,
           badge: state.badgeChoice,
           granted,
@@ -577,10 +700,6 @@
       chooseBadge('');
     } catch (error) {
       notice(dom.badgesNotice, error.message, 'bad');
-      if (/sign in/i.test(error.message)) {
-        writeToken('');
-        renderPanes();
-      }
     }
   }
 
@@ -607,8 +726,7 @@
   }
 
   /* How the value was arrived at. The item page prints this under the
-   * valuation heading, and /api/values/set has always accepted it - there was
-   * simply no control here to set it with. */
+   * valuation heading. */
   function chooseMethod(method) {
     state.method = method === 'None' ? '' : (method || '');
     if (!dom.methodChoices) return;
@@ -685,7 +803,7 @@
       await apiCall('/api/values/set', {
         method: 'POST',
         body: JSON.stringify({
-          name: state.account.name,
+          name: actorName(),
           id: state.item.id,
           value: amount,
           demand: state.demand || null,
@@ -701,10 +819,133 @@
       notice(dom.valuesNotice, `Saved ${state.item.name || `item ${state.item.id}`}.`, 'good');
     } catch (error) {
       notice(dom.valuesNotice, error.message, 'bad');
-      if (/sign in/i.test(error.message)) {
-        writeToken('');
-        renderPanes();
+    }
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Trade ads                                                           */
+  /* ------------------------------------------------------------------ */
+
+  async function loadAds() {
+    if (!dom.adsList) return;
+    try {
+      const payload = await apiCall('/api/ads');
+      const ads = Array.isArray(payload.ads) ? payload.ads : [];
+      dom.adsList.replaceChildren();
+      if (!ads.length) {
+        emptyRow(dom.adsList, 'The board is empty - nothing to moderate.');
+        return;
       }
+      ads.forEach(ad => dom.adsList.appendChild(adRow(ad, { moderate: true })));
+      notice(dom.adsNotice, `${ads.length} ad${ads.length === 1 ? '' : 's'} on the board.`);
+    } catch (error) {
+      emptyRow(dom.adsList, 'The board could not be loaded.');
+      notice(dom.adsNotice, error.message, 'bad');
+    }
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Change log                                                          */
+  /* ------------------------------------------------------------------ */
+
+  async function loadChanges() {
+    if (!dom.changesList) return;
+    try {
+      const payload = await apiCall('/api/changes?limit=200');
+      const rows = Array.isArray(payload.changes) ? payload.changes : [];
+      dom.changesList.replaceChildren();
+      if (!rows.length) {
+        emptyRow(dom.changesList, 'Nothing has been changed yet.');
+        return;
+      }
+      rows.forEach(change => dom.changesList.appendChild(changeRow(change, true)));
+    } catch (error) {
+      emptyRow(dom.changesList, 'The log could not be loaded.');
+    }
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Public API page                                                     */
+  /* ------------------------------------------------------------------ */
+
+  function renderApiPage() {
+    if (dom.apiBase) {
+      dom.apiBase.textContent = `${window.location.origin}/api/v1/...`;
+    }
+    if (!dom.apiList) return;
+    dom.apiList.replaceChildren();
+
+    PUBLIC_ENDPOINTS.forEach(([path, description]) => {
+      const row = el('div', 'trade_ad_picker_row');
+      row.style.cursor = 'default';
+
+      const text = el('div', 'flex-grow-1');
+      const head = el('div', 'text-truncate');
+      const chip = el('span', 'small mr-2 px-1 rounded', 'GET');
+      chip.style.backgroundColor = 'rgb(58, 63, 68)';
+      chip.style.color = '#81c784';
+      head.appendChild(chip);
+      const code = el('span', null, '');
+      /* The playerinfo path carries <userId> already escaped in the table. */
+      code.innerHTML = path;
+      code.style.color = '#e9ecef';
+      head.appendChild(code);
+      text.appendChild(head);
+      const sub = el('div', 'small', description);
+      sub.style.color = '#7a8288';
+      text.appendChild(sub);
+      row.appendChild(text);
+
+      /* The playerinfo row needs an id to open; link the index instead so
+       * the button is never a dead end. */
+      const open = el('a', 'btn btn-flat-light-blue-sm rounded-pill my-auto', 'Open');
+      open.href = path.includes('userId') ? '/api' : path;
+      open.target = '_blank';
+      open.rel = 'noopener';
+      open.setAttribute('role', 'button');
+      row.appendChild(open);
+
+      dom.apiList.appendChild(row);
+    });
+    state.loaded.add('api');
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Server page                                                         */
+  /* ------------------------------------------------------------------ */
+
+  function kvRow(key, value) {
+    const row = el('div', 'admin_kv_row');
+    row.appendChild(el('div', 'admin_kv_key', key));
+    row.appendChild(el('div', 'admin_kv_val', value === undefined || value === null || value === '' ? '-' : String(value)));
+    return row;
+  }
+
+  async function loadServer() {
+    if (!dom.serverList) return;
+    dom.serverList.replaceChildren();
+    try {
+      const status = await apiCall('/api/status');
+      const rows = [
+        ['Admin access', 'Open - no key. Whoever reaches /admin can change things.'],
+        ['Storage', `${status.storage}${status.canWrite ? ' (writable)' : ' (read-only)'}`],
+        ['Data location', status.location],
+        ['Site root', status.siteRoot],
+        ['Upstream', status.upstream],
+        ['Node', status.node],
+        ['Port', status.port],
+        ['Uptime', `${uptimeText(status.uptime)} (${utcTimestamp(Date.now() - (status.uptime * 1000))})`],
+        ['Items in the table', status.items],
+        ['Items with a value', status.valued],
+        ['Staff ranked', status.staff],
+        ['Players with badges', status.badges],
+        ['Trade ads live', status.ads],
+        ['Logged changes', status.changes],
+        ['Repo / branch', `${status.repo} @ ${status.branch}`],
+      ];
+      rows.forEach(([key, value]) => dom.serverList.appendChild(kvRow(key, value)));
+    } catch (error) {
+      dom.serverList.appendChild(kvRow('Backend', `Unreachable - ${error.message}`));
     }
   }
 
@@ -794,90 +1035,20 @@
   }
 
   /* ------------------------------------------------------------------ */
-  /* Backend session                                                     */
-  /* ------------------------------------------------------------------ */
-
-  async function signIn() {
-    const key = dom.keyBox ? dom.keyBox.value : '';
-    if (!key) {
-      notice(dom.keyNotice, 'Enter the admin key.', 'bad');
-      return;
-    }
-    notice(dom.keyNotice, 'Checking...');
-    try {
-      const payload = await apiCall('/api/login', {
-        method: 'POST',
-        body: JSON.stringify({ key, name: state.account.name }),
-      });
-      writeToken(payload.token);
-      if (dom.keyBox) dom.keyBox.value = '';
-      notice(dom.keyNotice, 'Signed in. Changes will be saved.', 'good');
-      renderPanes();
-    } catch (error) {
-      notice(dom.keyNotice, error.message, 'bad');
-    }
-  }
-
-  function signOut() {
-    writeToken('');
-    notice(dom.keyNotice, 'Signed out of the admin session.');
-    renderPanes();
-  }
-
-  /* What may this account do? The backend decides; the local owners list is
-   * only the stand-in used while it is being asked, and if it cannot be
-   * reached at all. A reply that does not carry the permission flags is not a
-   * reply from this API - a cold proxy answers with all sorts of things - so
-   * it counts as unreachable rather than as "no permissions". */
-  async function loadMe(name) {
-    try {
-      const payload = await apiCall(`/api/me?name=${encodeURIComponent(name)}`);
-      if (typeof payload.canSetValues !== 'boolean') throw new Error('unrecognised reply');
-      state.me = payload;
-    } catch (error) {
-      const owner = Boolean(CONFIG && CONFIG.isOwner(name));
-      state.me = {
-        name,
-        role: owner ? 'owner' : null,
-        canGrantRoles: owner,
-        canSetValues: owner,
-        offline: true,
-      };
-    }
-    applyAccess();
-  }
-
-  /* The panel belongs to whoever has a rank. Everybody else is told plainly
-   * that they have none, rather than being shown controls that would be
-   * refused the moment they were used. */
-  function applyAccess() {
-    const account = state.account;
-    if (!account) return;
-    if (!state.me || !state.me.role) {
-      showLocked(`${account.name} is not an owner or value team member on this site.`);
-      return;
-    }
-    showDashboard(account);
-    renderPermissions();
-    renderPanes();
-    if (canGrantRoles()) {
-      loadRoles();
-      loadGrants();
-    }
-  }
-
-  /* ------------------------------------------------------------------ */
   /* Wiring                                                              */
   /* ------------------------------------------------------------------ */
 
   function bind() {
-    dom.keyButton?.addEventListener('click', () => {
-      if (state.token) signOut();
-      else signIn();
+    /* Sidebar. The hash keeps the browser's back button and shared links
+     * honest: /admin/#values opens straight on the Item Values page. */
+    dom.nav?.querySelectorAll('[data-page]').forEach(button => {
+      button.addEventListener('click', () => {
+        const page = button.dataset.page;
+        if (window.location.hash !== `#${page}`) window.location.hash = page;
+        else showPage(page);
+      });
     });
-    dom.keyBox?.addEventListener('keydown', event => {
-      if (event.key === 'Enter') signIn();
-    });
+    window.addEventListener('hashchange', () => showPage(pageFromHash()));
 
     dom.roleChoices?.querySelectorAll('[data-role-value]').forEach(button => {
       button.addEventListener('click', () => {
@@ -886,8 +1057,7 @@
     });
     dom.roleSave?.addEventListener('click', saveRole);
 
-    /* The chips themselves are wired as they are built, in
-     * renderBadgeChoices() - there is no markup for them until then. */
+    /* The badge chips are wired as they are built, in renderBadgeChoices(). */
     dom.badgeGive?.addEventListener('click', () => saveBadge(true));
     dom.badgeTake?.addEventListener('click', () => saveBadge(false));
 
@@ -924,28 +1094,15 @@
       });
     });
     dom.valueSave?.addEventListener('click', saveValue);
+
+    dom.adsRefresh?.addEventListener('click', loadAds);
+    dom.changesRefresh?.addEventListener('click', loadChanges);
+    dom.serverRefresh?.addEventListener('click', loadServer);
   }
 
   function render() {
-    const account = ACCOUNT ? ACCOUNT.get() : null;
-    state.account = account;
-    state.me = null;
-
-    if (!account) {
-      showLocked('Link your Wanwood account to open the admin panel.');
-      return;
-    }
-
-    /* Show the panel straight away to a name the site already knows is an
-     * owner, so the usual case does not flicker through a locked screen while
-     * the backend is asked. Anyone else waits for the answer. */
-    if (CONFIG && CONFIG.isOwner(account.name)) {
-      showDashboard(account);
-      renderPanes();
-    } else {
-      showLocked('Checking what this account is allowed to do...');
-    }
-    loadMe(account.name);
+    state.account = ACCOUNT ? ACCOUNT.get() : null;
+    renderIdentity();
   }
 
   let booted = false;
@@ -954,16 +1111,16 @@
     if (booted) return;
     if (!document.body.classList.contains('page-admin')) return;
     cacheDom();
-    if (!dom.dashboard) return;
     booted = true;
     bind();
     renderBadgeChoices();
     chooseDemand('');
     chooseTrend('');
     chooseMethod('');
-    /* Verifying or signing out in another tab flips the gate. */
-    ACCOUNT?.subscribe(render);
+    /* Verifying or signing out in another tab changes the attribution. */
+    if (ACCOUNT && typeof ACCOUNT.subscribe === 'function') ACCOUNT.subscribe(render);
     render();
+    showPage(pageFromHash());
   }
 
   if (document.readyState === 'loading') {

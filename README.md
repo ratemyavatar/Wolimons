@@ -10,21 +10,21 @@ to compile. The only thing you need on the server is Node.
 
 ## Download it (read this bit)
 
-**The site is on the `arena/019fff2c-wolimons` branch, not `main`.**
+**The site is on the `arena/01a013ce-wolimons` branch, not `main`.**
 
 `main` is old and doesn't have any of this. If you download the wrong one
 you'll get a nearly empty folder and nothing will work. So:
 
 1. Go to the repo on GitHub.
 2. Click the **branch dropdown** at the top left (it says `main`).
-3. Pick **`arena/019fff2c-wolimons`**.
+3. Pick **`arena/01a013ce-wolimons`**.
 4. Now click the green **Code** button → **Download ZIP**.
 
 Check you got the right one before going further. The ZIP is about **36 MB**
 and is called:
 
 ```
-Wolimons-arena-019fff2c-wolimons.zip
+Wolimons-arena-01a013ce-wolimons.zip
 ```
 
 If your file is tiny, you downloaded `main`. Go back and pick the branch
@@ -35,7 +35,7 @@ again.
 Right-click the ZIP → **Extract All**.
 
 Watch out for this: extracting gives you a folder called
-`Wolimons-arena-019fff2c-wolimons`, and Windows likes to put it *inside*
+`Wolimons-arena-01a013ce-wolimons`, and Windows likes to put it *inside*
 another folder with the same name. You want the one that has `index.html`
 and the `windows` folder directly inside it.
 
@@ -80,7 +80,7 @@ whatever it was set up with, so the site keeps showing the old pages.
    uninstall the services.
 2. Copy `C:\Wolimons\proxy\data\wolimons-data.json` and
    `C:\Wolimons\proxy\.env` somewhere safe. **These are your values and your
-   password, and they are the only things you can't download again.**
+   settings, and they are the only things you can't download again.**
 3. Rename the old folder to `C:\Wolimons-old` so nothing is guessing which
    one is which.
 4. Put the fresh download at `C:\Wolimons`.
@@ -96,7 +96,7 @@ Once the site looks right and your values are still there, delete
 
 </details>
 
-Also: only ever download from the `arena/019fff2c-wolimons` branch. The
+Also: only ever download from the `arena/01a013ce-wolimons` branch. The
 other branches are old and still have the old pages in them, so mixing files
 from two different downloads is what causes this in the first place.
 
@@ -114,20 +114,19 @@ Then just work down the menu:
 
 | Option | What it does |
 |---|---|
-| **1** | Sets everything up. Makes your admin password, writes the settings, opens the firewall. |
+| **1** | Sets everything up. Writes the settings, opens the firewall. |
 | **2** | Runs it in the window so you can check it works. |
 | **3** | Installs it as a service so it stays running after you log off. |
 | **4** | Puts it on my Cloudflare domain with proper HTTPS. |
 | **5** | Checks everything and tells you what's broken. |
-| **6** | Changes the admin password. |
+| **6** | About the old admin password (it's retired — nothing to change). |
 | **7** | Uninstalls the services. |
 
 **Do 1, then 3, then 4.** Option 2 is only for having a quick look.
 
-It only asks me four things:
+There is no admin password any more — the panel is open to whoever can reach
+the server. It only asks me three things:
 
-- **Admin password** — press Enter and it makes a strong one for me.
-  **Write it down when it shows it.** It doesn't show it again.
 - **Port** — press Enter for 8080.
 - **My domain** — only in option 4, like `wolimons.example.com`.
 - **Cloudflare login** — option 4 opens a browser to sign in.
@@ -177,7 +176,6 @@ usual ones:
 | Want the newest version | Option **8**, or `windows\update.bat` as administrator. Keeps your values. |
 | Values disappeared after updating | You replaced the whole folder instead of using option 8. Put the backup from `C:\WolimonsBackups\` back at `C:\Wolimons\proxy\data\wolimons-data.json` and restart. |
 | Error 521 from Cloudflare | Cloudflare doesn't forward ports. See HOSTING-WINDOWS.md §10.1. |
-| Locked out of admin, says 429 | Too many wrong passwords. Wait 15 min or restart the service. |
 
 Logs are in `C:\Wolimons\logs\wolimons.log`.
 
@@ -205,7 +203,7 @@ tradecalculator\      trade calculator
 badges\               badges
 verify\               account verification
 preferences\          site preferences
-admin\                admin panel - needs the password
+admin\                admin panel - open, no password
 
 proxy\                the server. Serves the pages AND the API.
 proxy\.env            my settings. Made by setup.bat. Never goes on GitHub.
@@ -228,8 +226,8 @@ Most of the 36 MB is `snapshots\`. The site itself is small.
 Values, demand and trend aren't from Wanwood — Wanwood only has prices and
 RAP. Value is a judgement call, so I set it myself in the admin panel.
 
-Everything starts at value 0 until I set it. Sign in at `/admin/` with the
-password setup.bat gave me.
+Everything starts at value 0 until I set it. Open `/admin/` — there is no
+sign-in any more, the panel is open.
 
 Saved values go to `proxy\data\wolimons-data.json` on the server. **That file
 is the one thing that can't be re-downloaded** — back it up. There's a
@@ -243,7 +241,7 @@ scheduled backup script.
 - Item and player data comes from Wanwood (`wanwoo.xyz`). The proxy handles
   it because Wanwood blocks browsers from calling it directly. The server
   needs internet access for pages to fill in.
-- `proxy\.env` holds my admin password and is deliberately not in the ZIP or
+- `proxy\.env` holds my settings and is deliberately not in the ZIP or
   on GitHub. setup.bat creates it.
 - Re-running setup.bat is safe. It replaces the services instead of erroring,
   and keeps a `.env.old` if it overwrites settings.

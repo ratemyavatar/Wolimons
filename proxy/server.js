@@ -578,9 +578,7 @@ server.listen(PORT, '0.0.0.0', () => {
     console.log('API only (set SERVE_STATIC=1 to also serve the site).');
   }
 
-  if (!process.env.ADMIN_KEY) {
-    console.log('No ADMIN_KEY set - the admin panel cannot be signed into.');
-  }
+  console.log('The admin panel is open - no key. Public API index: /api');
 
   if (/^(1|true|yes|on)$/i.test(String(process.env.TRUST_PROXY || ''))) {
     console.log('Trusting CF-Connecting-IP / X-Forwarded-For (behind Cloudflare or a reverse proxy).');

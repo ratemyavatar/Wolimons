@@ -5,8 +5,8 @@ rem ===========================================================================
 rem  Wolimons setup for Windows.
 rem
 rem  Everything in HOSTING-WINDOWS.md, done for you. You only get asked about
-rem  things that are genuinely yours to decide: the admin password, the port,
-rem  and your domain name.
+rem  things that are genuinely yours to decide: the port and your domain
+rem  name. The admin key is retired - the panel is open, no password.
 rem
 rem  Right-click this file and pick "Run as administrator".
 rem ===========================================================================
@@ -55,7 +55,7 @@ echo   2  Run it in this window   (test it)
 echo   3  Install as a service   (starts with Windows)
 echo   4  Put it on my Cloudflare domain  (browser or token)
 echo   5  Check that it's working
-echo   6  Change the admin password
+echo   6  About the old admin password
 echo   7  Uninstall the services
 echo   8  Update to the latest version
 echo   0  Exit
@@ -173,7 +173,7 @@ if exist "%ENVFILE%" (
   echo   %ENVFILE%
   echo.
   set "OVER="
-  set /p "OVER=  Replace them? Your password will be regenerated. (y/N): "
+  set /p "OVER=  Replace them? The identity seed will be regenerated. (y/N): "
   if /i not "!OVER!"=="y" goto menu
   copy /y "%ENVFILE%" "%ENVFILE%.old" >nul
   echo   Old settings saved as .env.old
@@ -217,12 +217,8 @@ echo.
 echo   ------------------------------------------------------------
 echo   SET UP.
 echo.
-echo   Your admin password is:
-echo.
-echo       !ADMINKEY!
-echo.
-echo   Write it down NOW. It is stored in proxy\.env on this machine
-echo   and is not shown again. Option 6 can change it later.
+echo   The admin panel has no password - /admin is open to whoever
+echo   can reach this server. Nothing to write down.
 echo   ------------------------------------------------------------
 echo.
 echo   Next: option 2 to test it, then option 3 to keep it running.
@@ -239,74 +235,20 @@ pause
 goto menu
 
 rem ===========================================================================
-rem  Ask for a password, or make a good one.
+rem  Make the identity seed. The admin key is retired - this GUID only
+rem  keeps trade-ad identity tokens stable across server restarts. It
+rem  unlocks nothing, is never asked for and is never shown.
 rem ===========================================================================
 :askkey
-echo   ADMIN PASSWORD
-echo.
-echo   This is what you type to sign in to the admin panel.
-echo.
-echo     1  Generate a strong one for me  (recommended)
-echo     2  I'll type my own
-echo.
-set "KEYMODE="
-set /p "KEYMODE=  Choose [1]: "
-if "%KEYMODE%"=="" set "KEYMODE=1"
-
-if "%KEYMODE%"=="2" goto askkey_manual
-
 rem --- A GUID with the dashes stripped: 32 hex characters, no shell -------
 rem --- metacharacters, so it can never break the .env file it lands in. ---
-for /f "delims=" %%k in ('powershell -NoProfile -Command "[guid]::NewGuid().ToString(''N'')"') do set "ADMINKEY=%%k"
+for /f "delims=" %%k in ('powershell -NoProfile -Command "[guid]::NewGuid().ToString(''N'')" ') do set "ADMINKEY=%%k"
 if "!ADMINKEY!"=="" (
-  echo   Couldn't generate a password. Choose option 2 and type one.
+  echo   Couldn't generate the identity seed. Try again.
   exit /b 1
 )
-echo.
-echo   Generated: !ADMINKEY!
 exit /b 0
 
-:askkey_manual
-echo.
-set "ADMINKEY="
-set /p "ADMINKEY=  Type your password: "
-if "!ADMINKEY!"=="" (
-  echo   Empty password - nobody would be able to sign in. Cancelled.
-  exit /b 1
-)
-
-rem --- These characters break either the .env parser or batch's own -------
-rem --- redirection when the file is written. "!" is included because -----
-rem --- this script runs with delayed expansion on, which eats it. Refuse --
-rem --- rather than write a config that silently doesn't match what was ----
-rem --- typed - that would lock you out of your own admin panel. -----------
-echo !ADMINKEY!| findstr /r "[<>|&^\"%%!]" >nul
-if not errorlevel 1 (
-  echo.
-  echo   That contains one of:  ^< ^> ^| ^& ^^ ^" %% ^^!
-  echo   Those don't survive being written to the settings file.
-  echo   Use letters, numbers and any of  - _ . @ #  instead.
-  exit /b 1
-)
-
-rem --- Short shared secrets on a public domain are the main risk here. ----
-rem --- findstr's regex has no {n,} repetition, so measure the string ------
-rem --- directly instead of writing a pattern that never matches. ----------
-set "KEYLEN=0"
-for /l %%i in (0,1,63) do (
-  if not "!ADMINKEY:~%%i,1!"=="" set /a KEYLEN=%%i+1
-)
-if !KEYLEN! LSS 12 (
-  echo.
-  echo   Warning: that's !KEYLEN! characters. Once this is on the
-  echo   internet, bots will try to guess it. The server slows them to
-  echo   10 tries per 15 minutes, but a short password is still weak.
-  echo.
-  set "SHORTOK="
-  set /p "SHORTOK=  Use it anyway? (y/N): "
-  if /i not "!SHORTOK!"=="y" exit /b 1
-)
-exit /b 0
 
 rem ===========================================================================
 rem  Write proxy\.env
@@ -319,7 +261,8 @@ echo   Writing %ENVFILE% ...
   echo # Wolimons settings for this machine.
   echo # Written by windows\setup.bat. Never committed to git.
   echo.
-  echo # The admin panel password.
+  echo # Identity-token seed. The admin key is retired - this unlocks
+  echo # nothing; it only keeps trade-ad sessions stable across restarts.
   echo ADMIN_KEY=!ADMINKEY!
   echo.
   echo # Serve the pages as well as the API, so one port does everything.
@@ -883,12 +826,7 @@ if not exist "%ENVFILE%" (
 )
 echo   [OK] Settings file exists
 
-findstr /b /i /c:"ADMIN_KEY=" "%ENVFILE%" >nul 2>&1
-if errorlevel 1 (
-  echo   [X] No admin password set - the panel can't be signed in to
-) else (
-  echo   [OK] Admin password set
-)
+echo   [--] Admin panel: open - no password (the admin key is retired)
 
 call :readport
 echo   [--] Port !SITEPORT!
@@ -953,13 +891,20 @@ pause
 goto menu
 
 rem ===========================================================================
-rem  6. Change the admin password
+rem  6. About the old admin password
 rem ===========================================================================
 :changekey
 cls
 echo.
-echo   CHANGE THE ADMIN PASSWORD
-echo   -------------------------
+echo   THE OLD ADMIN PASSWORD
+echo   ----------------------
+echo.
+echo   The admin key is retired - /admin is open and no password is
+echo   checked. There is nothing to change.
+echo.
+echo   This option only rotates the identity seed that keeps trade-ad
+echo   sessions stable across restarts. Rotating it signs every linked
+echo   browser out of posting trade ads; they verify again on /verify.
 echo.
 if not exist "%ENVFILE%" (
   echo   Not set up yet - run option 1 first.
@@ -992,11 +937,8 @@ for /f "usebackq delims=" %%l in ("%ENVFILE%") do (
 move /y "%TMPENV%" "%ENVFILE%" >nul
 
 echo.
-echo   Changed. Your new password is:
-echo.
-echo       !ADMINKEY!
-echo.
-echo   Write it down now.
+echo   Done. The seed was rotated. It is not shown and never needs to
+echo   be written down.
 echo.
 
 sc query Wolimons >nul 2>&1

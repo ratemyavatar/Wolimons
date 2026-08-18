@@ -13,12 +13,12 @@ Then work down the menu:
 
 | | Does |
 |---|---|
-| **1** | Checks Node, makes your password, writes the settings, opens the firewall |
+| **1** | Checks Node, writes the settings, opens the firewall |
 | **2** | Runs it in the window so you can see it work |
 | **3** | Installs it as a service so it survives logging off and reboots |
 | **4** | Puts it on your Cloudflare domain with real HTTPS |
 | **5** | Tells you what is and isn't working |
-| **6** | Changes the admin password |
+| **6** | About the old admin password (it's retired — nothing to change) |
 | **7** | Removes the services again |
 | **8** | Updates to the latest version |
 
@@ -28,7 +28,7 @@ Do **1**, then **3**, then **4**. Option 2 is just for a quick look.
 
 Option **8**, or just double-click `update.bat`. One step, about ten seconds.
 It backs up your values first, then replaces only the code — `proxy\data\`
-(your values, history and roles) and `proxy\.env` (your password) are never
+(your values, history and roles) and `proxy\.env` (your settings) are never
 touched, because neither is in the download.
 
 You do **not** have to run it as administrator. The only part that needs
@@ -79,22 +79,23 @@ powershell -ExecutionPolicy Bypass -File .\get-update.ps1
 run it from inside the `windows` folder:
 
 ```powershell
-$u='https://raw.githubusercontent.com/ratemyavatar/Wolimons/arena/019fff2c-wolimons/windows/get-update.ps1'
+$u='https://raw.githubusercontent.com/ratemyavatar/Wolimons/arena/01a013ce-wolimons/windows/get-update.ps1'
 [IO.File]::WriteAllText("$pwd\get-update.ps1",((iwr $u -UseBasicParsing).Content))
 powershell -ExecutionPolicy Bypass -File .\get-update.ps1
 ```
 
 ## What it asks you
 
-Only four things, and three have sensible defaults:
+Only three things, and two have sensible defaults:
 
-- **Admin password** — press Enter and it generates a strong one. Write it
-  down when it is shown; it is not shown again.
 - **Port** — press Enter for 8080.
 - **Your domain** — only in option 4, e.g. `wolimons.example.com`.
 - **Cloudflare login** — option 4 opens a browser window. This replaces
   copying a very long token onto the VPS, which is miserable over a phone
   RDP client.
+
+There is no admin password any more — the panel is open to whoever can reach
+the server, and the key the old versions asked about is retired.
 
 Everything else — downloading NSSM and cloudflared, the firewall rule, the
 services, the tunnel config, `TRUST_PROXY`, `ALLOWED_ORIGINS` — is automatic.

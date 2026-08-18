@@ -15,10 +15,11 @@ services:
       # Optional: restrict who may call the proxy. Comma-separated, no spaces.
       # - key: ALLOWED_ORIGINS
       #   value: https://yourname.github.io,http://localhost:8080
-      # The password for the admin panel. Set it in the Render dashboard, not
-      # here - anything written in this file ends up public on GitHub.
-      - key: ADMIN_KEY
-        sync: false
+      # The admin panel has no key - /admin is open to whoever can reach the
+      # server. An old ADMIN_KEY is read only as seed for identity-token
+      # signing; it unlocks nothing and can be left unset.
+      # - key: ADMIN_KEY
+      #   sync: false
       # A GitHub token with write access to this repo. Without it the admin
       # panel is read-only, because saving means committing the data file.
       - key: GITHUB_TOKEN

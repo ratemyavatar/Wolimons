@@ -1,0 +1,177 @@
+/*
+ * Wolimons site configuration.
+ *
+ * This file must load BEFORE the other scripts on the page.
+ *
+ * ---------------------------------------------------------------------------
+ * API_BASE - where item/player data is fetched from.
+ * ---------------------------------------------------------------------------
+ * Wanwood blocks automated/cross-origin requests, so requests have to go
+ * through a proxy that adds browser-like headers and CORS headers.
+ *
+ * Put your Render proxy URL here (no trailing slash), for example:
+ *
+ *     apiBase: 'https://wolimons-proxy.onrender.com',
+ *
+ * The proxy is expected to forward every path straight through to
+ * https://wanwoo.xyz - so the site requesting
+ *     <apiBase>/apisite/catalog/v1/search/items?...
+ * should reach
+ *     https://wanwoo.xyz/apisite/catalog/v1/search/items?...
+ *
+ * A ready-to-deploy proxy that does exactly this lives in /proxy of this repo.
+ *
+ * You can also override the value at runtime without editing this file, which
+ * is handy for testing a new proxy. Run this in the browser console:
+ *
+ *     localStorage.setItem('wolimons_api_base', 'https://your-proxy.onrender.com')
+ *     location.reload()
+ *
+ * ...and to go back to the built-in value:
+ *
+ *     localStorage.removeItem('wolimons_api_base')
+ */
+(() => {
+  'use strict';
+
+  const DEFAULT_API_BASE = 'https://wolimons.onrender.com';
+
+  // The real Wanwood site. Used for outbound links the user clicks
+  // (item pages etc.) - these should never point at the proxy.
+  const SITE_BASE = 'https://wanwoo.xyz';
+
+  /*
+   * Certified Wanwoodian used to be a list of names here.
+   *
+   * It is not any more. It is one of the badges the site owner hands out in
+   * the admin panel, stored with the values and the roles, and read back by
+   * assets/js/granted-badges.js. Awarding it is now something the owner does
+   * on the site, in a few seconds, instead of a code change and a redeploy.
+   *
+   * Nothing replaced it here on purpose: a second list in the code would only
+   * be another thing to keep in step with the real one.
+   */
+
+  /*
+   * Limited holder accounts - kept off the player rankings.
+   *
+   * When someone is terminated their limiteds are moved onto a holding
+   * account rather than destroyed, so these accounts accumulate items they
+   * never traded for. Ranking them against real players is misleading - the
+   * RAP is not a record of anything anyone did - so they are left out of the
+   * leaderboard, the player list and the Lucky Cat draw.
+   *
+   * They are not hidden: the profile still opens from a direct link and still
+   * reads live from Wanwood. It just says what the account is, and blurs the
+   * avatar so it does not read as somebody's profile.
+   *
+   * Matched case-insensitively against the Wanwood username, same as the two
+   * lists above. There is no endpoint that flags these - the backend has no
+   * concept of a holding account - so the list is kept here by hand.
+   *
+   * CASE DOES NOT MATTER. Write the name once, in whatever case reads best.
+   * Both the stored list and the name being checked are lowercased before
+   * they are compared, so "baddecisions", "BadDecisions" and "BADDECISIONS"
+   * are all the same entry - including when Wanwood itself reports the name
+   * with different capitals than what is written here. Surrounding spaces are
+   * trimmed too. Do not add case variants of a name: they would all collapse
+   * onto the single entry below and achieve nothing.
+   *
+   * What DOES matter is the spelling, for the name list. A rename on Wanwood
+   * would leave the new name unlisted - which is why the IDs below exist too.
+   */
+  const HOLDING_ACCOUNTS = [
+    'BadDecisions',
+  ];
+
+  /*
+   * The same accounts by Wanwood user ID.
+   *
+   * IDs are the reliable half: they never change, so a rename cannot put the
+   * account back on the leaderboard. The name list above is kept as well
+   * because some rows are matched before their ID is known.
+   *
+   * BadDecisions is 12, confirmed against the live API:
+   *   /apisite/api/users/get-by-username?username=baddecisions -> Id 12
+   *   /apisite/users/v1/users/12 -> "BadDecisions", created 2026-07-24
+   */
+  const HOLDING_ACCOUNT_IDS = [
+    12,
+  ];
+
+  /*
+   * Site owners - who the admin panel opens for.
+   *
+   * Same idea as the list above, and the same limits: it is a list of names
+   * kept by hand, matched case-insensitively against the linked Wanwood
+   * username. Add a name to grant access; nobody else gets in.
+   *
+   * IMPORTANT - what this is and is not:
+   * this is a UI gate, not a security boundary. Wolimons is a static site
+   * with no server of its own, so "being an owner" is decided in the
+   * visitor's own browser and anyone who wants to can edit around it. It
+   * keeps the panel out of the way of ordinary visitors; it cannot protect
+   * anything, and nothing sensitive should ever be put behind it. Real
+   * permissions need a backend that checks them, and there isn't one.
+   */
+  const OWNERS = [
+    'Nun',
+  ];
+
+  /*
+   * Where the API actually is, in order of precedence:
+   *
+   *   1. localStorage 'wolimons_api_base'  - a manual override for testing.
+   *   2. window.WOLIMONS_API_BASE          - set by the server when the site
+   *                                          is self-hosted (see /proxy). The
+   *                                          API is then on the same origin as
+   *                                          the page, whatever address was
+   *                                          used to reach it, so it cannot be
+   *                                          written down here in advance.
+   *   3. DEFAULT_API_BASE                  - the hosted Render proxy.
+   */
+  let apiBase = DEFAULT_API_BASE;
+  if (typeof window.WOLIMONS_API_BASE === 'string' && window.WOLIMONS_API_BASE) {
+    apiBase = window.WOLIMONS_API_BASE;
+  }
+  try {
+    const override = window.localStorage.getItem('wolimons_api_base');
+    if (override) apiBase = override;
+  } catch (error) {
+    /* localStorage can be unavailable in private mode - ignore. */
+  }
+
+  const owners = new Set(
+    OWNERS.map(name => String(name).trim().toLowerCase()).filter(Boolean),
+  );
+
+  const holding = new Set(
+    HOLDING_ACCOUNTS.map(name => String(name).trim().toLowerCase()).filter(Boolean),
+  );
+
+  const holdingIds = new Set(
+    HOLDING_ACCOUNT_IDS.map(id => Number(id)).filter(id => Number.isSafeInteger(id) && id > 0),
+  );
+
+  window.WOLIMONS_CONFIG = {
+    apiBase: String(apiBase).replace(/\/+$/, ''),
+    siteBase: SITE_BASE.replace(/\/+$/, ''),
+    owners: OWNERS,
+    /* True only for a name on the owners list. See the warning above it. */
+    isOwner(name) {
+      return owners.has(String(name || '').trim().toLowerCase());
+    },
+    holdingAccounts: HOLDING_ACCOUNTS,
+    holdingAccountIds: HOLDING_ACCOUNT_IDS,
+    /* True for a holding account's Wanwood user ID. Survives a rename, so
+     * this is the check to prefer wherever the id is to hand. */
+    isHoldingAccountId(id) {
+      return holdingIds.has(Number(id));
+    },
+    /* True for a terminated-limiteds holding account. Keeps them off the
+     * rankings and puts the notice on their profile. */
+    isHoldingAccount(name) {
+      return holding.has(String(name || '').trim().toLowerCase());
+    },
+  };
+})();

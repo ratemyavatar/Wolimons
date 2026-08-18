@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "updatedAt": 0,
+  "roles": {
+    "nun": {
+      "name": "Nun",
+      "role": "owner",
+      "grantedBy": "Nun",
+      "grantedAt": 0
+    },
+    "luke": {
+      "name": "luke",
+      "role": "value_manager",
+      "grantedBy": "Nun",
+      "grantedAt": 0
+    },
+    "goob": {
+      "name": "goob",
+      "role": "staff",
+      "grantedBy": "Nun",
+      "grantedAt": 0
+    },
+    "x_x": {
+      "name": "x_x",
+      "role": "staff",
+      "grantedBy": "Nun",
+      "grantedAt": 0
+    }
+  },
+  "badges": {
+    "nun": {
+      "name": "Nun",
+      "badges": [
+        "certified-wanwoodian"
+      ],
+      "grantedBy": "Nun",
+      "grantedAt": 0
+    }
+  },
+  "values": {}
+}

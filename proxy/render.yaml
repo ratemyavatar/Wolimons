@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: wolimons-api-proxy
+    runtime: node
+    plan: free
+    rootDir: proxy
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /healthz
+    envVars:
+      - key: UPSTREAM_ORIGIN
+        value: https://wanwoo.xyz
+      - key: CACHE_TTL_MS
+        value: "60000"
+      # Optional: restrict who may call the proxy. Comma-separated, no spaces.
+      # - key: ALLOWED_ORIGINS
+      #   value: https://yourname.github.io,http://localhost:8080
+      # The password for the admin panel. Set it in the Render dashboard, not
+      # here - anything written in this file ends up public on GitHub.
+      - key: ADMIN_KEY
+        sync: false
+      # A GitHub token with write access to this repo. Without it the admin
+      # panel is read-only, because saving means committing the data file.
+      - key: GITHUB_TOKEN
+        sync: false
+      - key: GITHUB_REPO
+        value: ratemyavatar/Wolimons
+      - key: GITHUB_BRANCH
+        value: main

@@ -1,5 +1,5 @@
 @echo off
-setlocal EnableExtensions
+setlocal EnableExtensions EnableDelayedExpansion
 
 rem ===========================================================================
 rem  Wolimons - git pull.cmd
@@ -14,6 +14,8 @@ rem ===========================================================================
 
 set "SITE=C:\Users\Administrator\Documents\wolimons"
 set "BRANCH=arena/01a013ce-wolimons"
+set "REPO_URL=https://github.com/ratemyavatar/Wolimons.git"
+set "REPO_NAME=origin"
 
 title Wolimons - git pull
 
@@ -32,21 +34,56 @@ if errorlevel 1 (
   exit /b 1
 )
 
-rem --- Is the folder a clone? ------------------------------------------------
+rem --- Is the folder a clone? If not, adopt it as one. --------------------
 if not exist "%SITE%\.git" (
-  echo   %SITE% is not a git clone, so there is nothing to pull.
+  echo   %SITE% is not a git clone yet, so this will adopt it as one.
   echo.
-  echo   One-time setup - run this once in a command prompt:
+  echo   Your settings and your saved values are NOT in git - proxy\.env
+  echo   and proxy\data\ stay exactly as they are. Only the site's code
+  echo   files are synced, from the ZIP copy to the branch copy. If you
+  echo   ever hand-edited code files in this folder, those edits would be
+  echo   replaced by the branch's versions.
   echo.
-  echo       git clone -b %BRANCH% https://github.com/ratemyavatar/Wolimons.git "%SITE%"
+  set "ADOPT="
+  set /p "ADOPT=  Adopt this folder as a git clone? (y/N): "
+  if /i not "!ADOPT!"=="y" (
+    echo   Cancelled. Nothing was changed.
+    echo.
+    pause
+    exit /b 1
+  )
+
+  pushd "%SITE%"
+  git init
+  if errorlevel 1 goto adoptfailed
+  git remote add %REPO_NAME% %REPO_URL% >nul 2>&1
+  echo   Fetching from GitHub...
+  git fetch origin
+  if errorlevel 1 goto adoptfailed
+  git reset --hard "origin/%BRANCH%"
+  if errorlevel 1 goto adoptfailed
+  git branch -M "%BRANCH%"
+  git branch --set-upstream-to="origin/%BRANCH%" >nul 2>&1
+  popd
   echo.
-  echo   If the site on this machine came from a ZIP download instead of a
-  echo   clone, keep using windows\update.bat - it does the same job without
-  echo   git. See windows\README.md.
+  echo   Adopted. From now on this folder updates with a plain pull.
   echo.
-  pause
-  exit /b 1
+  goto do_pull
 )
+
+goto do_pull
+
+:adoptfailed
+popd
+echo.
+echo   Adopting the folder failed. Nothing important was changed - the
+echo   site keeps running off the files it already has. If the fetch
+echo   failed, check the VPS can reach GitHub, then try again.
+echo.
+pause
+exit /b 1
+
+:do_pull
 
 cd /d "%SITE%"
 if errorlevel 1 (

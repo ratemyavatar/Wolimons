@@ -947,6 +947,110 @@ async function handle(req, res, url, readBody) {
     }
 
     /*
+     * Comments under profiles and trade ads.
+     *
+     * GET is public - the section is visible to everyone. Posting and
+     * deleting your own use the same identity token as trade ads, so a
+     * comment is always attached to an account the poster proved they
+     * control. Moderation is a ranked write like the rest of the panel.
+     */
+    /* The newest comments across every page, for the panel's moderation
+     * list. Comments are public anyway - this just saves asking per page. */
+    if (req.method === 'GET' && route === '/api/comments/all') {
+      const comments = await store.allComments({
+        limit: url.searchParams.get('limit') || 200,
+      });
+      send(res, 200, { ok: true, comments });
+      return true;
+    }
+
+    if (req.method === 'GET' && route === '/api/comments') {
+      const target = String(url.searchParams.get('target') || '');
+      if (!/^(player|ad):.+/.test(target)) {
+        send(res, 400, { ok: false, error: 'A comment target is required.' });
+        return true;
+      }
+      const comments = await store.commentsFor(target, {
+        limit: url.searchParams.get('limit') || 200,
+      });
+      send(res, 200, { ok: true, target, comments });
+      return true;
+    }
+
+    if (req.method === 'POST' && route === '/api/comments/post') {
+      const payload = readJson(await readBody(req));
+      const userId = readIdentity(bearer(req));
+      if (!userId) {
+        send(res, 401, {
+          ok: false,
+          error: 'Verify your Wanwood account again before commenting.',
+        });
+        return true;
+      }
+
+      /* The name is read back from Wanwood, not taken from the body - the
+       * section must say who really posted. */
+      const name = await verifiedName(userId);
+      if (!name) {
+        send(res, 502, {
+          ok: false,
+          error: 'Wanwood could not be reached to confirm the account. Try again.',
+        });
+        return true;
+      }
+
+      try {
+        const comment = await store.addComment({
+          target: payload.target,
+          userId,
+          name,
+          text: payload.text,
+        });
+        send(res, 200, { ok: true, comment });
+      } catch (error) {
+        send(res, 400, { ok: false, error: error.message });
+      }
+      return true;
+    }
+
+    if (req.method === 'POST' && route === '/api/comments/delete') {
+      const payload = readJson(await readBody(req));
+      const userId = readIdentity(bearer(req));
+      if (!userId) {
+        send(res, 401, {
+          ok: false,
+          error: 'Verify your Wanwood account again before deleting.',
+        });
+        return true;
+      }
+
+      try {
+        await store.removeComment({ id: payload.id, userId });
+        send(res, 200, { ok: true, id: String(payload.id) });
+      } catch (error) {
+        send(res, 400, { ok: false, error: error.message });
+      }
+      return true;
+    }
+
+    if (req.method === 'POST' && route === '/api/comments/moderate') {
+      const payload = readJson(await readBody(req));
+      const auth = await authorize(req, payload, { need: 'staff' });
+      if (!auth.ok) {
+        send(res, auth.status, { ok: false, error: auth.error });
+        return true;
+      }
+
+      try {
+        await store.moderateComment({ id: payload.id, removedBy: auth.name });
+        send(res, 200, { ok: true, id: String(payload.id) });
+      } catch (error) {
+        send(res, 400, { ok: false, error: error.message });
+      }
+      return true;
+    }
+
+    /*
      * Inventory share cards. The profile page draws the inventory to a canvas
      * and posts the JPEG here; we keep it under cards/ (which the static
      * server hands out like any other file) and answer with its path, so the

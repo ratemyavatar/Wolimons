@@ -128,6 +128,15 @@ const VALUATION_METHODS = ['proof', 'rap'];
  * Capped so one entry cannot bloat the file that is committed on every write. */
 const NOTE_LIMIT = 500;
 
+/* Comments under player profiles and trade ads. Same idea as the change log:
+ * a capped flat list, newest first, trimmed from the bottom. Every comment
+ * carries the commenter's Wanwood id and the name at the time of posting, so
+ * the section renders without looking anybody up. */
+const COMMENT_TEXT_LIMIT = 500;
+const COMMENT_LIMIT = Number(process.env.COMMENT_LIMIT || 5000);
+/* One person can only say so much on one page. */
+const COMMENTS_PER_USER_PER_TARGET = 10;
+
 /*
  * Badges the owner hands out by hand.
  *
@@ -178,6 +187,7 @@ const EMPTY = {
   ads: [],
   badges: {},
   announcement: null,
+  comments: [],
 };
 
 let data = structuredClone(EMPTY);
@@ -423,6 +433,38 @@ function normalize(raw) {
         updatedAt: Number(raw.announcement.updatedAt) || 0,
       };
     }
+  }
+
+  /*
+   * Comments. Targets are namespaced strings - "player:<userId>" for profile
+   * pages and "ad:<adId>" for trade ad detail pages. Anything malformed is
+   * dropped rather than served.
+   */
+  if (Array.isArray(raw.comments)) {
+    out.comments = raw.comments
+      .map(entry => {
+        if (!entry || typeof entry !== 'object') return null;
+        const target = String(entry.target || '').slice(0, 90);
+        if (!/^(player|ad):.+/.test(target)) return null;
+        const userId = Number(entry.userId);
+        if (!Number.isSafeInteger(userId) || userId <= 0) return null;
+        const text = String(entry.text || '').trim().slice(0, COMMENT_TEXT_LIMIT);
+        if (!text) return null;
+        const id = String(entry.id || '').slice(0, 64);
+        const at = Number(entry.at) || 0;
+        if (!id || !at) return null;
+        return {
+          id,
+          target,
+          userId,
+          name: String(entry.name || '').slice(0, 60),
+          text,
+          at,
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => b.at - a.at)
+      .slice(0, COMMENT_LIMIT);
   }
 
   return out;
@@ -964,6 +1006,104 @@ async function moderateAd({ id, removedBy }) {
   return ad;
 }
 
+/* ---------------------------------------------------------------------- */
+/* Comments                                                                */
+/* ---------------------------------------------------------------------- */
+
+/*
+ * Every comment on one target, newest first. The caller has already decided
+ * the target is a real page; this only filters and clones.
+ */
+async function commentsFor(target, { limit = 200 } = {}) {
+  await load();
+  const wanted = String(target || '');
+  const cap = Math.min(Math.max(Number(limit) || 200, 1), 500);
+  return (data.comments || [])
+    .filter(comment => comment.target === wanted)
+    .slice(0, cap)
+    .map(comment => ({ ...comment }));
+}
+
+/*
+ * The newest comments across every target, for the panel's moderation list.
+ */
+async function allComments({ limit = 200 } = {}) {
+  await load();
+  const cap = Math.min(Math.max(Number(limit) || 200, 1), 500);
+  return (data.comments || []).slice(0, cap).map(comment => ({ ...comment }));
+}
+
+/*
+ * Post a comment. The caller has already proved which account is posting
+ * (identity token, checked in api.js); the checks here are about the shape
+ * of the comment and about one person not filling a page with themselves.
+ */
+async function addComment({ target, userId, name, text }) {
+  const cleanTarget = String(target || '').slice(0, 90);
+  if (!/^(player|ad):.+/.test(cleanTarget)) {
+    throw new Error('Comments can only sit on player profiles and trade ads.');
+  }
+  const cleanText = String(text || '').trim().slice(0, COMMENT_TEXT_LIMIT);
+  if (!cleanText) throw new Error('Write something first.');
+
+  const id = Number(userId);
+  if (!Number.isSafeInteger(id) || id <= 0) throw new Error('A commenter is required.');
+
+  await load();
+  const mine = (data.comments || [])
+    .filter(comment => comment.target === cleanTarget && comment.userId === id);
+  if (mine.length >= COMMENTS_PER_USER_PER_TARGET) {
+    throw new Error(`You already have ${COMMENTS_PER_USER_PER_TARGET} comments here.`);
+  }
+
+  const comment = {
+    id: `${id}-${Date.now()}`,
+    target: cleanTarget,
+    userId: id,
+    name: String(name || '').slice(0, 60),
+    text: cleanText,
+    at: Date.now(),
+  };
+
+  await mutate(`Add comment on ${cleanTarget}`, current => {
+    current.comments = [comment, ...(current.comments || [])].slice(0, COMMENT_LIMIT);
+  });
+  return { ...comment };
+}
+
+/* Delete your own comment. The id of the asker has to match the author's. */
+async function removeComment({ id, userId }) {
+  const wanted = String(id || '');
+  const asker = Number(userId) || 0;
+  if (!wanted) throw new Error('Which comment?');
+
+  await load();
+  const comment = (data.comments || []).find(row => row.id === wanted);
+  if (!comment) throw new Error('That comment is already gone.');
+  if (comment.userId !== asker) throw new Error('That is not your comment.');
+
+  await mutate(`Delete comment ${wanted}`, current => {
+    current.comments = (current.comments || []).filter(row => row.id !== wanted);
+  });
+  return comment;
+}
+
+/* Take any comment down, from the panel. Same shape as ad moderation. */
+async function moderateComment({ id, removedBy }) {
+  const wanted = String(id || '');
+  if (!wanted) throw new Error('Which comment?');
+
+  await load();
+  const comment = (data.comments || []).find(row => row.id === wanted);
+  if (!comment) throw new Error('That comment is already gone.');
+
+  const by = String(removedBy || '').trim() || 'Admin panel';
+  await mutate(`Moderate comment ${wanted} (${by})`, current => {
+    current.comments = (current.comments || []).filter(row => row.id !== wanted);
+  });
+  return comment;
+}
+
 /*
  * The change log, newest first.
  *
@@ -1002,6 +1142,11 @@ module.exports = {
   addAd,
   removeAd,
   moderateAd,
+  commentsFor,
+  allComments,
+  addComment,
+  removeComment,
+  moderateComment,
   AD_LIMIT,
   ADS_PER_USER,
   CHANGE_FIELDS,

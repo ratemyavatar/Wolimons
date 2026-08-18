@@ -569,6 +569,16 @@
      * the page. The Rank field fills itself in when the answer arrives. */
     loadRank(userId);
 
+    /* Comments are independent of the inventory; mount them as soon as the
+     * player id is known so they do not wait on the collectibles crawl. */
+    if (window.WolimonsComments) {
+      window.WolimonsComments.mount({
+        target: `player:${userId}`,
+        listId: 'player_comments_list',
+        boxId: 'player_comments_box',
+      });
+    }
+
     /* --- inventory ------------------------------------------------- */
 
     /* getCollectiblesSummary() is a single page but is the only thing that

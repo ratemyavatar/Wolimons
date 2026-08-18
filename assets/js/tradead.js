@@ -246,6 +246,16 @@
       return;
     }
 
+    /* Comments are independent of the item lookups; mount them as soon as
+     * the ad id is known. */
+    if (window.WolimonsComments) {
+      window.WolimonsComments.mount({
+        target: `ad:${ad.id}`,
+        listId: 'tradead_comments_list',
+        boxId: 'tradead_comments_box',
+      });
+    }
+
     /* Draw once with what the server sent, then again once names, thumbnails
      * and RAP have come back - the same two-pass render the board does. */
     render(ad);

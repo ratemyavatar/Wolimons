@@ -58,10 +58,11 @@
     { id: 'roles', label: 'Staff Ranks', section: 'Editing', need: 'grant' },
     { id: 'badges', label: 'Player Badges', section: 'Editing', need: 'grant' },
     { id: 'ads', label: 'Trade Ads', section: 'Moderation', need: 'role' },
+    { id: 'comments', label: 'Comments', section: 'Moderation', need: 'role' },
     { id: 'changes', label: 'Change Log', section: 'Moderation', need: 'role' },
+    { id: 'announcement', label: 'Announcement', section: 'Site', need: 'grant' },
     { id: 'api', label: 'Public API', section: 'Site', need: 'role' },
     { id: 'server', label: 'Server', section: 'Site', need: 'role' },
-    { id: 'announcement', label: 'Announcement', section: 'Site', need: 'grant' },
   ];
 
   /* The public API's own table, for the Public API page. Kept in step with
@@ -264,6 +265,10 @@
 
     dom.serverRefresh = document.getElementById('admin_server_refresh');
 
+    dom.commentsList = document.getElementById('admin_comments_list');
+    dom.commentsRefresh = document.getElementById('admin_comments_refresh');
+    dom.commentsNotice = document.getElementById('admin_comments_notice');
+
     dom.announcementText = document.getElementById('admin_announcement_text');
     dom.announcementLink = document.getElementById('admin_announcement_link');
     dom.announcementSave = document.getElementById('admin_announcement_save');
@@ -460,6 +465,7 @@
     if (known === 'api' && allowed && !state.loaded.has('api')) renderApiPage();
     if (known === 'server' && allowed) loadServer();
     if (known === 'announcement' && allowed) loadAnnouncement();
+    if (known === 'comments' && allowed) loadCommentsAdmin();
 
     window.scrollTo({ top: 0 });
   }
@@ -1685,6 +1691,85 @@
   }
 
   /* ------------------------------------------------------------------ */
+  /* Comments moderation                                                 */
+  /* ------------------------------------------------------------------ */
+
+  /* One row of the moderation list: where the comment lives, who wrote it,
+   * what it says, and the button that takes it down. */
+  function commentAdminRow(comment) {
+    const row = el('div', 'trade_ad_picker_row');
+
+    const body = el('div', 'flex-grow-1');
+    const head = el('div', 'd-flex align-items-center flex-wrap');
+
+    const where = el('a', 'small mr-2', comment.target.startsWith('ad:')
+      ? `Ad ${comment.target.slice(3)}`
+      : `Player ${comment.target.slice(7)}`);
+    where.href = comment.target.startsWith('ad:')
+      ? `/tradead/?id=${encodeURIComponent(comment.target.slice(3))}`
+      : `/player/?id=${comment.target.slice(7)}`;
+    where.target = '_blank';
+    where.rel = 'noopener';
+    where.style.color = '#7ab8f5';
+    head.appendChild(where);
+
+    const who = el('span', 'small mr-2', comment.name || `User ${comment.userId}`);
+    who.style.color = '#e9ecef';
+    who.style.fontWeight = '600';
+    head.appendChild(who);
+
+    const when = el('span', 'small', ago(comment.at));
+    when.style.color = '#7a8288';
+    head.appendChild(when);
+    body.appendChild(head);
+
+    const text = el('div', 'small mt-1 text-truncate', comment.text);
+    text.style.color = '#c3c8cd';
+    text.title = comment.text;
+    body.appendChild(text);
+    row.appendChild(body);
+
+    const remove = el('button', 'btn btn-flat-dark-gray-sm rounded-pill my-1', 'Remove');
+    remove.type = 'button';
+    remove.addEventListener('click', async () => {
+      remove.disabled = true;
+      remove.textContent = 'Removing...';
+      try {
+        await apiCall('/api/comments/moderate', {
+          method: 'POST',
+          body: JSON.stringify({ id: comment.id, name: actorName() }),
+        });
+        loadCommentsAdmin();
+      } catch (error) {
+        notice(dom.commentsNotice, error.message, 'bad');
+        remove.disabled = false;
+        remove.textContent = 'Remove';
+      }
+    });
+    row.appendChild(remove);
+    return row;
+  }
+
+  async function loadCommentsAdmin() {
+    if (!dom.commentsList) return;
+    try {
+      const payload = await apiCall('/api/comments/all?limit=200');
+      const comments = Array.isArray(payload.comments) ? payload.comments : [];
+      dom.commentsList.replaceChildren();
+      if (!comments.length) {
+        emptyRow(dom.commentsList, 'Nobody has commented anywhere yet.');
+        notice(dom.commentsNotice, '');
+        return;
+      }
+      comments.forEach(comment => dom.commentsList.appendChild(commentAdminRow(comment)));
+      notice(dom.commentsNotice, `${comments.length} newest comment${comments.length === 1 ? '' : 's'}, across every page.`);
+    } catch (error) {
+      emptyRow(dom.commentsList, 'The comment list could not be loaded.');
+      notice(dom.commentsNotice, error.message, 'bad');
+    }
+  }
+
+  /* ------------------------------------------------------------------ */
   /* Item picker - the trade ad composer's modal                         */
   /* ------------------------------------------------------------------ */
 
@@ -1836,6 +1921,7 @@
 
     dom.announcementSave?.addEventListener('click', () => saveAnnouncement(false));
     dom.announcementClear?.addEventListener('click', () => saveAnnouncement(true));
+    dom.commentsRefresh?.addEventListener('click', () => { if (hasRole()) loadCommentsAdmin(); });
   }
 
   function render() {

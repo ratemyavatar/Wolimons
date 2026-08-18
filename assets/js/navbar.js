@@ -604,8 +604,14 @@
         banner.textContent = text;
       }
 
-      /* Above the navbar, whatever else the page starts with. */
-      document.body.insertBefore(banner, document.body.firstChild);
+      /* Below the navbar: insert right after the nav element so the banner
+       * reads as the first thing under the menu, not above it. */
+      const nav = document.querySelector('nav.navbar') || document.querySelector('nav');
+      if (nav && nav.parentNode) {
+        nav.parentNode.insertBefore(banner, nav.nextSibling);
+      } else {
+        document.body.insertBefore(banner, document.body.firstChild);
+      }
     } catch (error) {
       /* A banner is never worth breaking a page over. */
     }

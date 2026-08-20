@@ -54,6 +54,7 @@
    * means any rank at all, 'value' the value team and up, 'grant' owners. */
   const PAGES = [
     { id: 'dashboard', label: 'Dashboard', section: 'Overview', need: 'role' },
+    { id: 'users', label: 'Look Up Player', section: 'Overview', need: 'role' },
     { id: 'values', label: 'Item Values', section: 'Editing', need: 'value' },
     { id: 'roles', label: 'Staff Ranks', section: 'Editing', need: 'grant' },
     { id: 'badges', label: 'Player Badges', section: 'Editing', need: 'grant' },
@@ -62,7 +63,9 @@
     { id: 'changes', label: 'Change Log', section: 'Moderation', need: 'role' },
     { id: 'announcement', label: 'Announcement', section: 'Site', need: 'grant' },
     { id: 'api', label: 'Public API', section: 'Site', need: 'role' },
-    { id: 'server', label: 'Server', section: 'Site', need: 'role' },
+    /* Server internals are the website owner's alone, and the entry is not
+     * merely locked for everyone else - it is not in the sidebar at all. */
+    { id: 'server', label: 'Server', section: 'Site', need: 'website', hidden: true },
   ];
 
   /* The public API's own table, for the Public API page. Kept in step with
@@ -242,6 +245,7 @@
 
     dom.roleName = document.getElementById('admin_role_name');
     dom.roleChoices = document.getElementById('admin_role_choices');
+    dom.roleChoiceWebsite = document.getElementById('admin_role_choice_website');
     dom.roleSave = document.getElementById('admin_role_save');
     dom.rolesNotice = document.getElementById('admin_roles_notice');
     dom.rolesList = document.getElementById('admin_roles_list');
@@ -265,6 +269,25 @@
 
     dom.serverRefresh = document.getElementById('admin_server_refresh');
 
+    /* Look Up Player */
+    dom.lookupQuery = document.getElementById('admin_lookup_query');
+    dom.lookupSearch = document.getElementById('admin_lookup_search');
+    dom.lookupNotice = document.getElementById('admin_lookup_notice');
+    dom.lookupResult = document.getElementById('admin_lookup_result');
+    dom.lookupAvatar = document.getElementById('admin_lookup_avatar');
+    dom.lookupName = document.getElementById('admin_lookup_name');
+    dom.lookupId = document.getElementById('admin_lookup_id');
+    dom.lookupRole = document.getElementById('admin_lookup_role');
+    dom.lookupJoined = document.getElementById('admin_lookup_joined');
+    dom.lookupBadges = document.getElementById('admin_lookup_badges');
+    dom.lookupLinks = document.getElementById('admin_lookup_links');
+    dom.lookupInventory = document.getElementById('admin_lookup_inventory');
+    dom.lookupDescription = document.getElementById('admin_lookup_description');
+    dom.lookupAdCount = document.getElementById('admin_lookup_ad_count');
+    dom.lookupAds = document.getElementById('admin_lookup_ads');
+    dom.lookupCommentsBy = document.getElementById('admin_lookup_comments_by');
+    dom.lookupCommentsOn = document.getElementById('admin_lookup_comments_on');
+
     dom.commentsList = document.getElementById('admin_comments_list');
     dom.commentsRefresh = document.getElementById('admin_comments_refresh');
     dom.commentsNotice = document.getElementById('admin_comments_notice');
@@ -287,8 +310,10 @@
   /* Access - the roster is the door                                     */
   /* ------------------------------------------------------------------ */
 
-  const canGrant = () => Boolean(state.me && state.me.canGrantRoles);
-  const canValue = () => Boolean(state.me && state.me.canSetValues);
+  const can = flag => Boolean(state.me && state.me[flag]);
+  const canGrant = () => can('canGrantRoles');
+  const canValue = () => can('canSetValues');
+  const canWebsite = () => can('canViewServer');
   const hasRole = () => Boolean(state.me && state.me.role);
   /* The server proves who is writing with the identity token from /verify,
    * so a ranked account whose proof has expired is locked out too - the
@@ -300,6 +325,7 @@
   function allowedFor(need) {
     if (!need) return true;
     if (!identityToken()) return false;
+    if (need === 'website') return canWebsite();
     if (need === 'grant') return canGrant();
     if (need === 'value') return canValue();
     return hasRole();
@@ -321,8 +347,18 @@
         state.me = null;
       }
     }
+    /* Only the website owner may hand that rank out, so nobody else is even
+     * offered the button. */
+    dom.roleChoiceWebsite?.classList.toggle('d-none', !canWebsite());
+
     renderIdentity();
+    buildSidebar();
     applyLocks();
+    /* If the open page just became invisible, fall back to the dashboard
+       rather than leaving a pane on screen with no way back to it. */
+    const current = PAGES.find(page => page.id === state.page);
+    if (current && current.hidden && !allowedFor(current.need)) showPage('dashboard');
+    else showPage(state.page);
   }
 
   /* One lock pane per gated page: what is missing, and how to get it. */
@@ -346,6 +382,13 @@
         message: `${state.account.name} is whitelisted, but the verification for this browser has expired, so these functions stay locked.`,
         link: true,
         hint: ' again to unlock them.',
+      };
+    }
+    if (need === 'website') {
+      return {
+        message: `Only the Website Owner may do this. ${state.account.name} is ${roleLabel(state.me.role)}.`,
+        link: false,
+        hint: '',
       };
     }
     if (need === 'grant') {
@@ -397,7 +440,10 @@
     dom.nav.replaceChildren();
 
     let section = '';
-    PAGES.forEach(page => {
+    /* A hidden page is not drawn at all unless the account may open it, so a
+     * Site Owner never sees a Server button they cannot use. */
+    const visible = PAGES.filter(page => !page.hidden || allowedFor(page.need));
+    visible.forEach(page => {
       if (page.section !== section) {
         section = page.section;
         const label = el('div', 'admin_nav_section', section.toUpperCase());
@@ -1770,6 +1816,243 @@
   }
 
   /* ------------------------------------------------------------------ */
+  /* Look Up Player                                                      */
+  /* ------------------------------------------------------------------ */
+
+  /* One "Label / figure" cell, the shape the dashboard's stat grid uses. */
+  function statCell(label, value) {
+    const cell = el('div', 'admin_stat_cell');
+    const head = el('h6', 'card-subtitle mt-1 text-muted stat-header', label);
+    const data = el('div', 'top-stat-data text-truncate', value);
+    cell.append(head, data);
+    return cell;
+  }
+
+  function lookupRow(title, subtitle, href) {
+    const row = el('div', 'trade_ad_picker_row');
+    row.style.cursor = href ? 'pointer' : 'default';
+    const body = el('div', 'flex-grow-1');
+    body.appendChild(el('div', 'text-truncate', title));
+    if (subtitle) {
+      const sub = el('div', 'small', subtitle);
+      sub.style.color = '#7a8288';
+      body.appendChild(sub);
+    }
+    row.appendChild(body);
+    if (href) {
+      const open = el('a', 'btn btn-flat-light-blue-sm rounded-pill shadow ml-auto', 'Open');
+      open.href = href;
+      open.target = '_blank';
+      open.rel = 'noopener';
+      row.appendChild(open);
+    }
+    return row;
+  }
+
+  /*
+   * Everything the panel knows about one player. The backend answers with the
+   * Wolimons half - rank, badges, ads, comments - and the inventory figures
+   * are read straight from Wanwood here, the same way a profile page does it,
+   * so the panel never has to keep a second copy of them.
+   */
+  async function lookupUser() {
+    const query = (dom.lookupQuery ? dom.lookupQuery.value : '').trim();
+    if (!query) {
+      notice(dom.lookupNotice, 'Type a username or a user id first.', 'bad');
+      return;
+    }
+
+    notice(dom.lookupNotice, 'Looking\u2026');
+    if (dom.lookupResult) dom.lookupResult.classList.add('d-none');
+
+    let payload;
+    try {
+      payload = await apiCall(`/api/admin/user?q=${encodeURIComponent(query)}`);
+    } catch (error) {
+      notice(dom.lookupNotice, error.message, 'bad');
+      return;
+    }
+
+    const user = payload.user || {};
+    notice(dom.lookupNotice, '');
+    if (dom.lookupResult) dom.lookupResult.classList.remove('d-none');
+
+    if (dom.lookupName) dom.lookupName.textContent = user.name || '-';
+    if (dom.lookupId) dom.lookupId.textContent = user.id ? String(user.id) : '-';
+    if (dom.lookupJoined) dom.lookupJoined.textContent = user.created
+      ? new Date(user.created).toISOString().slice(0, 10)
+      : '-';
+    if (dom.lookupDescription) {
+      dom.lookupDescription.textContent = user.description
+        ? user.description
+        : 'This player has not written a profile description.';
+    }
+
+    /* Rank, with the same icon the staff page draws. */
+    if (dom.lookupRole) {
+      dom.lookupRole.replaceChildren();
+      const label = el('span', null, payload.roleLabel || 'No rank');
+      const icon = ROLE_ICONS && payload.role ? ROLE_ICONS.iconFor(payload.role) : null;
+      if (icon) dom.lookupRole.appendChild(icon);
+      dom.lookupRole.appendChild(label);
+    }
+
+    /* Badges the owner has handed this player. */
+    if (dom.lookupBadges) {
+      dom.lookupBadges.replaceChildren();
+      const badges = Array.isArray(payload.badges) ? payload.badges : [];
+      const head = el('h6', 'card-subtitle text-muted stat-header mb-2', 'Badges');
+      dom.lookupBadges.appendChild(head);
+      if (!badges.length) {
+        const none = el('div', 'small', 'No badges.');
+        none.style.color = '#7a8288';
+        dom.lookupBadges.appendChild(none);
+      } else {
+        const strip = el('div', 'd-flex flex-wrap align-items-center');
+        badges.forEach(id => {
+          const chip = el('span', 'trade_ad_tag mr-2 mb-2', id);
+          strip.appendChild(chip);
+        });
+        dom.lookupBadges.appendChild(strip);
+      }
+    }
+
+    /* Where to go next. */
+    if (dom.lookupLinks) {
+      dom.lookupLinks.replaceChildren();
+      const profile = el('a', 'btn btn-flat-light-blue-sm rounded-pill shadow mr-2 mb-2', 'Wolimons profile');
+      profile.href = `/player/?id=${user.id}`;
+      profile.target = '_blank';
+      profile.rel = 'noopener';
+      const upstream = el('a', 'btn btn-flat-dark-gray rounded-pill shadow mr-2 mb-2', 'Wanwood profile');
+      upstream.href = `${API && API.SITE_BASE ? API.SITE_BASE : ''}/users/${user.id}/profile`;
+      upstream.target = '_blank';
+      upstream.rel = 'noopener';
+      dom.lookupLinks.append(profile, upstream);
+
+      /* Only somebody who may hand out ranks gets the shortcut to do it. */
+      if (canGrant()) {
+        const rank = el('button', 'btn btn-flat-dark-gray rounded-pill shadow mr-2 mb-2', 'Change rank');
+        rank.type = 'button';
+        rank.addEventListener('click', () => {
+          if (dom.roleName) dom.roleName.value = user.name || '';
+          window.location.hash = 'roles';
+        });
+        dom.lookupLinks.appendChild(rank);
+      }
+    }
+
+    /* Avatar, from Wanwood's thumbnail service. */
+    if (dom.lookupAvatar && API && user.id) {
+      API.fetchUserThumbnails([user.id], 420)
+        .then(map => {
+          const src = map.get(user.id);
+          if (src) dom.lookupAvatar.src = src;
+        })
+        .catch(() => {});
+    }
+
+    renderLookupAds(payload);
+    renderLookupComments(payload);
+    loadLookupInventory(user.id);
+  }
+
+  function renderLookupAds(payload) {
+    if (!dom.lookupAds) return;
+    const ads = Array.isArray(payload.ads) ? payload.ads : [];
+    if (dom.lookupAdCount) {
+      dom.lookupAdCount.textContent = payload.adCount ? `(${payload.adCount})` : '';
+    }
+    dom.lookupAds.replaceChildren();
+    if (!ads.length) {
+      emptyRow(dom.lookupAds, 'This player has not posted a trade ad.');
+      return;
+    }
+    ads.forEach(ad => {
+      const offers = (ad.offerItemIds || ad.offer || []).length;
+      const wants = (ad.requestItemIds || ad.request || []).length;
+      dom.lookupAds.appendChild(lookupRow(
+        `Ad #${ad.id}`,
+        `${offers} offered for ${wants} wanted \u00b7 ${utcTimestamp(ad.created || ad.at)}`,
+        `/tradead/?id=${ad.id}`,
+      ));
+    });
+  }
+
+  function renderLookupComments(payload) {
+    const by = Array.isArray(payload.commentsBy) ? payload.commentsBy : [];
+    const on = Array.isArray(payload.commentsOn) ? payload.commentsOn : [];
+
+    if (dom.lookupCommentsBy) {
+      dom.lookupCommentsBy.replaceChildren();
+      if (!by.length) emptyRow(dom.lookupCommentsBy, 'This player has not commented anywhere.');
+      else by.forEach(comment => dom.lookupCommentsBy.appendChild(lookupRow(
+        comment.text,
+        `on ${comment.target} \u00b7 ${utcTimestamp(comment.at)}`,
+        commentHref(comment.target),
+      )));
+    }
+
+    if (dom.lookupCommentsOn) {
+      dom.lookupCommentsOn.replaceChildren();
+      if (!on.length) emptyRow(dom.lookupCommentsOn, 'Nobody has commented on this profile.');
+      else on.forEach(comment => dom.lookupCommentsOn.appendChild(lookupRow(
+        comment.text,
+        `${comment.name} \u00b7 ${utcTimestamp(comment.at)}`,
+        commentHref(comment.target),
+      )));
+    }
+  }
+
+  /* A comment's target reads "player:12" or "tradead:3"; turn it into a link. */
+  function commentHref(target) {
+    const [kind, id] = String(target || '').split(':');
+    if (kind === 'player') return `/player/?id=${id}`;
+    if (kind === 'tradead') return `/tradead/?id=${id}`;
+    return '';
+  }
+
+  /*
+   * The player's collectibles, read from Wanwood and priced with our own
+   * value table - the same sum the profile page and the leaderboard show.
+   */
+  async function loadLookupInventory(userId) {
+    if (!dom.lookupInventory) return;
+    dom.lookupInventory.replaceChildren();
+    if (!API || !userId) {
+      emptyRow(dom.lookupInventory, 'Wanwood could not be reached for the inventory.');
+      return;
+    }
+
+    const loading = el('div', 'small py-2', 'Reading the inventory\u2026');
+    loading.style.color = '#7a8288';
+    dom.lookupInventory.appendChild(loading);
+
+    try {
+      /* Rows carry assetId and recentAveragePrice; one row is one copy, so a
+       * duplicate is simply counted twice. */
+      const rows = await API.getCollectibles(userId);
+      const unique = new Set();
+      let rap = 0;
+      let value = 0;
+      rows.forEach(row => {
+        const id = Number(row.assetId ?? row.id);
+        unique.add(id);
+        rap += Number(row.recentAveragePrice) || 0;
+        value += VALUES && typeof VALUES.get === 'function' ? Number(VALUES.get(id)) || 0 : 0;
+      });
+      dom.lookupInventory.replaceChildren(
+        statCell('Copies Held', formatNumber(rows.length)),
+        statCell('Unique Items', formatNumber(unique.size)),
+        statCell('Value', `R$ ${formatNumber(value)}`),
+        statCell('RAP', `R$ ${formatNumber(rap)}`),
+      );
+    } catch (error) {
+      emptyRow(dom.lookupInventory, 'Wanwood could not be reached for the inventory.');
+    }
+  }
+
+  /* ------------------------------------------------------------------ */
   /* Item picker - the trade ad composer's modal                         */
   /* ------------------------------------------------------------------ */
 
@@ -1922,6 +2205,14 @@
     dom.announcementSave?.addEventListener('click', () => saveAnnouncement(false));
     dom.announcementClear?.addEventListener('click', () => saveAnnouncement(true));
     dom.commentsRefresh?.addEventListener('click', () => { if (hasRole()) loadCommentsAdmin(); });
+
+    dom.lookupSearch?.addEventListener('click', () => { if (hasRole()) lookupUser(); });
+    dom.lookupQuery?.addEventListener('keydown', event => {
+      if (event.key === 'Enter' && hasRole()) {
+        event.preventDefault();
+        lookupUser();
+      }
+    });
   }
 
   function render() {

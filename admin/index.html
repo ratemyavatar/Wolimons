@@ -13,9 +13,9 @@
     <meta name="twitter:description" content="The Wolimons admin panel - values, staff ranks, badges, trade ad moderation, the public API and the server.">
     <meta name="twitter:image" content="/assets/Wolimonslogoo.png">
     <title>Admin - Wolimons</title>
-    <link rel="stylesheet" href="/css/sitecombined2.css?v=11">
-    <link rel="stylesheet" href="/css/wolimons.css?v=11">
-    <link rel="stylesheet" href="/css/tradeads.css?v=11">
+    <link rel="stylesheet" href="/css/sitecombined2.css?v=12">
+    <link rel="stylesheet" href="/css/wolimons.css?v=12">
+    <link rel="stylesheet" href="/css/tradeads.css?v=12">
 <link rel="icon" type="image/svg+xml" href="/assets/Wolimonslogoo.png">
 <style>
 /*
@@ -36,6 +36,28 @@
 .admin_kv_key { flex: 0 0 200px; color: rgb(122, 130, 136); }
 .admin_kv_val { flex: 1 1 240px; color: rgb(233, 236, 239); word-break: break-word; }
 .admin_page_note { color: rgb(122, 130, 136); }
+
+/* Sidebar buttons read as a list rather than a stack of pills: a flat row
+   that lights up on hover and gains a blue rule when it is the open page. */
+.admin_nav_button { background: transparent; border: 0; border-left: 3px solid transparent; border-radius: 0; color: rgb(173, 181, 189); }
+.admin_nav_button:hover { background: rgb(56, 62, 67); color: rgb(233, 236, 239); }
+.admin_nav_button.active { background: rgb(56, 62, 67); border-left-color: rgb(0, 132, 221); color: #fff; font-weight: 600; }
+.admin_nav_button:focus { outline: 0; box-shadow: none; }
+/* The padlock on a gated entry should whisper, not shout. */
+.admin_nav_button svg { opacity: 0.45; }
+.admin_nav_button.active svg { opacity: 0.8; }
+
+/* Section headings get a hairline under them so long pages have a rhythm. */
+body.page-admin .admin_page > .d-flex:first-child { border-bottom: 1px solid rgb(58, 63, 68); padding-bottom: 8px; }
+
+/* Every pane on a page is the same card, so they line up down the column. */
+body.page-admin .admin_page_body .row.shadow { border-radius: 4px; }
+
+/* The rank shown next to a looked-up player. */
+#admin_lookup_role { display: flex; align-items: center; gap: 6px; }
+#admin_lookup_role svg { width: 18px; height: 18px; flex: 0 0 auto; }
+
+.admin_topbar { border-bottom: 1px solid rgb(72, 80, 89); }
 .admin_lock_link { color: #7ab8f5; }
 @media (max-width: 900px) {
   /* Phones and portrait tablets: the sidebar becomes a sticky horizontal
@@ -176,6 +198,97 @@
                         </section>
 
                         <!-- ================= ITEM VALUES ================= -->
+                        <!-- ================= LOOK UP PLAYER ================= -->
+                        <section class="admin_page d-none" id="admin_page_users">
+                            <div class="d-flex justify-content-between flex-wrap align-items-center">
+                                <h2 class="section_header">Look Up Player</h2>
+                            </div>
+                            <div class="admin_page_lock trade_ads_empty_state mx-0 mt-3 d-none">
+                                <div class="px-3" style="color: #adb5bd;"><span class="admin_lock_message"></span> <a class="admin_lock_link d-none" href="/verify">Link your Wanwood account</a><span class="admin_lock_hint"></span></div>
+                            </div>
+                            <div class="admin_page_body">
+                                <div class="row shadow mx-0 mt-2" style="background-color: #2e3337;">
+                                    <div class="w-100 px-3 px-sm-4 py-4">
+                                        <div class="small mb-3 admin_page_note">Everything the site knows about one player, in one place. Search by username or by user id.</div>
+                                        <div class="input-group shadow" style="max-width: 460px;">
+                                            <input class="filter-text-box form-control filter-textbox-small" id="admin_lookup_query" type="text" placeholder="Username or user id" autocapitalize="off" spellcheck="false">
+                                            <input class="btn btn-flat-light-blue shadow" id="admin_lookup_search" type="submit" value="Look up">
+                                        </div>
+                                        <div class="mt-2 small" id="admin_lookup_notice" style="color: #7a8288;"></div>
+                                    </div>
+                                </div>
+
+                                <div class="d-none" id="admin_lookup_result">
+                                    <!-- Identity card: avatar, name, id, rank, badges. -->
+                                    <div class="row shadow mx-0 mt-3" style="background-color: #2e3337;">
+                                        <div class="col-12 col-sm-auto px-0">
+                                            <img class="player_bust img-responsive rounded mt-3 mx-3 mb-0 mb-sm-3" id="admin_lookup_avatar" width="200" height="200" decoding="async" alt="Player avatar" src="/assets/Wolimonslogoo.png">
+                                        </div>
+                                        <div class="col px-0">
+                                            <div class="d-flex flex-wrap w-100 py-2">
+                                                <div class="admin_stat_cell">
+                                                    <h6 class="card-subtitle mt-1 text-muted stat-header">Username</h6>
+                                                    <div class="top-stat-data text-truncate" id="admin_lookup_name">-</div>
+                                                </div>
+                                                <div class="admin_stat_cell">
+                                                    <h6 class="card-subtitle mt-1 text-muted stat-header">User ID</h6>
+                                                    <div class="top-stat-data" id="admin_lookup_id">-</div>
+                                                </div>
+                                                <div class="admin_stat_cell">
+                                                    <h6 class="card-subtitle mt-1 text-muted stat-header">Staff Rank</h6>
+                                                    <div class="top-stat-data" id="admin_lookup_role">-</div>
+                                                </div>
+                                                <div class="admin_stat_cell">
+                                                    <h6 class="card-subtitle mt-1 text-muted stat-header">Joined</h6>
+                                                    <div class="top-stat-data" id="admin_lookup_joined">-</div>
+                                                </div>
+                                            </div>
+                                            <div class="px-3 pb-3" id="admin_lookup_badges"></div>
+                                            <div class="px-3 pb-3 d-flex flex-wrap" id="admin_lookup_links"></div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Inventory figures, read live from Wanwood. -->
+                                    <div class="row shadow mx-0 mt-3" style="background-color: #2e3337;">
+                                        <div class="w-100 px-3 px-sm-4 py-3">
+                                            <h6 class="card-subtitle text-muted stat-header mb-2">Inventory</h6>
+                                            <div class="d-flex flex-wrap w-100" id="admin_lookup_inventory"></div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Profile description, straight off Wanwood. -->
+                                    <div class="row shadow mx-0 mt-3" style="background-color: #2e3337;">
+                                        <div class="w-100 px-3 px-sm-4 py-3">
+                                            <h6 class="card-subtitle text-muted stat-header mb-2">Profile Description</h6>
+                                            <div class="admin_page_note" id="admin_lookup_description" style="white-space: pre-wrap;">-</div>
+                                        </div>
+                                    </div>
+
+                                    <div class="row shadow mx-0 mt-3" style="background-color: #2e3337;">
+                                        <div class="w-100 px-3 px-sm-4 py-3">
+                                            <h6 class="card-subtitle text-muted stat-header mb-2">Trade Ads Posted <span id="admin_lookup_ad_count"></span></h6>
+                                            <div class="trade_ad_picker_results" id="admin_lookup_ads"></div>
+                                        </div>
+                                    </div>
+
+                                    <div class="row shadow mx-0 mt-3" style="background-color: #2e3337;">
+                                        <div class="w-100 px-3 px-sm-4 py-3">
+                                            <h6 class="card-subtitle text-muted stat-header mb-2">Comments They Wrote</h6>
+                                            <div class="trade_ad_picker_results" id="admin_lookup_comments_by"></div>
+                                        </div>
+                                    </div>
+
+                                    <div class="row shadow mx-0 mt-3" style="background-color: #2e3337;">
+                                        <div class="w-100 px-3 px-sm-4 py-3">
+                                            <h6 class="card-subtitle text-muted stat-header mb-2">Comments On Their Profile</h6>
+                                            <div class="trade_ad_picker_results" id="admin_lookup_comments_on"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+
+                        <!-- ================= ITEM VALUES ================= -->
                         <section class="admin_page d-none" id="admin_page_values">
                             <div class="row mx-0"><h2 class="section_header">Item values</h2></div>
                             <div class="admin_page_lock trade_ads_empty_state mx-0 mt-3 d-none">
@@ -293,6 +406,7 @@ explanation: sold for 100 and 150 robux after a lowball trade, so the trend is u
                                         </div>
                                         <div class="stat-textbox-title-small mt-3" style="color: #adadad;">Rank</div>
                                         <div class="d-flex flex-wrap" id="admin_role_choices">
+                                            <button class="filter-button btn btn-primary d-none" data-role-value="website_owner" id="admin_role_choice_website" type="button" aria-pressed="false">Website Owner</button>
                                             <button class="filter-button btn btn-primary" data-role-value="owner" type="button" aria-pressed="false">Site Owner</button>
                                             <button class="filter-button btn btn-primary" data-role-value="value_manager" type="button" aria-pressed="false">Value Manager</button>
                                             <button class="filter-button btn btn-primary" data-role-value="staff" type="button" aria-pressed="false">Value Team</button>
@@ -494,4 +608,4 @@ explanation: sold for 100 and 150 robux after a lowball trade, so the trend is u
         </div>
     </div>
 
-<script src="/assets/js/config.js?v=11"></script><script src="/assets/js/values.js?v=11"></script><script src="/assets/js/wanwood-api.js?v=11"></script><script src="/assets/js/account.js?v=11"></script><script src="/assets/js/prefs.js?v=11"></script><script src="/assets/js/granted-badges.js?v=11"></script><script src="/assets/js/badge-art.js?v=11"></script><script src="/assets/js/badges.js?v=11"></script><script src="/assets/js/role-icons.js?v=11" defer></script><script src="/assets/js/admin.js?v=11" defer></script></body></html>
+<script src="/assets/js/config.js?v=12"></script><script src="/assets/js/values.js?v=12"></script><script src="/assets/js/wanwood-api.js?v=12"></script><script src="/assets/js/account.js?v=12"></script><script src="/assets/js/prefs.js?v=12"></script><script src="/assets/js/granted-badges.js?v=12"></script><script src="/assets/js/badge-art.js?v=12"></script><script src="/assets/js/badges.js?v=12"></script><script src="/assets/js/role-icons.js?v=12" defer></script><script src="/assets/js/admin.js?v=12" defer></script></body></html>

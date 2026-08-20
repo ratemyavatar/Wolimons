@@ -24,7 +24,7 @@
 
   /* Owners first, then value managers, then the value team; names break
    * ties - the same pecking order the panel lists them in. */
-  const RANK_ORDER = { owner: 0, value_manager: 1, staff: 2 };
+  const RANK_ORDER = { website_owner: 0, owner: 1, value_manager: 2, staff: 3 };
 
   function el(tag, className, text) {
     const node = document.createElement(tag);

@@ -80,6 +80,13 @@ pre {
   text-decoration: none; border-radius: 4px; padding: 6px 14px; font-size: 13px; font-weight: 600;
 }
 .try:hover { background: #357ac9; }
+.perm { width: 100%; border-collapse: collapse; font-size: 13px; background: #fff;
+  border: 1px solid #e3e6ea; border-radius: 4px; margin: 0 0 10px; }
+.perm th { background: #f6f8fa; padding: 8px; border-bottom: 1px solid #e3e6ea; }
+.perm td { padding: 8px; border-bottom: 1px solid #f0f2f4; text-align: center; }
+.perm td:first-child { text-align: left; font-weight: 600; }
+.yes { color: #49a86b; font-weight: 700; }
+.no { color: #c4c8ce; }
 .lock { font-size: 12px; color: #8a6d3b; background: #fcf8e3; border: 1px solid #faebcc;
   border-radius: 3px; padding: 6px 10px; margin: 0 0 12px; }
 </style>
@@ -331,7 +338,7 @@ pre {
   </summary>
   <div class="op-body">
     <h4>Description</h4>
-    <p>Whether the backend is up, which storage it is using and whether it can write.</p>
+    <p>Whether the backend is up. The full answer &mdash; storage, upstream, paths, write access &mdash; is the website owner's alone; everyone else gets <code>{"ok": true, "restricted": true}</code>.</p>
     <h4>Parameters</h4>
     <p class="meta">None.</p>
     <h4>Example response</h4>
@@ -345,6 +352,17 @@ pre {
     <a class="try" href="/api/status" target="_blank" rel="noopener">Try it</a>
   </div>
 </details>
+
+<h2 class="group">Ranks</h2>
+<p class="group-note">Four ranks, highest first. Everything a staff endpoint allows is decided by these.</p>
+<table class="perm">
+  <tr><th>Rank</th><th>Values</th><th>Moderate</th><th>Look up players</th><th>Ranks &amp; badges</th><th>Announcement</th><th>Server</th></tr>
+  <tr><td>Website Owner<br><code style="font-weight:400;color:#888">website_owner</code></td><td class="yes">&check;</td><td class="yes">&check;</td><td class="yes">&check;</td><td class="yes">&check;</td><td class="yes">&check;</td><td class="yes">&check;</td></tr>
+  <tr><td>Site Owner<br><code style="font-weight:400;color:#888">owner</code></td><td class="yes">&check;</td><td class="yes">&check;</td><td class="yes">&check;</td><td class="yes">&check;</td><td class="yes">&check;</td><td class="no">&mdash;</td></tr>
+  <tr><td>Value Manager<br><code style="font-weight:400;color:#888">value_manager</code></td><td class="yes">&check;</td><td class="yes">&check;</td><td class="yes">&check;</td><td class="no">&mdash;</td><td class="no">&mdash;</td><td class="no">&mdash;</td></tr>
+  <tr><td>Value Team<br><code style="font-weight:400;color:#888">staff</code></td><td class="yes">&check;</td><td class="yes">&check;</td><td class="yes">&check;</td><td class="no">&mdash;</td><td class="no">&mdash;</td><td class="no">&mdash;</td></tr>
+</table>
+<p class="meta">Only the website owner may hand out or take away the website owner rank, and nobody can lower their own.</p>
 
 <h2 class="group">Staff endpoints</h2>
 <p class="lock">These need a signed identity token from <code>POST /api/identity</code> and only work for accounts on the staff roster. Send it as <code>Authorization: Bearer &lt;token&gt;</code>.</p>
@@ -369,6 +387,122 @@ pre {
 <pre>curl -X POST /api/identity \
   -H "Content-Type: application/json" \
   -d '{"userId": 1, "phrase": "zzz12345"}'</pre>
+  </div>
+</details>
+
+<details class="op">
+  <summary class="op-head">
+    <svg class="chev" width="10" height="10" viewBox="0 0 10 10"><path d="M2 0l6 5-6 5z" fill="currentColor"/></svg>
+    <span class="verb">GET</span>
+    <span class="path">/api/me</span>
+    <span class="summary">What am I allowed to do</span>
+  </summary>
+  <div class="op-body">
+    <h4>Description</h4>
+    <p>The rank and the full permission set for one account. The admin panel asks this on load and locks itself accordingly.</p>
+    <h4>Parameters</h4>
+    <table>
+      <tr><th>Name</th><th>Type</th><th>Description</th></tr>
+      <tr><td class="pname">name<span class="req">required</span></td><td class="ptype">string</td><td>The Wanwood username to ask about.</td></tr>
+    </table>
+    <h4>Example response</h4>
+<pre>{
+  "ok": true,
+  "name": "Nun",
+  "role": "website_owner",
+  "rank": 4,
+  "canSetValues": true,
+  "canModerate": true,
+  "canGrantRoles": true,
+  "canGrantBadges": true,
+  "canAnnounce": true,
+  "canViewUsers": true,
+  "canViewServer": true
+}</pre>
+  </div>
+</details>
+
+<details class="op">
+  <summary class="op-head">
+    <svg class="chev" width="10" height="10" viewBox="0 0 10 10"><path d="M2 0l6 5-6 5z" fill="currentColor"/></svg>
+    <span class="verb">GET</span>
+    <span class="path">/api/admin/user</span>
+    <span class="summary">Look a player up</span>
+  </summary>
+  <div class="op-body">
+    <h4>Description</h4>
+    <p>Everything the panel knows about one player in a single answer: profile, rank, badges, their trade ads, the comments they wrote and the comments left on their profile. Any ranked account may call it.</p>
+    <h4>Parameters</h4>
+    <table>
+      <tr><th>Name</th><th>Type</th><th>Description</th></tr>
+      <tr><td class="pname">q<span class="req">required</span></td><td class="ptype">string</td><td>A username, or a numeric user id.</td></tr>
+    </table>
+    <h4>Example response</h4>
+<pre>{
+  "ok": true,
+  "user": { "id": 1, "name": "Nun", "created": "2021-03-04T00:00:00Z", "description": "..." },
+  "role": "website_owner",
+  "roleLabel": "Website Owner",
+  "badges": ["certified-wanwoodian"],
+  "ads": [], "adCount": 0,
+  "commentsBy": [], "commentsOn": []
+}</pre>
+  </div>
+</details>
+
+<details class="op post">
+  <summary class="op-head">
+    <svg class="chev" width="10" height="10" viewBox="0 0 10 10"><path d="M2 0l6 5-6 5z" fill="currentColor"/></svg>
+    <span class="verb">POST</span>
+    <span class="path">/api/roles/set</span>
+    <span class="summary">Set someone's rank</span>
+  </summary>
+  <div class="op-body">
+    <h4>Description</h4>
+    <p>Site owners and up. The website owner rank can only be given or taken by the website owner, and nobody may lower their own rank.</p>
+    <h4>Body</h4>
+    <table>
+      <tr><th>Name</th><th>Type</th><th>Description</th></tr>
+      <tr><td class="pname">target<span class="req">required</span></td><td class="ptype">string</td><td>The username to rank.</td></tr>
+      <tr><td class="pname">role<span class="req">required</span></td><td class="ptype">string</td><td>website_owner, owner, value_manager, staff, or none to remove.</td></tr>
+    </table>
+  </div>
+</details>
+
+<details class="op post">
+  <summary class="op-head">
+    <svg class="chev" width="10" height="10" viewBox="0 0 10 10"><path d="M2 0l6 5-6 5z" fill="currentColor"/></svg>
+    <span class="verb">POST</span>
+    <span class="path">/api/announcement/set</span>
+    <span class="summary">Write the banner</span>
+  </summary>
+  <div class="op-body">
+    <h4>Description</h4>
+    <p>Sets the blue strip that shows under the navbar on every page. Site owners and up. Send empty text to clear it.</p>
+    <h4>Body</h4>
+    <table>
+      <tr><th>Name</th><th>Type</th><th>Description</th></tr>
+      <tr><td class="pname">text</td><td class="ptype">string</td><td>What the banner says. Empty removes it.</td></tr>
+      <tr><td class="pname">link</td><td class="ptype">string</td><td>Optional URL the text links to.</td></tr>
+    </table>
+  </div>
+</details>
+
+<details class="op post">
+  <summary class="op-head">
+    <svg class="chev" width="10" height="10" viewBox="0 0 10 10"><path d="M2 0l6 5-6 5z" fill="currentColor"/></svg>
+    <span class="verb">POST</span>
+    <span class="path">/api/comments/delete</span>
+    <span class="summary">Take a comment down</span>
+  </summary>
+  <div class="op-body">
+    <h4>Description</h4>
+    <p>Removes one comment. Any ranked account may moderate.</p>
+    <h4>Body</h4>
+    <table>
+      <tr><th>Name</th><th>Type</th><th>Description</th></tr>
+      <tr><td class="pname">id<span class="req">required</span></td><td class="ptype">integer</td><td>The comment id.</td></tr>
+    </table>
   </div>
 </details>
 

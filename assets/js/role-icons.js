@@ -5,6 +5,7 @@
  * lifted from the original leaderboard snapshot, where the same icons mark the
  * same kind of thing - nothing here was drawn for Wolimons.
  *
+ *   Website Owner   a teal gem, drawn for the rank above site owner
  *   Site Owner      the gold crown, the top-of-the-board icon
  *   Value Manager   the silver shield, its "Top 50 Leaderboard" icon
  *   Value Team      the purple star, its "Caelus Staff" icon
@@ -23,6 +24,13 @@
   /* Straight out of /tmp/colb/f0.html - crown, shield and star, in that
    * snapshot's own colours. */
   const ROLES = {
+    website_owner: {
+      label: 'Website Owner',
+      color: '#41e0d0',
+      /* A cut gem: the crown belongs to the site owner, so the rank above it
+       * gets its own shape rather than a second crown in another colour. */
+      path: 'M6 2h12l4 6-10 14L2 8l4-6zm.24 2L4.4 6.8h3.2L9 4H6.24zm4.86 0L9.7 6.8h4.6L12.9 4h-1.8zm4.66 0-1.4 2.8h3.24L15.76 4zM4.6 8.8 10 17.3 7.9 8.8H4.6zm5.36 0L12 17.9l2.04-9.1H9.96zm6.14 0-2.1 8.5 5.4-8.5h-3.3z',
+    },
     owner: {
       label: 'Site Owner',
       color: '#ffd700',

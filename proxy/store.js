@@ -91,7 +91,10 @@ const DATA_FILE = path.resolve(
 const DEMANDS = ['High', 'Decent', 'Low', 'Terrible'];
 const TRENDS = ['Raising', 'Stable', 'Lowering', 'Unstable', 'Fluctuating'];
 const CATEGORIES = ['rare', 'projected', 'tablet', 'unobtainable', 'hoarded'];
-const ROLES = ['owner', 'value_manager', 'staff'];
+/* Highest first. website_owner is the top of the site and the only rank that
+ * may look at the server page; owner runs the site itself. */
+const ROLES = ['website_owner', 'owner', 'value_manager', 'staff'];
+const RANK = { website_owner: 4, owner: 3, value_manager: 2, staff: 1 };
 
 /* The fields whose edits are worth telling the site about. Categories are
  * deliberately excluded: they are internal bookkeeping rather than news. */
@@ -246,8 +249,11 @@ function applyBuiltinRoles(target) {
     if (!entry || typeof entry !== 'object') continue;
     if (!ROLES.includes(entry.role)) continue;
     const id = key(name);
-    /* Already has a rank from the live file - leave it, it is newer. */
-    if (target.roles[id]) continue;
+    /* Already has a rank from the live file - leave it, it is newer. The one
+     * exception is a seed rank that outranks what is stored: that is this
+     * file promoting somebody, and a server that has been running since
+     * before the promotion must pick it up rather than ignore it forever. */
+    if (target.roles[id] && RANK[target.roles[id].role] >= RANK[entry.role]) continue;
     target.roles[id] = {
       name: String(entry.name || name),
       role: entry.role,
@@ -1162,6 +1168,7 @@ module.exports = {
   CATEGORIES,
   VALUATION_METHODS,
   ROLES,
+  RANK,
   GRANTABLE_BADGES,
   load,
   snapshot,

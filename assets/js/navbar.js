@@ -588,10 +588,12 @@
 
       const banner = document.createElement('div');
       banner.id = 'global_announcement_banner';
+      /* No stacking context of its own. It used to carry z-index 2100, which
+       * painted it over the navbar dropdowns (z-index 1000) whenever a menu
+       * was open. It sits in normal flow, so it needs neither. */
       banner.style.cssText = 'background: rgb(0, 132, 221); color: #fff; '
         + 'font-weight: bold; text-align: center; padding: 4px 16px; '
-        + 'font-size: 12.5px; line-height: 1.35; position: relative; '
-        + 'width: 100%; z-index: 2100;';
+        + 'font-size: 12.5px; line-height: 1.35; width: 100%;';
 
       const text = String(announcement.text).trim();
       if (announcement.link) {

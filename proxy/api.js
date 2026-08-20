@@ -187,11 +187,34 @@ function readJson(body) {
  * roster is the door now instead of a password, and the token is the proof
  * that the person walking through it is who the roster says.
  *
- * need: 'owner'  - site owners only
- *       'valuer' - owner, value manager or value team
- *       'staff'  - anyone with any rank at all
+ * need: 'website'  - the website owner alone (server internals)
+ *       'owner'    - site owners and up (ranks, badges, announcements)
+ *       'valuer'   - anyone ranked: values are the value team's job
+ *       'staff'    - anyone ranked at all (moderation)
  */
-const ROLE_RANK = { owner: 3, value_manager: 2, staff: 1 };
+const ROLE_RANK = { website_owner: 4, owner: 3, value_manager: 2, staff: 1 };
+
+/* What each rank is allowed to do, in one place so the panel and the server
+ * can never disagree about it. */
+function capabilities(role) {
+  const rank = ROLE_RANK[role] || 0;
+  return {
+    role: role || null,
+    rank,
+    /* Values, demand, trend and categories - the value team's whole job. */
+    canSetValues: rank >= 1,
+    /* Deleting ads and comments. */
+    canModerate: rank >= 1,
+    /* Handing out ranks and badges, and writing the banner. */
+    canGrantRoles: rank >= 3,
+    canGrantBadges: rank >= 3,
+    canAnnounce: rank >= 3,
+    /* Looking players up in the panel. */
+    canViewUsers: rank >= 1,
+    /* Server internals and status. The website owner alone. */
+    canViewServer: rank >= 4,
+  };
+}
 
 /*
  * The Wanwood username an identity token stands for, confirmed upstream and
@@ -233,22 +256,21 @@ async function authorize(req, payload, { need }) {
     return { ok: false, status: 403, error: `${name} is not a Wolimons admin.` };
   }
 
-  const allowed = need === 'owner'
-    ? role === 'owner'
-    : need === 'valuer'
-      ? (ROLE_RANK[role] || 0) >= 1
-      : (ROLE_RANK[role] || 0) >= 1;
+  const rank = ROLE_RANK[role] || 0;
+  const floor = need === 'website' ? 4 : need === 'owner' ? 3 : 1;
 
-  if (!allowed) {
+  if (rank < floor) {
     return {
       ok: false,
       status: 403,
-      error: need === 'owner'
-        ? `Only a site owner may do that, and ${name} is not one.`
-        : `${name} cannot do that.`,
+      error: need === 'website'
+        ? `Only the website owner may do that, and ${name} is not them.`
+        : need === 'owner'
+          ? `Only a site owner may do that, and ${name} is not one.`
+          : `${name} cannot do that.`,
     };
   }
-  return { ok: true, name, role };
+  return { ok: true, name, role, rank, can: capabilities(role) };
 }
 
 /* ---------------------------------------------------------------------- */
@@ -441,7 +463,7 @@ async function publicItemDetails() {
  * adds - the staff role and the badges handed out here. Cached briefly per
  * player so a lookup loop does not become a profile fetch loop.
  */
-const ROLE_LABELS = { owner: 'Site Owner', value_manager: 'Value Manager', staff: 'Value Team' };
+const ROLE_LABELS = { website_owner: 'Website Owner', owner: 'Site Owner', value_manager: 'Value Manager', staff: 'Value Team' };
 
 async function publicPlayerInfo(userId) {
   const cacheKey = `player:${userId}`;
@@ -668,16 +690,82 @@ async function handle(req, res, url, readBody) {
       return true;
     }
 
+    /*
+     * One player, everything the panel knows about them in a single answer:
+     * their Wanwood profile, their rank, their badges, the ads they have
+     * posted, the comments they have written and the comments other people
+     * have left on their profile. Any staff member may look somebody up.
+     */
+    if (req.method === 'GET' && route === '/api/admin/user') {
+      const auth = await authorize(req, {}, { need: 'staff' });
+      if (!auth.ok) {
+        send(res, auth.status, { ok: false, error: auth.error });
+        return true;
+      }
+
+      const query = String(url.searchParams.get('q') || '').trim();
+      if (!query) {
+        send(res, 400, { ok: false, error: 'Give a username or a user id to look up.' });
+        return true;
+      }
+
+      /* A number is an id; anything else is a name we ask Wanwood to resolve. */
+      let profile = null;
+      if (/^\d+$/.test(query)) {
+        profile = await fetchProfile(Number(query));
+      } else {
+        const found = await fetchUpstreamJson(
+          `/apisite/users/v1/usernames/users?username=${encodeURIComponent(query)}`,
+        ).catch(() => null);
+        const id = Number(found?.data?.[0]?.id ?? found?.Id ?? found?.id);
+        if (Number.isSafeInteger(id) && id > 0) profile = await fetchProfile(id);
+      }
+
+      if (!profile || !profile.name) {
+        send(res, 404, { ok: false, error: `Wanwood has no player called "${query}".` });
+        return true;
+      }
+
+      const userId = Number(profile.id ?? profile.Id) || 0;
+      const name = String(profile.name || '').trim();
+
+      const [role, badges, allAds, comments] = await Promise.all([
+        store.roleOf(name),
+        store.badgesOf(name),
+        store.ads({ creatorId: userId }),
+        store.allComments({ limit: 500 }),
+      ]);
+
+      send(res, 200, {
+        ok: true,
+        user: {
+          id: userId,
+          name,
+          displayName: String(profile.displayName || profile.name || '').trim(),
+          description: String(profile.description || ''),
+          created: profile.created || null,
+          isBanned: Boolean(profile.isBanned),
+          verified: Boolean(profile.hasVerifiedBadge || profile.isVerified),
+        },
+        role: role || null,
+        roleLabel: role ? (ROLE_LABELS[role] || role) : null,
+        badges,
+        ads: allAds.slice(0, 25),
+        adCount: allAds.length,
+        /* Written by them, and left on their profile. */
+        commentsBy: comments.filter(c => Number(c.userId) === userId).slice(0, 25),
+        commentsOn: comments
+          .filter(c => c.target === `player:${userId}`)
+          .slice(0, 25),
+        viewer: { name: auth.name, ...auth.can },
+      });
+      return true;
+    }
+
     if (req.method === 'GET' && route === '/api/me') {
       const name = String(url.searchParams.get('name') || '').trim();
       const role = name ? await store.roleOf(name) : null;
-      send(res, 200, {
-        ok: true,
-        name,
-        role,
-        canGrantRoles: role === 'owner',
-        canSetValues: ['owner', 'value_manager', 'staff'].includes(role),
-      });
+      send(res, 200, { ok: true, name, ...capabilities(role) });
       return true;
     }
 
@@ -688,6 +776,13 @@ async function handle(req, res, url, readBody) {
     }
 
     if (req.method === 'GET' && route === '/api/status') {
+      /* Server internals belong to the website owner alone. Everyone else -
+       * including a site owner - gets a bare "the server is up". */
+      const auth = await authorize(req, {}, { need: 'website' });
+      if (!auth.ok) {
+        send(res, 200, { ok: true, restricted: true });
+        return true;
+      }
       const snapshot = await store.snapshot();
       const grants = Object.values(snapshot.badges || {})
         .filter(row => row.badges && row.badges.length);
@@ -754,8 +849,17 @@ async function handle(req, res, url, readBody) {
       }
       /* An owner may not demote themselves out of the roster by accident -
        * with no key to fall back on, that would lock the panel entirely. */
-      if (target.toLowerCase() === auth.name.toLowerCase() && payload.role !== 'owner') {
-        send(res, 400, { ok: false, error: 'You cannot change your own owner rank.' });
+      if (target.toLowerCase() === auth.name.toLowerCase()
+        && (ROLE_RANK[String(payload.role || '')] || 0) < auth.rank) {
+        send(res, 400, { ok: false, error: 'You cannot lower your own rank.' });
+        return true;
+      }
+      /* Only the website owner may hand out or remove the website owner rank,
+       * and a site owner may not promote anybody above themselves. */
+      const wanted = ROLE_RANK[String(payload.role || '')] || 0;
+      const existing = ROLE_RANK[await store.roleOf(target)] || 0;
+      if ((wanted >= 4 || existing >= 4) && auth.rank < 4) {
+        send(res, 403, { ok: false, error: 'Only the website owner may change the website owner rank.' });
         return true;
       }
 

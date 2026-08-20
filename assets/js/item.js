@@ -122,39 +122,32 @@
     .replace(/[^a-zA-Z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '') || 'unnamed';
 
-  /*
-   * Acronyms are NOT derived from the name anymore. The letter-of-each-word
-   * abbreviations read as nonsense ("BHFBSP"), so the site now shows a
-   * hand-picked nickname per item instead - the ones the community actually
-   * says out loud. Only the items in ACRONYMS get one; every other item
-   * shows no acronym at all, and nothing is stored anywhere - the map is
-   * keyed by the letters the old derivation would have produced, so a name
-   * that is not in the list simply stays blank.
-   */
+  /* The nicknames people actually use, keyed by the item's initials. Items
+   * that aren't listed here just don't show one. */
   const ACRONYMS = {
-    BHFBSP: 'SPACE HAIR',
-    TBB: 'BBH',
-    BIBOUP: 'BIB',
-    PI: 'INDY',
-    P: 'PRANK',
-    RSTH: 'RBAD',
-    TVS: 'VOID',
-    TCRF: 'CF',
-    U: 'UMAD',
-    SFC: 'SUPA',
-    FTVKC: 'KAWAII',
-    PLBH: 'LEGIT',
-    DP: 'PRAE',
-    FHOTN: 'FIERY',
-    RBOSI: 'SQL',
-    SDFC: 'DUPA',
-    EL: 'EURO',
-    DROTU: 'DETH',
-    SGBES: 'GAMMA',
-    TDVOX: 'XMAX',
-    TTOED: 'EPIC DUCK',
-    VH: 'VALK',
-    C: 'CTH',
+    BHFBSP: 'Space hair',
+    TBB: 'Bbh',
+    BIBOUP: 'Bib',
+    PI: 'Indy',
+    P: 'Prank',
+    RSTH: 'Rbad',
+    TVS: 'Void',
+    TCRF: 'Cf',
+    U: 'Umad',
+    SFC: 'Supa',
+    FTVKC: 'Kawaii',
+    PLBH: 'Legit',
+    DP: 'Prae',
+    FHOTN: 'Fiery',
+    RBOSI: 'Sql',
+    SDFC: 'Dupa',
+    EL: 'Euro',
+    DROTU: 'Deth',
+    SGBES: 'Gamma',
+    TDVOX: 'Xmax',
+    TTOED: 'Epic duck',
+    VH: 'Valk',
+    C: 'Cth',
   };
 
   const deriveAcronym = value => String(value || '')

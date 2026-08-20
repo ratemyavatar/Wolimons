@@ -1,272 +1,401 @@
-<!DOCTYPE html><html lang="en-US"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="The Wolimons public API - free, keyless JSON endpoints for item values, players, trade ads, value changes and more.">
-    <meta name="theme-color" content="#1d8df1">
-    <meta property="og:site_name" content="Wolimons">
-    <meta property="og:title" content="API Documentation - Wolimons">
-    <meta property="og:description" content="The Wolimons public API - free, keyless JSON endpoints for item values, players, trade ads, value changes and more.">
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="/apidocs/">
-    <meta property="og:image" content="/assets/Wolimonslogoo.png">
-    <meta name="twitter:card" content="summary">
-    <meta name="twitter:title" content="API Documentation - Wolimons">
-    <meta name="twitter:description" content="The Wolimons public API - free, keyless JSON endpoints for item values, players, trade ads, value changes and more.">
-    <meta name="twitter:image" content="/assets/Wolimonslogoo.png">
-    <title>API Documentation - Wolimons</title>
-    <link rel="stylesheet" href="/css/sitecombined2.css">
-    <link rel="stylesheet" href="/css/wolimons.css">
-    <link rel="stylesheet" href="/css/tradeads.css">
+<!DOCTYPE html>
+<html lang="en-US">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wolimons API</title>
 <link rel="icon" type="image/svg+xml" href="/assets/Wolimonslogoo.png">
 <style>
-/*
- * The docs page keeps the site's own palette - the navbar grey, the pane
- * grey, the same text colours - and adds just one thing: code blocks.
- */
-.docs_topbar { background-color: rgb(58, 63, 68); }
-.docs_code {
-  background-color: rgb(36, 38, 42);
-  border: 1px solid rgb(58, 63, 68);
-  border-radius: 6px;
-  padding: 12px 14px;
-  margin: 8px 0 0;
-  font-family: SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
-  font-size: 0.85em;
-  line-height: 1.55;
-  color: rgb(233, 236, 239);
-  overflow-x: auto;
-  white-space: pre;
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: #fafafa;
+  color: #3b4151;
+  font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
 }
-.docs_code .docs_dim { color: rgb(122, 130, 136); }
-.docs_code .docs_ok { color: #81c784; }
-.docs_endpoint_title { color: rgb(238, 238, 238); font-size: 1.05em; font-weight: 600; }
-.docs_chip {
-  display: inline-block; font-size: 0.72em; font-weight: 700;
-  color: #81c784; background-color: rgb(58, 63, 68);
-  border-radius: 4px; padding: 2px 7px; margin-right: 8px;
-  vertical-align: 2px; letter-spacing: 0.04em;
+code, pre, .path { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+
+.topbar { background: #1b1b1b; padding: 10px 0; }
+.topbar .inner { max-width: 1100px; margin: 0 auto; padding: 0 20px; display: flex; align-items: center; gap: 10px; }
+.topbar img { display: block; }
+.topbar .name { color: #fff; font-size: 18px; font-weight: 700; }
+.topbar .base {
+  margin-left: auto; background: #2b2b2b; color: #9ad; border: 1px solid #3a3a3a;
+  border-radius: 4px; padding: 4px 10px; font-size: 12px; font-family: ui-monospace, Menlo, monospace;
 }
+
+.wrap { max-width: 1100px; margin: 0 auto; padding: 24px 20px 80px; }
+h1 { font-size: 32px; margin: 0 0 4px; color: #3b4151; }
+.version {
+  display: inline-block; background: #7d8492; color: #fff; border-radius: 57px;
+  padding: 2px 10px; font-size: 12px; font-weight: 600; vertical-align: middle; margin-left: 8px;
+}
+.blurb { color: #3b4151; margin: 10px 0 6px; max-width: 760px; }
+.meta { color: #666; font-size: 13px; }
+.meta a { color: #4990e2; }
+
+h2.group {
+  font-size: 22px; margin: 34px 0 0; padding-bottom: 6px;
+  border-bottom: 1px solid #ddd; color: #3b4151;
+}
+.group-note { color: #666; font-size: 13px; margin: 6px 0 12px; }
+
+.op {
+  border: 1px solid #61affe; border-radius: 4px; background: #ebf3fb;
+  margin: 0 0 10px;
+}
+.op.post { border-color: #49cc90; background: #e8f6f0; }
+.op-head {
+  display: flex; align-items: center; gap: 10px; padding: 8px 10px; cursor: pointer;
+  user-select: none;
+}
+.verb {
+  background: #61affe; color: #fff; font-size: 13px; font-weight: 700; letter-spacing: .4px;
+  border-radius: 3px; padding: 6px 0; min-width: 74px; text-align: center; flex: 0 0 auto;
+}
+.op.post .verb { background: #49cc90; }
+.path { font-size: 15px; font-weight: 600; color: #3b4151; word-break: break-all; }
+.summary { color: #565b64; font-size: 13px; margin-left: auto; text-align: right; }
+.chev { color: #4a5364; flex: 0 0 auto; transition: transform .15s; }
+.op[open] .chev { transform: rotate(90deg); }
+
+.op-body { background: #fff; border-top: 1px solid #d5e3f2; padding: 14px 16px; }
+.op.post .op-body { border-top-color: #cfe9dd; }
+.op-body h4 {
+  margin: 0 0 8px; font-size: 12px; letter-spacing: .5px; text-transform: uppercase; color: #3b4151;
+}
+.op-body h4 + h4, .op-body pre + h4, .op-body table + h4 { margin-top: 18px; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; color: #3b4151; border-bottom: 1px solid #e3e6ea; padding: 6px 8px 6px 0; font-size: 12px; }
+td { padding: 7px 8px 7px 0; border-bottom: 1px solid #f0f2f4; vertical-align: top; }
+td.pname { font-family: ui-monospace, Menlo, monospace; color: #3b4151; font-weight: 600; white-space: nowrap; }
+td.ptype { color: #999; font-family: ui-monospace, Menlo, monospace; white-space: nowrap; }
+.req { color: #b93a3a; font-size: 11px; margin-left: 4px; }
+pre {
+  background: #333; color: #eee; border-radius: 4px; padding: 12px 14px; margin: 0;
+  overflow-x: auto; font-size: 12.5px; line-height: 1.5;
+}
+.try {
+  display: inline-block; margin-top: 12px; background: #4990e2; color: #fff;
+  text-decoration: none; border-radius: 4px; padding: 6px 14px; font-size: 13px; font-weight: 600;
+}
+.try:hover { background: #357ac9; }
+.lock { font-size: 12px; color: #8a6d3b; background: #fcf8e3; border: 1px solid #faebcc;
+  border-radius: 3px; padding: 6px 10px; margin: 0 0 12px; }
 </style>
 </head>
-<body class="page-admin">
+<body>
 
-    <!-- Same top bar as the admin panel: the docs are part of the site, not
-         a guest, and the way home is one click. -->
-    <div class="docs_topbar px-2 px-sm-3 py-2 shadow">
-        <div class="d-flex align-items-center flex-wrap" style="max-width: 900px; margin: auto;">
-            <a class="btn btn-flat-light-blue-sm rounded-pill shadow" href="/" role="button"><span class="d-inline-block text-nowrap button_icon_svg"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" fill="currentColor"></path></svg></span><span class="text-nowrap">Back to Wolimons</span></a>
-            <h1 class="page_title mb-0 ml-3">API Documentation</h1>
-        </div>
-    </div>
+<div class="topbar">
+  <div class="inner">
+    <img src="/assets/Wolimonslogoo.png" width="30" height="30" alt="">
+    <span class="name">Wolimons API</span>
+    <span class="base">Base URL: /api</span>
+  </div>
+</div>
 
-    <div id="page_background"></div>
+<div class="wrap">
 
-    <div id="page_content_container">
-        <div id="left_gutter"></div>
-        <div id="page_content_body">
+<h1>Wolimons API<span class="version">v1</span></h1>
+<p class="blurb">Item values, RAP, trade ads and staff data for Wanwood. No key and no registration &mdash; every endpoint below answers a plain GET and sends CORS headers, so a browser on any domain can call it.</p>
+<p class="meta">Item names, RAP and lowest prices come from Wanwood and are cached for ten minutes. Values, demand, trend and categories are set by hand on this site. The machine-readable index is at <a href="/api">/api</a>.</p>
 
-            <div class="container-fluid px-0 mt-3 mb-5" style="max-width: 900px;">
+<h2 class="group">Items</h2>
+<p class="group-note">Values and market data for tracked limiteds.</p>
 
-                <!-- Intro -->
-                <div class="row shadow mx-0 mx-sm-3 mt-3" style="background-color: #2e3337;">
-                    <div class="w-100 px-3 px-sm-4 py-4">
-                        <div class="small" style="color: #adb5bd;">
-                            Wolimons serves a public JSON API for Wanwood limited-item values, players and
-                            trade ads - the same data the site itself runs on. There is no key and no
-                            registration: every endpoint below is a plain GET request, and every answer
-                            carries CORS headers, so a page on any domain may call it straight from the
-                            browser.
-                        </div>
-                        <div class="small mt-3" style="color: #adb5bd;">
-                            Item names, RAP and lowest prices are read from Wanwood and cached for ten
-                            minutes, so please poll no faster than you need to. Values, demand, trend and
-                            categories are set by hand on this site and update the moment they are saved.
-                            The machine-readable version of this page is served at <span style="color:#e9ecef;">/api</span>.
-                        </div>
-                    </div>
-                </div>
-
-                <!-- itemdetails -->
-                <div class="row mx-0 mt-4 mx-sm-3"><h2 class="section_header">Item details</h2></div>
-                <div class="row shadow mx-0 mx-sm-3 mt-2" style="background-color: #2e3337;">
-                    <div class="w-100 px-3 px-sm-4 py-4">
-                        <div class="docs_endpoint_title"><span class="docs_chip">GET</span>/api/v1/itemdetails</div>
-                        <div class="small mt-2" style="color: #adb5bd;">
-                            Every item Wolimons tracks, keyed by item id: name, value, demand, trend,
-                            valuation method, categories, RAP and lowest ask. This is the one to build a
-                            value checker on.
-                        </div>
-<div class="docs_code"><span class="docs_dim">GET</span> /api/v1/itemdetails
-
-{
+<details class="op">
+  <summary class="op-head">
+    <svg class="chev" width="10" height="10" viewBox="0 0 10 10"><path d="M2 0l6 5-6 5z" fill="currentColor"/></svg>
+    <span class="verb">GET</span>
+    <span class="path">/api/v1/itemdetails</span>
+    <span class="summary">Every tracked item</span>
+  </summary>
+  <div class="op-body">
+    <h4>Description</h4>
+    <p>Name, value, demand, trend, valuation method, categories, RAP and lowest ask for every item the site tracks. This is the one most tools want.</p>
+    <h4>Parameters</h4>
+    <p class="meta">None.</p>
+    <h4>Example response</h4>
+<pre>{
   "success": true,
   "item_count": 42,
-  "partial": false,
   "items": {
-    "61": {
-      "name": "Perfectly Legitimate Business Hat",
-      "value": 25000,
+    "1581": {
+      "name": "Domino Crown",
+      "acronym": "",
+      "rap": 9500,
+      "value": 10000,
       "demand": "High",
       "trend": "Stable",
-      "method": "rap",
-      "categories": [],
-      "rap": 24180,
-      "lowestPrice": 26999,
-      "updatedAt": 1787000000000,
-      "updatedBy": "Nun"
-    },
-    <span class="docs_dim">...</span>
+      "projected": false,
+      "hyped": false,
+      "rare": true,
+      "lowest_price": 11000
+    }
   }
-}</div>
-                    </div>
-                </div>
+}</pre>
+    <a class="try" href="/api/v1/itemdetails" target="_blank" rel="noopener">Try it</a>
+  </div>
+</details>
 
-                <!-- values -->
-                <div class="row mx-0 mt-4 mx-sm-3"><h2 class="section_header">Raw values</h2></div>
-                <div class="row shadow mx-0 mx-sm-3 mt-2" style="background-color: #2e3337;">
-                    <div class="w-100 px-3 px-sm-4 py-4">
-                        <div class="docs_endpoint_title"><span class="docs_chip">GET</span>/api/v1/values</div>
-                        <div class="small mt-2" style="color: #adb5bd;">
-                            The raw value table this site runs on - only what the value team has set, with
-                            no Wanwood enrichment. Faster than itemdetails when you just need the numbers.
-                        </div>
-<div class="docs_code"><span class="docs_dim">GET</span> /api/v1/values
-
-{
+<details class="op">
+  <summary class="op-head">
+    <svg class="chev" width="10" height="10" viewBox="0 0 10 10"><path d="M2 0l6 5-6 5z" fill="currentColor"/></svg>
+    <span class="verb">GET</span>
+    <span class="path">/api/v1/values</span>
+    <span class="summary">Raw value table</span>
+  </summary>
+  <div class="op-body">
+    <h4>Description</h4>
+    <p>The value table this site runs on, keyed by item id, plus the time it last changed.</p>
+    <h4>Parameters</h4>
+    <p class="meta">None.</p>
+    <h4>Example response</h4>
+<pre>{
   "success": true,
-  "updatedAt": 1787000000000,
+  "updatedAt": 1755648000000,
   "values": {
-    "61": { "value": 25000, "demand": "High", "trend": "Stable",
-            "categories": [], "method": "rap", "note": "" }
+    "1581": { "value": 10000, "demand": "High", "trend": "Stable", "categories": ["rare"] }
   }
-}</div>
-                    </div>
-                </div>
+}</pre>
+    <a class="try" href="/api/v1/values" target="_blank" rel="noopener">Try it</a>
+  </div>
+</details>
 
-                <!-- valuechanges -->
-                <div class="row mx-0 mt-4 mx-sm-3"><h2 class="section_header">Value changes</h2></div>
-                <div class="row shadow mx-0 mx-sm-3 mt-2" style="background-color: #2e3337;">
-                    <div class="w-100 px-3 px-sm-4 py-4">
-                        <div class="docs_endpoint_title"><span class="docs_chip">GET</span>/api/v1/valuechanges?limit=&amp;since=</div>
-                        <div class="small mt-2" style="color: #adb5bd;">
-                            The change log behind the Value Changes page, newest first. <span style="color:#e9ecef;">limit</span>
-                            caps the list (default 200), and <span style="color:#e9ecef;">since</span> takes a millisecond
-                            timestamp for polling only what is new.
-                        </div>
-<div class="docs_code"><span class="docs_dim">GET</span> /api/v1/valuechanges?limit=50
-
-{
+<details class="op">
+  <summary class="op-head">
+    <svg class="chev" width="10" height="10" viewBox="0 0 10 10"><path d="M2 0l6 5-6 5z" fill="currentColor"/></svg>
+    <span class="verb">GET</span>
+    <span class="path">/api/v1/valuechanges</span>
+    <span class="summary">Value change log</span>
+  </summary>
+  <div class="op-body">
+    <h4>Description</h4>
+    <p>Every value edit, newest first. This is what the value graphs replay to show history.</p>
+    <h4>Parameters</h4>
+    <table>
+      <tr><th>Name</th><th>Type</th><th>Description</th></tr>
+      <tr><td class="pname">limit</td><td class="ptype">integer</td><td>How many rows to return. Defaults to 200.</td></tr>
+      <tr><td class="pname">since</td><td class="ptype">integer</td><td>Only changes made after this millisecond timestamp.</td></tr>
+    </table>
+    <h4>Example response</h4>
+<pre>{
   "success": true,
   "changes": [
-    { "id": 61, "field": "value", "old": 24000, "new": 25000,
-      "by": "Nun", "at": 1787000000000 }
+    { "id": 1581, "field": "value", "old": 9000, "new": 10000, "by": "goob", "at": 1755648000000 }
   ]
-}</div>
-                    </div>
-                </div>
+}</pre>
+    <a class="try" href="/api/v1/valuechanges?limit=10" target="_blank" rel="noopener">Try it</a>
+  </div>
+</details>
 
-                <!-- playerinfo -->
-                <div class="row mx-0 mt-4 mx-sm-3"><h2 class="section_header">Player info</h2></div>
-                <div class="row shadow mx-0 mx-sm-3 mt-2" style="background-color: #2e3337;">
-                    <div class="w-100 px-3 px-sm-4 py-4">
-                        <div class="docs_endpoint_title"><span class="docs_chip">GET</span>/api/v1/playerinfo/&lt;userId&gt;</div>
-                        <div class="small mt-2" style="color: #adb5bd;">
-                            One Wanwood player by user id: their name, any staff rank they hold on
-                            Wolimons, and the badges that have been handed to them.
-                        </div>
-<div class="docs_code"><span class="docs_dim">GET</span> /api/v1/playerinfo/1
+<h2 class="group">Players</h2>
+<p class="group-note">Accounts, staff roles and badges.</p>
 
-{
+<details class="op">
+  <summary class="op-head">
+    <svg class="chev" width="10" height="10" viewBox="0 0 10 10"><path d="M2 0l6 5-6 5z" fill="currentColor"/></svg>
+    <span class="verb">GET</span>
+    <span class="path">/api/v1/playerinfo/{userId}</span>
+    <span class="summary">One player</span>
+  </summary>
+  <div class="op-body">
+    <h4>Description</h4>
+    <p>A single Wanwood player: their name, their staff role if they have one, and any badges the owner has handed them.</p>
+    <h4>Parameters</h4>
+    <table>
+      <tr><th>Name</th><th>Type</th><th>Description</th></tr>
+      <tr><td class="pname">userId<span class="req">required</span></td><td class="ptype">integer<br>(path)</td><td>The Wanwood user id.</td></tr>
+    </table>
+    <h4>Example response</h4>
+<pre>{
   "success": true,
   "id": 1,
-  "name": "Nun",
+  "name": "goob",
   "role": "owner",
-  "roleLabel": "Site Owner",
   "badges": ["certified-wanwoodian"]
-}</div>
-                    </div>
-                </div>
+}</pre>
+    <a class="try" href="/api/v1/playerinfo/1" target="_blank" rel="noopener">Try it</a>
+  </div>
+</details>
 
-                <!-- getrecentads -->
-                <div class="row mx-0 mt-4 mx-sm-3"><h2 class="section_header">Recent trade ads</h2></div>
-                <div class="row shadow mx-0 mx-sm-3 mt-2" style="background-color: #2e3337;">
-                    <div class="w-100 px-3 px-sm-4 py-4">
-                        <div class="docs_endpoint_title"><span class="docs_chip">GET</span>/api/v1/getrecentads?limit=</div>
-                        <div class="small mt-2" style="color: #adb5bd;">
-                            The trade ad board, newest first. Each side of an ad is up to four slots; a
-                            slot is either an item or one of the request tags like <span style="color:#e9ecef;">rap</span> or
-                            <span style="color:#e9ecef;">wishlist</span>.
-                        </div>
-<div class="docs_code"><span class="docs_dim">GET</span> /api/v1/getrecentads?limit=25
-
-{
-  "success": true,
-  "ads": [
-    { "id": "9-1787000000001", "creatorId": 9, "creatorName": "Someone",
-      "createdAt": 1787000000001,
-      "offer":   [ { "kind": "item", "id": 61, "name": "..." }, null, null, null ],
-      "request": [ { "kind": "tag", "slug": "rap" }, null, null, null ] }
-  ]
-}</div>
-                    </div>
-                </div>
-
-                <!-- roles -->
-                <div class="row mx-0 mt-4 mx-sm-3"><h2 class="section_header">Staff roster</h2></div>
-                <div class="row shadow mx-0 mx-sm-3 mt-2" style="background-color: #2e3337;">
-                    <div class="w-100 px-3 px-sm-4 py-4">
-                        <div class="docs_endpoint_title"><span class="docs_chip">GET</span>/api/v1/roles</div>
-                        <div class="small mt-2" style="color: #adb5bd;">
-                            Who ranks what on Wolimons - Site Owner, Value Manager and Value Team.
-                        </div>
-<div class="docs_code"><span class="docs_dim">GET</span> /api/v1/roles
-
-{
+<details class="op">
+  <summary class="op-head">
+    <svg class="chev" width="10" height="10" viewBox="0 0 10 10"><path d="M2 0l6 5-6 5z" fill="currentColor"/></svg>
+    <span class="verb">GET</span>
+    <span class="path">/api/v1/roles</span>
+    <span class="summary">Staff roster</span>
+  </summary>
+  <div class="op-body">
+    <h4>Description</h4>
+    <p>Everyone on staff and what they are. Ranks are <code>owner</code>, <code>value_manager</code> and <code>staff</code>.</p>
+    <h4>Parameters</h4>
+    <p class="meta">None.</p>
+    <h4>Example response</h4>
+<pre>{
   "success": true,
   "roles": [
-    { "name": "Nun", "role": "owner", "grantedBy": "Nun" }
+    { "name": "goob", "role": "owner" }
   ]
-}</div>
-                    </div>
-                </div>
+}</pre>
+    <a class="try" href="/api/v1/roles" target="_blank" rel="noopener">Try it</a>
+  </div>
+</details>
 
-                <!-- badges -->
-                <div class="row mx-0 mt-4 mx-sm-3"><h2 class="section_header">Granted badges</h2></div>
-                <div class="row shadow mx-0 mx-sm-3 mt-2" style="background-color: #2e3337;">
-                    <div class="w-100 px-3 px-sm-4 py-4">
-                        <div class="docs_endpoint_title"><span class="docs_chip">GET</span>/api/v1/badges?name=</div>
-                        <div class="small mt-2" style="color: #adb5bd;">
-                            The badges handed out by the site. With no parameters it returns every grant
-                            plus the list of badge ids that can be granted; with <span style="color:#e9ecef;">?name=X</span> it
-                            returns just that player's badges.
-                        </div>
-<div class="docs_code"><span class="docs_dim">GET</span> /api/v1/badges?name=Nun
+<details class="op">
+  <summary class="op-head">
+    <svg class="chev" width="10" height="10" viewBox="0 0 10 10"><path d="M2 0l6 5-6 5z" fill="currentColor"/></svg>
+    <span class="verb">GET</span>
+    <span class="path">/api/v1/badges</span>
+    <span class="summary">Owner-granted badges</span>
+  </summary>
+  <div class="op-body">
+    <h4>Description</h4>
+    <p>Badges the site owner has handed out. Pass a name for one player, leave it off for the whole table.</p>
+    <h4>Parameters</h4>
+    <table>
+      <tr><th>Name</th><th>Type</th><th>Description</th></tr>
+      <tr><td class="pname">name</td><td class="ptype">string</td><td>A Wanwood username. Omit to get everyone.</td></tr>
+    </table>
+    <h4>Example response</h4>
+<pre>{
+  "success": true,
+  "name": "goob",
+  "badges": ["certified-wanwoodian"]
+}</pre>
+    <a class="try" href="/api/v1/badges" target="_blank" rel="noopener">Try it</a>
+  </div>
+</details>
 
-{ "success": true, "name": "Nun", "badges": ["certified-wanwoodian"] }</div>
-                    </div>
-                </div>
+<h2 class="group">Trading</h2>
+<p class="group-note">The trade ad board.</p>
 
-                <!-- notes -->
-                <div class="row mx-0 mt-4 mx-sm-3"><h2 class="section_header">Notes</h2></div>
-                <div class="row shadow mx-0 mx-sm-3 mt-2" style="background-color: #2e3337;">
-                    <div class="w-100 px-3 px-sm-4 py-4">
-                        <div class="small" style="color: #adb5bd;">
-                            All endpoints answer <span style="color:#e9ecef;">application/json</span>. On an error the
-                            status code says what happened and the body carries a
-                            <span style="color:#e9ecef;">success: false</span> with a human message:
-                        </div>
-<div class="docs_code">{ "success": false, "error": "Wanwood could not be reached, or there is no such player." }</div>
-                        <div class="small mt-3" style="color: #adb5bd;">
-                            Questions, or building something on this? Bring it to the
-                            <a href="https://discord.gg/vCwRzWSMf" target="_blank" rel="noopener" style="color:#7ab8f5;">Discord server</a>.
-                            Wolimons is the official values and trading site for Wanwood. Not affiliated with Roblox Corporation.
-                        </div>
-                    </div>
-                </div>
+<details class="op">
+  <summary class="op-head">
+    <svg class="chev" width="10" height="10" viewBox="0 0 10 10"><path d="M2 0l6 5-6 5z" fill="currentColor"/></svg>
+    <span class="verb">GET</span>
+    <span class="path">/api/v1/getrecentads</span>
+    <span class="summary">Recent trade ads</span>
+  </summary>
+  <div class="op-body">
+    <h4>Description</h4>
+    <p>The trade ad board, newest first, with the item ids on each side and any tags the poster added.</p>
+    <h4>Parameters</h4>
+    <table>
+      <tr><th>Name</th><th>Type</th><th>Description</th></tr>
+      <tr><td class="pname">limit</td><td class="ptype">integer</td><td>How many ads to return.</td></tr>
+    </table>
+    <h4>Example response</h4>
+<pre>{
+  "success": true,
+  "trade_ads": [
+    {
+      "id": 12,
+      "created": 1755648000000,
+      "player_id": 2,
+      "offer_item_ids": [1581],
+      "request_item_ids": [1582],
+      "request_tags": ["upgrade"]
+    }
+  ]
+}</pre>
+    <a class="try" href="/api/v1/getrecentads?limit=5" target="_blank" rel="noopener">Try it</a>
+  </div>
+</details>
 
-            </div>
+<h2 class="group">Service</h2>
+<p class="group-note">Index and health.</p>
 
-        </div>
-        <div id="right_gutter"></div>
-    </div>
+<details class="op">
+  <summary class="op-head">
+    <svg class="chev" width="10" height="10" viewBox="0 0 10 10"><path d="M2 0l6 5-6 5z" fill="currentColor"/></svg>
+    <span class="verb">GET</span>
+    <span class="path">/api</span>
+    <span class="summary">Endpoint index</span>
+  </summary>
+  <div class="op-body">
+    <h4>Description</h4>
+    <p>This page in machine-readable form: every public endpoint with a one-line description.</p>
+    <h4>Parameters</h4>
+    <p class="meta">None.</p>
+    <a class="try" href="/api" target="_blank" rel="noopener">Try it</a>
+  </div>
+</details>
 
-</body></html>
+<details class="op">
+  <summary class="op-head">
+    <svg class="chev" width="10" height="10" viewBox="0 0 10 10"><path d="M2 0l6 5-6 5z" fill="currentColor"/></svg>
+    <span class="verb">GET</span>
+    <span class="path">/api/status</span>
+    <span class="summary">Server health</span>
+  </summary>
+  <div class="op-body">
+    <h4>Description</h4>
+    <p>Whether the backend is up, which storage it is using and whether it can write.</p>
+    <h4>Parameters</h4>
+    <p class="meta">None.</p>
+    <h4>Example response</h4>
+<pre>{
+  "ok": true,
+  "auth": "roster",
+  "upstream": "wanwoo.xyz",
+  "storage": "file",
+  "canWrite": true
+}</pre>
+    <a class="try" href="/api/status" target="_blank" rel="noopener">Try it</a>
+  </div>
+</details>
+
+<h2 class="group">Staff endpoints</h2>
+<p class="lock">These need a signed identity token from <code>POST /api/identity</code> and only work for accounts on the staff roster. Send it as <code>Authorization: Bearer &lt;token&gt;</code>.</p>
+
+<details class="op post">
+  <summary class="op-head">
+    <svg class="chev" width="10" height="10" viewBox="0 0 10 10"><path d="M2 0l6 5-6 5z" fill="currentColor"/></svg>
+    <span class="verb">POST</span>
+    <span class="path">/api/identity</span>
+    <span class="summary">Get a token</span>
+  </summary>
+  <div class="op-body">
+    <h4>Description</h4>
+    <p>Proves you own a Wanwood account. Put the phrase in your Wanwood profile description first, then post it here.</p>
+    <h4>Body</h4>
+    <table>
+      <tr><th>Name</th><th>Type</th><th>Description</th></tr>
+      <tr><td class="pname">userId<span class="req">required</span></td><td class="ptype">integer</td><td>Your Wanwood user id.</td></tr>
+      <tr><td class="pname">phrase<span class="req">required</span></td><td class="ptype">string</td><td>The phrase currently in your profile description.</td></tr>
+    </table>
+    <h4>Example request</h4>
+<pre>curl -X POST /api/identity \
+  -H "Content-Type: application/json" \
+  -d '{"userId": 1, "phrase": "zzz12345"}'</pre>
+  </div>
+</details>
+
+<details class="op post">
+  <summary class="op-head">
+    <svg class="chev" width="10" height="10" viewBox="0 0 10 10"><path d="M2 0l6 5-6 5z" fill="currentColor"/></svg>
+    <span class="verb">POST</span>
+    <span class="path">/api/values/set</span>
+    <span class="summary">Change an item value</span>
+  </summary>
+  <div class="op-body">
+    <h4>Description</h4>
+    <p>Sets value, demand, trend and categories for one item. Every edit is written to the change log.</p>
+    <h4>Body</h4>
+    <table>
+      <tr><th>Name</th><th>Type</th><th>Description</th></tr>
+      <tr><td class="pname">id<span class="req">required</span></td><td class="ptype">integer</td><td>The item id.</td></tr>
+      <tr><td class="pname">value</td><td class="ptype">integer</td><td>The new value.</td></tr>
+      <tr><td class="pname">demand</td><td class="ptype">string</td><td>Terrible, Low, Normal, High or Amazing.</td></tr>
+      <tr><td class="pname">trend</td><td class="ptype">string</td><td>Lowering, Unstable, Stable, Raising or Fluctuating.</td></tr>
+      <tr><td class="pname">categories</td><td class="ptype">array</td><td>Any of rare, projected, hyped.</td></tr>
+    </table>
+  </div>
+</details>
+
+<p class="meta" style="margin-top:34px">Rate limits are not enforced yet &mdash; please be gentle, every itemdetails refresh fans out over Wanwood.</p>
+
+</div>
+</body>
+</html>

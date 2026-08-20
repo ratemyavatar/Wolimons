@@ -5,7 +5,7 @@
  * WHAT THIS FILE IS
  * ---------------------------------------------------------------------------
  * "Value", "Demand" and "Trend" are NOT prices and NOT RAP. They are the
- * community-assigned figures, set by hand - exactly like Rolimon's does it.
+ * community-assigned figures, set by hand.
  * Nothing on Wanwood reports any of them, so they can never be fetched from
  * the game API. They come from the value team instead.
  *

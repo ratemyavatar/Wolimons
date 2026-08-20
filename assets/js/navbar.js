@@ -589,8 +589,8 @@
       const banner = document.createElement('div');
       banner.id = 'global_announcement_banner';
       banner.style.cssText = 'background: rgb(0, 132, 221); color: #fff; '
-        + 'font-weight: bold; text-align: center; padding: 9px 40px; '
-        + 'font-size: 15px; line-height: 1.45; position: relative; '
+        + 'font-weight: bold; text-align: center; padding: 4px 16px; '
+        + 'font-size: 12.5px; line-height: 1.35; position: relative; '
         + 'width: 100%; z-index: 2100;';
 
       const text = String(announcement.text).trim();

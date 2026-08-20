@@ -123,13 +123,40 @@
     .replace(/^-+|-+$/g, '') || 'unnamed';
 
   /*
-   * The acronym is just the name abbreviated: the first letter of each word,
-   * uppercased - "Red Energy Sword" becomes "RES". Parenthesized qualifiers
-   * like "(Gold)" don't count, and apostrophes stay inside their word so
-   * "Clockwork's Headphones" is "CH". Nothing is stored anywhere; it is
-   * derived fresh from whatever the item is called right now, so it can never
-   * drift out of step with the name.
+   * Acronyms are NOT derived from the name anymore. The letter-of-each-word
+   * abbreviations read as nonsense ("BHFBSP"), so the site now shows a
+   * hand-picked nickname per item instead - the ones the community actually
+   * says out loud. Only the items in ACRONYMS get one; every other item
+   * shows no acronym at all, and nothing is stored anywhere - the map is
+   * keyed by the letters the old derivation would have produced, so a name
+   * that is not in the list simply stays blank.
    */
+  const ACRONYMS = {
+    BHFBSP: 'SPACE HAIR',
+    TBB: 'BBH',
+    BIBOUP: 'BIB',
+    PI: 'INDY',
+    P: 'PRANK',
+    RSTH: 'RBAD',
+    TVS: 'VOID',
+    TCRF: 'CF',
+    U: 'UMAD',
+    SFC: 'SUPA',
+    FTVKC: 'KAWAII',
+    PLBH: 'LEGIT',
+    DP: 'PRAE',
+    FHOTN: 'FIERY',
+    RBOSI: 'SQL',
+    SDFC: 'DUPA',
+    EL: 'EURO',
+    DROTU: 'DETH',
+    SGBES: 'GAMMA',
+    TDVOX: 'XMAX',
+    TTOED: 'EPIC DUCK',
+    VH: 'VALK',
+    C: 'CTH',
+  };
+
   const deriveAcronym = value => String(value || '')
     .replace(/\([^)]*\)/g, ' ')
     .split(/[^A-Za-z0-9']+/)
@@ -137,6 +164,13 @@
     .filter(Boolean)
     .join('')
     .toUpperCase();
+
+  /* The acronym an item shows: its listed nickname, or nothing at all. */
+  const acronymFor = value => {
+    /* The item literally named "+" keeps "+" as its mark. */
+    if (String(value || '').trim() === '+') return '+';
+    return ACRONYMS[deriveAcronym(value)] || '';
+  };
 
   const fields = name => [...document.querySelectorAll(`[data-item-field="${name}"]`)];
   const field = name => document.querySelector(`[data-item-field="${name}"]`);
@@ -358,14 +392,14 @@
   }
 
   function playerCell(userId, name) {
-    const link = el('a', 'koro-dt-player', name || `User ${userId}`);
+    const link = el('a', 'woli-dt-player', name || `User ${userId}`);
     link.href = `/player/?id=${userId}`;
     return link;
   }
 
   /* The capture's Trade button, pointed at Wanwood's trade window. */
   function tradeCell(userId) {
-    const link = el('a', 'btn btn-sm koro-trade-btn', 'Trade');
+    const link = el('a', 'btn btn-sm woli-trade-btn', 'Trade');
     link.href = `${SITE_BASE}/Trade/TradeWindow.aspx?TradePartnerID=${userId}`;
     link.target = '_blank';
     link.rel = 'noopener';
@@ -441,7 +475,7 @@
       onRender: applyHeadshots,
       sort: { index: 2, direction: 'asc' },
       columns: [
-        { className: 'koro-dt-avatar', cell: row => avatarCell(row.userId, row.name) },
+        { className: 'woli-dt-avatar', cell: row => avatarCell(row.userId, row.name) },
         { cell: row => playerCell(row.userId, row.name), sort: row => row.name, search: row => row.name },
         { cell: row => (row.serialNumber ? formatNumber(row.serialNumber) : EMPTY), sort: row => row.serialNumber, search: row => row.serialNumber },
         { cell: row => agoCell(row.updated || row.created), sort: row => Date.parse(row.updated || row.created) || null },
@@ -454,7 +488,7 @@
       onRender: applyHeadshots,
       sort: { index: 3, direction: 'asc' },
       columns: [
-        { className: 'koro-dt-avatar', cell: row => avatarCell(row.userId, row.name) },
+        { className: 'woli-dt-avatar', cell: row => avatarCell(row.userId, row.name) },
         { cell: row => playerCell(row.userId, row.name), sort: row => row.name, search: row => row.name },
         { cell: row => (row.serialNumber ? formatNumber(row.serialNumber) : EMPTY), sort: row => row.serialNumber, search: row => row.serialNumber },
         { cell: row => (row.price === null ? EMPTY : formatNumber(row.price)), sort: row => row.price, search: row => row.price },
@@ -467,7 +501,7 @@
       onRender: applyHeadshots,
       sort: { index: 2, direction: 'desc' },
       columns: [
-        { className: 'koro-dt-avatar', cell: row => avatarCell(row.userId, row.name) },
+        { className: 'woli-dt-avatar', cell: row => avatarCell(row.userId, row.name) },
         { cell: row => playerCell(row.userId, row.name), sort: row => row.name, search: row => row.name },
         { cell: row => formatNumber(row.copies), sort: row => row.copies, search: row => row.copies },
         { cell: row => row.serials, search: row => row.serials },
@@ -1065,7 +1099,7 @@
     setText('name', name);
     /* The acronym chip beside the title and the Acronym cell in the grid are
      * the same figure; the chip hides itself when there is nothing to say. */
-    const acronym = deriveAcronym(name);
+    const acronym = acronymFor(name);
     setText('acronym', acronym || null);
     setText('acronym-2', acronym || null);
     show('acronym', Boolean(acronym));

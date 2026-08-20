@@ -1,14 +1,14 @@
 /*
  * Trade ads - /trades and /tradead
  *
- * Lifted from the Rolimon's trade ads snapshots the same way every other
+ * Lifted from the original trade ads snapshots the same way every other
  * page here was: the rules are the site's own, copied verbatim, only
  * scoped under a body class. Scoping matters because the snapshots reuse
  * generic names - .mix_item, .stat_value, .hover_pointer - that the
  * catalog and search modal already define differently.
  *
  * The board (/trades) and the single-ad page (/tradead) ship the same
- * stylesheet on Rolimon's: 111 of its rules are byte-identical between the
+ * stylesheet: 111 of its rules are byte-identical between the
  * two snapshots, because a detail page is a board page with one card on it.
  * Rather than keep two copies, every shared rule carries both scopes and
  * the detail-only rules are appended at the bottom.
@@ -210,7 +210,7 @@ body.page-trades .tag_button, body.page-playertrades .tag_button { width: 55px; 
 /* Wolimons additions                                                */
 /* ---------------------------------------------------------------- */
 
-/* The composer is the one piece with no snapshot equivalent: Rolimon's
+/* The composer is the one piece with no snapshot equivalent: the original
  * puts ad creation on its own /tradeadcreate page, while ours is inline
  * so a linked account can post without leaving the board. It borrows the
  * filter panel's surface so it does not look bolted on. */

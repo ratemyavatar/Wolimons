@@ -227,7 +227,7 @@
     };
 
     list.appendChild(linkTo(Math.max(1, page - 1),
-      `page-link-koro prev${page === 1 ? ' disabled' : ''}`, arrow(ARROW_PREV)));
+      `page-link-woli prev${page === 1 ? ' disabled' : ''}`, arrow(ARROW_PREV)));
 
     pageNumbers(page, total).forEach(entry => {
       const item = document.createElement('li');
@@ -238,12 +238,12 @@
         item.appendChild(text('span', 'current', String(entry)));
         list.appendChild(item);
       } else {
-        list.appendChild(linkTo(entry, 'page-link-koro ', String(entry)));
+        list.appendChild(linkTo(entry, 'page-link-woli ', String(entry)));
       }
     });
 
     list.appendChild(linkTo(Math.min(total, page + 1),
-      `page-link-koro next${page === total ? ' disabled' : ''}`, arrow(ARROW_NEXT)));
+      `page-link-woli next${page === total ? ' disabled' : ''}`, arrow(ARROW_NEXT)));
 
     shell.appendChild(list);
     host.appendChild(shell);

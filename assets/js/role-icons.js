@@ -2,10 +2,10 @@
  * Wolimons - staff rank icons
  * ---------------------------
  * The little SVG that sits beside a staff member's name. Every one of them is
- * lifted from the Colimons leaderboard snapshot, where the same icons mark the
+ * lifted from the original leaderboard snapshot, where the same icons mark the
  * same kind of thing - nothing here was drawn for Wolimons.
  *
- *   Site Owner      the gold crown, Colimons' top-of-the-board icon
+ *   Site Owner      the gold crown, the top-of-the-board icon
  *   Value Manager   the silver shield, its "Top 50 Leaderboard" icon
  *   Value Team      the purple star, its "Caelus Staff" icon
  *

@@ -31,8 +31,8 @@
   const TIERS = {
     artifact: { rank: 90, label: 'Artifact' },
     legendary: { rank: 80, label: 'Legendary' },
-    koro_award_winner: { rank: 75, label: 'Woli Award Winner' },
-    koro_award_nominee: { rank: 70, label: 'Woli Award Nominee' },
+    woli_award_winner: { rank: 75, label: 'Woli Award Winner' },
+    woli_award_nominee: { rank: 70, label: 'Woli Award Nominee' },
     epic: { rank: 60, label: 'Epic' },
     booster: { rank: 55, label: 'Booster' },
     rare: { rank: 40, label: 'Rare' },
@@ -142,8 +142,8 @@
     /* --- Community: awarded by hand, off-site ----------------------- */
     { id: 'contributor', name: 'Contributor', tier: 'legendary', section: 'Community Badges', earn: null },
     { id: 'sword-fighting-champion', name: 'Sword Fighting Champion', tier: 'legendary', section: 'Community Badges', earn: null },
-    { id: 'woli-award-winner', name: 'Woli Award Winner', tier: 'koro_award_winner', section: 'Community Badges', earn: null },
-    { id: 'woli-award-nominee', name: 'Woli Award Nominee', tier: 'koro_award_nominee', section: 'Community Badges', earn: null },
+    { id: 'woli-award-winner', name: 'Woli Award Winner', tier: 'woli_award_winner', section: 'Community Badges', earn: null },
+    { id: 'woli-award-nominee', name: 'Woli Award Nominee', tier: 'woli_award_nominee', section: 'Community Badges', earn: null },
     { id: 'event-winner', name: 'Event Winner', tier: 'epic', section: 'Community Badges', earn: null },
     { id: 'game-night-winner', name: 'Game Night Winner', tier: 'rare', section: 'Community Badges', earn: null },
     { id: 'booster', name: 'Booster', tier: 'booster', section: 'Community Badges', earn: null },
@@ -346,7 +346,7 @@
     const art = (window.WolimonsBadgeArt || {})[id];
     if (!art) return null;
     const span = document.createElement('span');
-    span.className = 'roli_badge';
+    span.className = 'woli_badge';
     span.innerHTML = art;
     return span;
   }

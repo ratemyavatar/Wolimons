@@ -29,7 +29,7 @@
   const CERTIFIED_ICON = '/img/badges/certified-wanwoodian.png';
 
   /* The hover tooltip is a child span rather than a title attribute so it
-     matches the Colimons styling; the title is kept as the accessible
+     matches the Wolimons styling; the title is kept as the accessible
      fallback for touch and screen readers. */
   function badgeWrap(label, child) {
     const wrap = document.createElement('span');

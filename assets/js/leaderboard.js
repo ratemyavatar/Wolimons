@@ -105,9 +105,9 @@
   /* ------------------------------------------------------------------ */
 
   /*
-   * The card shape is the Koromon's one: name header, avatar on a gradient,
-   * then Rank / Value / RAP rows. The badge row inside the header is the
-   * Colimons addition.
+   * The card shape is the Wolimons one: name header, avatar on a gradient,
+   * then Rank / Value / RAP rows. The badge row inside the header is a
+   * Wolimons addition.
    */
   function playerCard(player) {
     const cell = text('div', 'pb-2 mb-3 lb_cell shadow_md_35 shift_up_md mx-0');
@@ -234,7 +234,7 @@
     };
 
     list.appendChild(linkTo(Math.max(1, page - 1),
-      `page-link-koro prev${page === 1 ? ' disabled' : ''}`, arrow(ARROW_PREV)));
+      `page-link-woli prev${page === 1 ? ' disabled' : ''}`, arrow(ARROW_PREV)));
 
     pageNumbers(page, total).forEach(entry => {
       const item = document.createElement('li');
@@ -245,12 +245,12 @@
         item.appendChild(text('span', 'current', String(entry)));
         list.appendChild(item);
       } else {
-        list.appendChild(linkTo(entry, 'page-link-koro ', String(entry)));
+        list.appendChild(linkTo(entry, 'page-link-woli ', String(entry)));
       }
     });
 
     list.appendChild(linkTo(Math.min(total, page + 1),
-      `page-link-koro next${page === total ? ' disabled' : ''}`, arrow(ARROW_NEXT)));
+      `page-link-woli next${page === total ? ' disabled' : ''}`, arrow(ARROW_NEXT)));
 
     shell.appendChild(list);
     host.appendChild(shell);

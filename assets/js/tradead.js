@@ -102,8 +102,8 @@
       dom.creatorProfile.href = `/player/?id=${ad.creatorId}`;
       dom.creatorProfile.classList.remove('d-none');
     }
-    /* Rolimon's has a /playertrades/<id> page; Wolimons does not, so this
-     * goes back to the board rather than to a page that is not there. */
+    /* There is no single-ad page under /playertrades/<id> on Wolimons, so
+     * this goes back to the board rather than to a page that is not there. */
     if (dom.moreAds) {
       dom.moreAds.href = '/trades';
       dom.moreAds.classList.remove('d-none');

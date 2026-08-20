@@ -6,9 +6,9 @@
  * ---------------------------------------------------------------------------
  * The item page snapshot's Owner Lists section is a DataTables grid: a "Show N
  * entries" selector, a search box, sortable headers, and Bootstrap pagination
- * underneath. Every class in that markup - .koro-dt, .koro-dt-controls,
- * .koro-dt-length, .koro-dt-search, .sorting / .sorting_asc / .sorting_desc,
- * .koro-dt-footer, .koro-dt-info - is already styled in css/wolimons.css,
+ * underneath. Every class in that markup - .woli-dt, .woli-dt-controls,
+ * .woli-dt-length, .woli-dt-search, .sorting / .sorting_asc / .sorting_desc,
+ * .woli-dt-footer, .woli-dt-info - is already styled in css/wolimons.css,
  * because the whole block was ported when the site's CSS was taken from the
  * captures. What was missing is the behaviour behind it.
  *
@@ -36,7 +36,7 @@
  * cells after the fact - filling in avatars, for instance - belongs here
  * rather than being done once after setRows.
  *
- * `root` is the .koro-dt element. Column N in `columns` lines up with the Nth
+ * `root` is the .woli-dt element. Column N in `columns` lines up with the Nth
  * <th>, and each column says how to draw a cell, what to sort it by and what
  * text the search box should match against. A column with no `sort` is not
  * sortable, which is how the avatar and Trading columns behave in the capture.

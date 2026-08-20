@@ -150,7 +150,7 @@
 
     earned.forEach(badge => {
       const icon = BADGES && BADGES.iconNode ? BADGES.iconNode(badge.id) : null;
-      const node = icon || text('span', 'roli_badge');
+      const node = icon || text('span', 'woli_badge');
       node.setAttribute('title', badge.name);
       node.setAttribute('aria-label', badge.name);
       container.appendChild(node);

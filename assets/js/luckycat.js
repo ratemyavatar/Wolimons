@@ -61,7 +61,7 @@
   const VALUES = window.WolimonsValues;
   const ROSTER = window.WolimonsRoster;
 
-  /* One choice per day, rolling over at UTC midnight. The real Rolimon's
+  /* One choice per day, rolling over at UTC midnight. The original lucky cat
    * re-rolls at a random point inside a window; a random re-roll time cannot
    * be derived, and two browsers must agree, so the period here is a fixed
    * day and the countdown is exact rather than approximate. */

@@ -423,9 +423,10 @@ async function serveStatic(req, res, url) {
     return true;
   }
 
-  /* Never hand out the git history or the secrets file. */
+  /* Never hand out the git history, the secrets file, or the design
+   * reference copies - the public site is Wolimons and nothing else. */
   const relative = path.relative(SITE_ROOT, resolved).split(path.sep);
-  if (relative.some(part => part === '.git' || part === '.env' || part === 'node_modules')) {
+  if (relative.some(part => part === '.git' || part === '.env' || part === 'node_modules' || part === 'snapshots')) {
     res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
     res.end('Not found');
     return true;

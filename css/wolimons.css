@@ -443,19 +443,19 @@
 
 .vc-badge-down { color: rgb(214, 92, 77); }
 
-.koro-table { width: 100%; color: rgb(220, 223, 226); font-size: 0.9rem; border-collapse: collapse; background: rgb(39, 43, 48); }
+.woli-table { width: 100%; color: rgb(220, 223, 226); font-size: 0.9rem; border-collapse: collapse; background: rgb(39, 43, 48); }
 
-.koro-table th { background: rgb(48, 54, 60); color: rgb(173, 173, 173); padding: 8px 10px; cursor: pointer; user-select: none; white-space: nowrap; position: sticky; top: 0px; z-index: 2; }
+.woli-table th { background: rgb(48, 54, 60); color: rgb(173, 173, 173); padding: 8px 10px; cursor: pointer; user-select: none; white-space: nowrap; position: sticky; top: 0px; z-index: 2; }
 
-.koro-table th:hover { color: rgb(255, 255, 255); }
+.woli-table th:hover { color: rgb(255, 255, 255); }
 
-.koro-table td { padding: 6px 10px; border-bottom: 1px solid rgb(43, 48, 54); }
+.woli-table td { padding: 6px 10px; border-bottom: 1px solid rgb(43, 48, 54); }
 
-.koro-table tbody tr { cursor: pointer; }
+.woli-table tbody tr { cursor: pointer; }
 
-.koro-table tbody tr:hover { background: rgb(48, 54, 60); }
+.woli-table tbody tr:hover { background: rgb(48, 54, 60); }
 
-.koro-table .sort-arrow { font-size: 0.7em; margin-left: 4px; }
+.woli-table .sort-arrow { font-size: 0.7em; margin-left: 4px; }
 
 .kt-thumb { flex: 0 0 32px; background: rgb(31, 35, 39); border-radius: 3px; }
 
@@ -517,7 +517,7 @@
 }
 
 /* Rank badge beside a leaderboard name, with its hover tooltip. The tooltip
-   markup came from the Colimons leaderboard, where every copy carried the
+   markup came from the original leaderboard, where every copy carried the
    same inline styles; it is a rule here instead. */
 .page-leaderboard .lb_cell h6 > .text-truncate { min-width: 0; }
 
@@ -550,9 +550,9 @@
 /* The simple-pagination arrows. The snapshot left .disabled unstyled, so a
    dead prev/next arrow looked clickable; matched to the .page-item.disabled
    colours just above. */
-.simple-pagination .page-link-koro svg { vertical-align: -3px; }
+.simple-pagination .page-link-woli svg { vertical-align: -3px; }
 
-.simple-pagination .page-link-koro.disabled { background: rgb(36, 40, 44); color: rgb(90, 96, 102); cursor: default; pointer-events: none; }
+.simple-pagination .page-link-woli.disabled { background: rgb(36, 40, 44); color: rgb(90, 96, 102); cursor: default; pointer-events: none; }
 
 .player_info_grid { display: grid; gap: 1rem; margin-top: 12px; }
 
@@ -651,7 +651,7 @@
 
 .online_status_dot.is_online { background-color: rgb(127, 186, 109); }
 
-.koro-letter-avatar { display: flex; align-items: center; justify-content: center; border-radius: 6px; color: rgb(255, 255, 255); font-weight: 700; flex: 0 0 auto; user-select: none; }
+.woli-letter-avatar { display: flex; align-items: center; justify-content: center; border-radius: 6px; color: rgb(255, 255, 255); font-weight: 700; flex: 0 0 auto; user-select: none; }
 
 .game-card-icon { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; display: block; background-color: rgb(38, 41, 45); }
 
@@ -665,9 +665,9 @@
 
 .group-detail-box { background-color: rgb(50, 56, 62); }
 
-.koro-range { appearance: none; height: 6px; border-radius: 3px; background: rgb(28, 30, 34); outline: none; }
+.woli-range { appearance: none; height: 6px; border-radius: 3px; background: rgb(28, 30, 34); outline: none; }
 
-.koro-range::-webkit-slider-thumb { appearance: none; width: 16px; height: 16px; border-radius: 50%; background: rgb(0, 132, 221); cursor: pointer; border: none; }
+.woli-range::-webkit-slider-thumb { appearance: none; width: 16px; height: 16px; border-radius: 50%; background: rgb(0, 132, 221); cursor: pointer; border: none; }
 
 .chart-range-btn { background-color: rgb(60, 68, 76); color: rgb(173, 173, 173); border: none; border-radius: 2px; font-size: 0.78rem; padding: 2px 9px; margin-right: 5px; cursor: pointer; }
 
@@ -868,49 +868,49 @@
 
 .search-player-card img { object-fit: cover; }
 
-.koro-dt-controls { gap: 8px; margin-bottom: 8px; }
+.woli-dt-controls { gap: 8px; margin-bottom: 8px; }
 
-.koro-dt-length { display: flex; align-items: center; gap: 6px; margin: 0px; font-size: 0.82rem; color: rgb(154, 160, 166); white-space: nowrap; }
+.woli-dt-length { display: flex; align-items: center; gap: 6px; margin: 0px; font-size: 0.82rem; color: rgb(154, 160, 166); white-space: nowrap; }
 
-.koro-dt-length .custom-select { width: auto; background-color: rgb(35, 39, 43); color: rgb(221, 221, 221); border-color: rgb(27, 30, 33); }
+.woli-dt-length .custom-select { width: auto; background-color: rgb(35, 39, 43); color: rgb(221, 221, 221); border-color: rgb(27, 30, 33); }
 
-.koro-dt-search { display: flex; align-items: center; gap: 6px; margin: 0px; font-size: 0.82rem; color: rgb(154, 160, 166); }
+.woli-dt-search { display: flex; align-items: center; gap: 6px; margin: 0px; font-size: 0.82rem; color: rgb(154, 160, 166); }
 
-.koro-dt-search .form-control { width: 160px; background-color: rgb(35, 39, 43); color: rgb(221, 221, 221); border-color: rgb(27, 30, 33); }
+.woli-dt-search .form-control { width: 160px; background-color: rgb(35, 39, 43); color: rgb(221, 221, 221); border-color: rgb(27, 30, 33); }
 
-.koro-dt-search .form-control:focus { background-color: rgb(35, 39, 43); color: rgb(255, 255, 255); box-shadow: none; border-color: rgb(0, 132, 221); }
+.woli-dt-search .form-control:focus { background-color: rgb(35, 39, 43); color: rgb(255, 255, 255); box-shadow: none; border-color: rgb(0, 132, 221); }
 
-.koro-dt-table th { white-space: nowrap; user-select: none; }
+.woli-dt-table th { white-space: nowrap; user-select: none; }
 
-.koro-dt-table th.sorting, .koro-dt-table th.sorting_asc, .koro-dt-table th.sorting_desc { cursor: pointer; position: relative; padding-right: 20px; }
+.woli-dt-table th.sorting, .woli-dt-table th.sorting_asc, .woli-dt-table th.sorting_desc { cursor: pointer; position: relative; padding-right: 20px; }
 
-.koro-dt-table th.sorting::after, .koro-dt-table th.sorting_asc::after, .koro-dt-table th.sorting_desc::after { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); font-size: 0.65em; color: rgb(94, 103, 110); content: "▲\a ▼"; white-space: pre; line-height: 0.9; }
+.woli-dt-table th.sorting::after, .woli-dt-table th.sorting_asc::after, .woli-dt-table th.sorting_desc::after { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); font-size: 0.65em; color: rgb(94, 103, 110); content: "▲\a ▼"; white-space: pre; line-height: 0.9; }
 
-.koro-dt-table th.sorting_asc::after { content: "▲"; color: rgb(221, 221, 221); }
+.woli-dt-table th.sorting_asc::after { content: "▲"; color: rgb(221, 221, 221); }
 
-.koro-dt-table th.sorting_desc::after { content: "▼"; color: rgb(221, 221, 221); }
+.woli-dt-table th.sorting_desc::after { content: "▼"; color: rgb(221, 221, 221); }
 
-.koro-dt-table td { vertical-align: middle; }
+.woli-dt-table td { vertical-align: middle; }
 
-.koro-dt-avatar { width: 38px; padding-right: 0px !important; }
+.woli-dt-avatar { width: 38px; padding-right: 0px !important; }
 
-.koro-dt-player { color: rgb(232, 232, 232); font-weight: 600; }
+.woli-dt-player { color: rgb(232, 232, 232); font-weight: 600; }
 
-.koro-dt-player:hover { color: rgb(255, 255, 255); }
+.woli-dt-player:hover { color: rgb(255, 255, 255); }
 
-.koro-dt-footer { gap: 8px; margin-top: 4px; padding-bottom: 6px; }
+.woli-dt-footer { gap: 8px; margin-top: 4px; padding-bottom: 6px; }
 
-.koro-dt-info { font-size: 0.8rem; color: rgb(154, 160, 166); }
+.woli-dt-info { font-size: 0.8rem; color: rgb(154, 160, 166); }
 
-.koro-dt .pagination .page-link { background-color: rgb(35, 39, 43); border-color: rgb(27, 30, 33); color: rgb(154, 160, 166); }
+.woli-dt .pagination .page-link { background-color: rgb(35, 39, 43); border-color: rgb(27, 30, 33); color: rgb(154, 160, 166); }
 
-.koro-dt .pagination .page-item.active .page-link { background-color: rgb(0, 132, 221); border-color: rgb(0, 132, 221); color: rgb(255, 255, 255); }
+.woli-dt .pagination .page-item.active .page-link { background-color: rgb(0, 132, 221); border-color: rgb(0, 132, 221); color: rgb(255, 255, 255); }
 
-.koro-dt .pagination .page-item.disabled .page-link { background-color: rgb(35, 39, 43); color: rgb(94, 103, 110); }
+.woli-dt .pagination .page-item.disabled .page-link { background-color: rgb(35, 39, 43); color: rgb(94, 103, 110); }
 
-.koro-trade-btn { background-color: rgb(0, 132, 221); color: rgb(255, 255, 255); font-size: 0.75rem; font-weight: 600; padding: 2px 12px; }
+.woli-trade-btn { background-color: rgb(0, 132, 221); color: rgb(255, 255, 255); font-size: 0.75rem; font-weight: 600; padding: 2px 12px; }
 
-.koro-trade-btn:hover { background-color: rgb(10, 149, 245); color: rgb(255, 255, 255); }
+.woli-trade-btn:hover { background-color: rgb(10, 149, 245); color: rgb(255, 255, 255); }
 
 .switch { display: inline-flex; align-items: center; color: rgb(200, 205, 209); font-weight: 600; font-size: 0.9rem; cursor: pointer; margin-bottom: 0px; user-select: none; }
 
@@ -924,9 +924,9 @@
 
 .switch .switch-input:checked + .switch-slider::before { transform: translateX(16px); }
 
-.roli_badge { padding: 3px; line-height: 0; display: inline-block; width: 62px; height: 62px; }
+.woli_badge { padding: 3px; line-height: 0; display: inline-block; width: 62px; height: 62px; }
 
-.roli_badge svg { display: block; width: 100%; height: 100%; }
+.woli_badge svg { display: block; width: 100%; height: 100%; }
 
 #badges_container { padding: 2px 4px; }
 
@@ -970,9 +970,9 @@
 
 .border_top_booster { border-top: 2px solid rgb(244, 127, 255); }
 
-.border_top_koro_award_winner { border-top: 2px solid rgb(217, 183, 93); }
+.border_top_woli_award_winner { border-top: 2px solid rgb(217, 183, 93); }
 
-.border_top_koro_award_nominee { border-top: 2px solid rgb(209, 209, 209); }
+.border_top_woli_award_nominee { border-top: 2px solid rgb(209, 209, 209); }
 
 .border_top_artifact { border-top: 2px solid rgb(173, 45, 54); }
 

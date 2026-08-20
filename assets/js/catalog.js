@@ -301,7 +301,7 @@
       if (current) {
         item.append(text('span', 'current', label));
       } else {
-        const link = text('a', `page-link-koro${disabled ? ' disabled' : ''}`, label);
+        const link = text('a', `page-link-woli${disabled ? ' disabled' : ''}`, label);
         link.href = '#';
         link.dataset.page = String(page);
         if (!disabled) link.addEventListener('click', event => {

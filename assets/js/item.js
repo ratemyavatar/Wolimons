@@ -166,11 +166,7 @@
     .toUpperCase();
 
   /* The acronym an item shows: its listed nickname, or nothing at all. */
-  const acronymFor = value => {
-    /* The item literally named "+" keeps "+" as its mark. */
-    if (String(value || '').trim() === '+') return '+';
-    return ACRONYMS[deriveAcronym(value)] || '';
-  };
+  const acronymFor = value => ACRONYMS[deriveAcronym(value)] || '';
 
   const fields = name => [...document.querySelectorAll(`[data-item-field="${name}"]`)];
   const field = name => document.querySelector(`[data-item-field="${name}"]`);

@@ -479,7 +479,7 @@ function endpointIndex() {
   return {
     success: true,
     service: 'Wolimons API',
-    about: 'Wolimons is a fan-made item values and trading resource for Wanwood. '
+    about: 'Wolimons is the official item values and trading resource for Wanwood. '
       + 'Everything under /api/v1 is the public API - no key, no registration. '
       + 'Item names, RAP and lowest prices come from Wanwood and are cached for '
       + 'ten minutes; values, demand, trend and categories are set by hand on '

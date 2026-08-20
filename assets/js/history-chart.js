@@ -39,10 +39,10 @@
  *   range buttons  #505053 / rgb(204,204,204), pressed #000003 / white bold
  *   range inputs   silver text, #505053 border, #333 background
  *
- * The range selector is the snapshot's: 1w, 1m, 3m, 6m, 1y, All, with 1y
- * selected. The old hand-rolled RANGES array and the #chart_range_buttons
- * strip it filled are gone - the buttons live inside the chart now, which is
- * where the snapshot has them.
+ * The range selector offers 1w, 1m, 3m, 6m, 1y and All, and opens on All so
+ * the chart shows the entire recorded history by default. The old
+ * hand-rolled RANGES array and the #chart_range_buttons strip it filled are
+ * gone - the buttons live inside the chart now.
  *
  * ---------------------------------------------------------------------------
  * WHAT IS NOT HERE, AND WHY
@@ -168,10 +168,12 @@
        * page, so nothing is only available through it. */
       accessibility: { enabled: false },
 
-      /* Highstock's own range buttons, in the snapshot's order, with 1y
-       * selected the way the capture has it. */
+      /* Highstock's own range buttons. "All" is the one selected: a value or
+       * RAP chart is there to show the whole story of an item or a player,
+       * so it opens on the entire history rather than clipping it to the
+       * last year and hiding everything older behind a button. */
       rangeSelector: {
-        selected: 4,
+        selected: 5,
         buttons: [
           { type: 'week', count: 1, text: '1w' },
           { type: 'month', count: 1, text: '1m' },

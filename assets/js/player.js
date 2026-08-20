@@ -10,9 +10,11 @@
  *   economy/v1/assets/{id}/resale-data   per-item daily price series
  *
  * The history chart is summed from the per-item series: for each day, the
- * player's RAP is the sum of every owned item's last known daily price. That
- * is the only real history this backend exposes - there is no per-player
- * snapshot endpoint - so it is reconstructed here rather than faked.
+ * player's RAP is the sum of every owned item's last known daily price, and
+ * the value is the sum of what those items were worth on that day according
+ * to our own value change log. That is the only real history this backend
+ * exposes - there is no per-player snapshot endpoint - so it is
+ * reconstructed here rather than faked.
  */
 (() => {
   'use strict';
@@ -363,13 +365,38 @@
    * make the total lurch every time an item goes quiet. Instead every item
    * carries its last known price forward, which is what RAP does anyway, and
    * the day's total is the sum of those carried values times copies owned.
+   *
+   * The value line is real history too, not a flat line at today's figure.
+   * The backend logs every value edit to /api/changes, so replaying that log
+   * gives what each item was worth on each day, and summing those gives the
+   * player's value as it actually stood back then. An item nobody has
+   * re-valued simply holds one figure the whole way across, which is the
+   * truth about it.
    */
-  function buildSeries(items) {
+  function buildSeries(items, changes) {
     const dayKeys = new Set();
     items.forEach(item => {
       item.history.forEach(point => dayKeys.add(Math.floor(point.time / DAY_MS)));
     });
+
+    /* Value edits, oldest first, grouped by the item they belong to. Days a
+     * value moved are days the chart must have a point for, even if nothing
+     * sold that day. */
+    const editsFor = new Map();
+    (Array.isArray(changes) ? changes : []).forEach(change => {
+      if (!change || change.field !== 'value' || !Number.isFinite(change.at)) return;
+      const id = Number(change.id);
+      if (!editsFor.has(id)) editsFor.set(id, []);
+      editsFor.get(id).push(change);
+      dayKeys.add(Math.floor(change.at / DAY_MS));
+    });
+    editsFor.forEach(list => list.sort((a, b) => a.at - b.at));
+
     if (!dayKeys.size) return [];
+
+    /* Today anchors the right-hand end, so the line runs to now rather than
+     * stopping at whenever the last sale happened to be. */
+    dayKeys.add(Math.floor(Date.now() / DAY_MS));
 
     const days = [...dayKeys].sort((a, b) => a - b);
     /* Walk each item's points in step with the shared day axis. */
@@ -377,7 +404,23 @@
     const carried = items.map(() => null);
     const series = [];
 
+    /* What an item was worth at a given moment: the value the last edit on or
+     * before that moment set, or - before any edit - whatever the first edit
+     * replaced. With no edits at all the current curated figure stands. */
+    const valueAt = (item, when) => {
+      const edits = editsFor.get(Number(item.id));
+      if (!edits || !edits.length) return Number(item.value) || 0;
+      let current = Number(edits[0].old) || 0;
+      edits.forEach(edit => {
+        if (edit.at <= when) current = Number(edit.new) || 0;
+      });
+      return current;
+    };
+
     days.forEach(day => {
+      /* Measure each day at its end, so an edit made during that day is
+       * already reflected in the point drawn for it. */
+      const when = day * DAY_MS + (DAY_MS - 1);
       let rap = 0;
       let value = 0;
       items.forEach((item, index) => {
@@ -388,9 +431,7 @@
         }
         if (carried[index] === null) return;
         rap += carried[index] * item.copies;
-        /* Value is curated and has no history, so it is drawn flat at the
-         * current figure for every day the player held the item. */
-        value += item.value * item.copies;
+        value += valueAt(item, when) * item.copies;
       });
       series.push({ time: day * DAY_MS, rap, value });
     });
@@ -726,7 +767,17 @@
     setText('player_rap', formatNumber(
       state.items.reduce((sum, item) => sum + (item.rap * item.copies), 0)));
 
-    renderChart(buildSeries(state.items));
+    /* Our own value change log, for the Value line on the chart. Every value
+     * edit is recorded with its date, so the chart can show what this
+     * inventory was worth over time instead of drawing today's figure flat
+     * across the whole history. A backend that cannot answer just means the
+     * value line holds steady, so this never blocks the chart. */
+    const changes = await fetch(`${API.API_BASE}/api/changes?limit=1000`)
+      .then(response => response.json())
+      .then(payload => (payload && payload.ok ? payload.changes : []))
+      .catch(() => []);
+
+    renderChart(buildSeries(state.items, changes));
     renderInventory();
 
     /* Re-run now that supply figures are real. */

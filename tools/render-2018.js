@@ -147,6 +147,9 @@ function router(url) {
       ],
     });
   }
+  if (s.includes('/api/announcement')) {
+    return reply({ ok: true, announcement: { text: 'Values updated for the winter event', link: '' } });
+  }
   if (s.includes('/api/discord')) return reply({ ok: true, enabled: false, name: 'Wolimons', invite: 'https://discord.gg/x', online: 47, total: 344, members: [] });
   if (s.includes('/api/me')) return reply({ ok: true, role: null, canSetValues: false });
   return reply({ data: [] });
@@ -192,6 +195,26 @@ function boot(rel, search = '', fetcher = router) {
 }
 
 const wait = ms => new Promise(r => setTimeout(r, ms));
+
+/*
+ * A page may add a script of its own after it loads - the 2018 home page
+ * pulls in the Discord panel that way. This DOM does not fetch those, so they
+ * are run here, the way a browser would.
+ */
+function runInjected(w) {
+  [...w.document.querySelectorAll('script[src]')]
+    .map(node => node.getAttribute('src').split('?')[0])
+    .filter(src => src.startsWith('/assets/js/') && !tag_seen.has(src))
+    .forEach(src => {
+      tag_seen.add(src);
+      try {
+        w.eval(fs.readFileSync(R + src, 'utf8'));
+      } catch (error) {
+        console.log('  (injected ' + src + ' failed: ' + error.message + ')');
+      }
+    });
+}
+let tag_seen = new Set();
 
 (async () => {
   const pages = ['/2018/index.html', '/2018/catalog/index.html', '/2018/itemtable/index.html',
@@ -584,6 +607,71 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
     ok('deals (39 items): only the flagged one',
       w.document.querySelectorAll('.projectionspg_item_cell').length === 1,
       w.document.querySelectorAll('.projectionspg_item_cell').length);
+  }
+
+  /* the Discord panel, which is 2018 furniture */
+  {
+    const { w } = boot('/2018/index.html');
+    await wait(600);
+    tag_seen = new Set([...w.document.querySelectorAll('script[src]')]
+      .map(tag => tag.getAttribute('src').split('?')[0])
+      .filter(src => src !== '/assets/js/discord-widget.js'));
+    runInjected(w);
+    await wait(700);
+    const panel = w.document.getElementById('discord_widget');
+    ok('home: the Discord panel is mounted where the iframe was', !!panel);
+    ok('home: and it says how many are in there',
+      !!panel && /344|47|Discord/i.test(panel.textContent),
+      panel ? panel.textContent.replace(/\s+/g, ' ').slice(0, 80) : '');
+  }
+
+  /* an item id Wanwood has never heard of */
+  {
+    const { w, errors } = boot('/2018/item/index.html', '?id=999999');
+    await wait(1200);
+    const text = w.document.body.textContent.replace(/\s+/g, ' ');
+    ok('item: an unknown id names itself rather than going blank',
+      /Item 999999/.test(text) && errors.length === 0, text.slice(0, 120) + errors.join('|'));
+    ok('item: and prints dashes, not zeroes',
+      !/Total Copies 0/.test(text), text.slice(0, 200));
+  }
+
+  /* the site-wide announcement, on the 2018 pages too */
+  {
+    const { w } = boot('/2018/catalog/index.html');
+    await wait(700);
+    const banner = w.document.getElementById('global_announcement_banner');
+    ok('announcement: the banner reaches the 2018 pages', !!banner,
+      'no banner');
+    ok('announcement: it sits under the navbar, not over it',
+      !!banner && banner.previousElementSibling
+      && banner.previousElementSibling.tagName === 'NAV'
+      && !/z-index/.test(banner.getAttribute('style') || ''),
+      banner ? (banner.previousElementSibling || {}).tagName : '');
+  }
+
+  /* nothing reachable: every page has to say so rather than sit empty */
+  {
+    const dead = () => Promise.reject(new Error('offline'));
+    for (const [page, container] of [
+      ['/2018/catalog/index.html', '.catpg_item_grid_container'],
+      ['/2018/projecteds/index.html', '.projectionspg_item_grid_container'],
+      ['/2018/valuechanges/index.html', '.valuechangespg_item_grid_container'],
+      ['/2018/players/index.html', '.playerspg_player_grid_container'],
+      ['/2018/tradecalculator/index.html', '.mix_container'],
+    ]) {
+      const { w, errors } = boot(page, '', dead);
+      await wait(900);
+      const box = w.document.querySelector(container);
+      ok(`offline: ${page.split('/')[2] || 'home'} says so instead of sitting empty`,
+        !!box && box.textContent.trim().length > 0 && errors.length === 0,
+        (box ? box.textContent.trim().slice(0, 60) : 'no container') + ' ' + errors.join('|'));
+    }
+    const { w } = boot('/2018/item/index.html', '?id=1581', dead);
+    await wait(1200);
+    ok('offline: the item page does not print zeroes it cannot know',
+      !/Owners\s*0/.test(w.document.body.textContent.replace(/\s+/g, ' ')),
+      w.document.body.textContent.replace(/\s+/g, ' ').slice(0, 200));
   }
 
   /* preferences */

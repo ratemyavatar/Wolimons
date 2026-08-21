@@ -682,6 +682,37 @@ def tidy_catalog(soup):
             row.decompose()
 
 
+def tidy_home(soup):
+    """Keep the box the Discord panel goes in.
+
+    2018 put the same panel in twice - one column for wide screens and one
+    for phones, each holding an iframe. The iframes are gone with the rest of
+    the frames, and an empty div is exactly what the tidy-up at the end of the
+    build deletes, which is how the panel ended up with nowhere to mount. One
+    column is kept, marked so it survives, and shown at every width.
+    """
+    columns = []
+    for heading in soup.select('h3'):
+        if 'discord' in heading.get_text(strip=True).lower():
+            column = heading.find_parent(class_=re.compile(r'\bcol-'))
+            if column is not None:
+                columns.append(column)
+
+    for extra in columns[1:]:
+        extra.decompose()
+    if not columns:
+        return
+
+    column = columns[0]
+    column['class'] = [name for name in column.get('class', [])
+                       if name not in {'d-none', 'd-sm-block', 'd-block', 'd-sm-none'}]
+    box = column.select_one('div')
+    if box is None:
+        box = soup.new_tag('div')
+        column.append(box)
+    box['data-2018-container'] = 'discord'
+
+
 def tidy_preferences(soup):
     """Point the old form at the settings this site actually keeps.
 
@@ -725,6 +756,7 @@ def tidy_preferences(soup):
 
 
 TIDY = {
+    'home': [tidy_home],
     'itemtable': [tidy_itemtable],
     'item': [tidy_item, tidy_charts],
     'player': [tidy_player, tidy_charts],

@@ -697,10 +697,18 @@
       return;
     }
 
-    /* The leaderboard is the same roster in rank order; /players is the same
-     * list alphabetically, which is how 2018 had it. */
-    const byValue = [...players].sort((a, b) => (b.value || 0) - (a.value || 0));
-    byValue.forEach((player, index) => ranked.set(player.id, index + 1));
+    /*
+     * The leaderboard is the roster in rank order; /players is the same list
+     * alphabetically, which is how 2018 had it.
+     *
+     * The order comes from the roster's own rank(), not from a sort written
+     * here: value leads, RAP breaks ties and the id settles the rest, and
+     * three pages have to agree about who is #4.
+     */
+    const byValue = typeof roster.rank === 'function'
+      ? roster.rank(players)
+      : [...players].sort((a, b) => (b.value || 0) - (a.value || 0));
+    byValue.forEach((player, index) => ranked.set(player.id, player.rank || index + 1));
     state.players = page === 'leaderboard'
       ? byValue
       : [...players].sort((a, b) => String(a.name).localeCompare(String(b.name)));
@@ -1784,10 +1792,8 @@
   /* ------------------------------------------------------------------ */
 
   function loadDiscord() {
-    const heading = [...document.querySelectorAll('h3')]
-      .find(node => /discord/i.test(node.textContent || ''));
-    if (!heading) return;
-    const box = heading.parentElement && heading.parentElement.querySelector('div');
+    /* The build marks the box the 2018 iframe used to sit in. */
+    const box = container('discord');
     if (!box) return;
 
     box.id = 'discord_widget';

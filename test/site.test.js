@@ -92,7 +92,7 @@ test('every backend module is valid and loads without side effects', () => {
   /* server.js binds a port the moment it is required, so it is syntax-checked
    * in a child rather than loaded here - a test run must not start a server. */
   const { execFileSync } = require('node:child_process');
-  ['api.js', 'store.js', 'server.js', 'ownership.js', 'embed.js'].forEach(name => {
+  ['api.js', 'store.js', 'server.js', 'embed.js'].forEach(name => {
     assert.doesNotThrow(
       () => execFileSync(process.execPath, ['--check', path.join(ROOT, 'proxy', name)]),
       `proxy/${name} does not parse`,
@@ -100,7 +100,7 @@ test('every backend module is valid and loads without side effects', () => {
   });
 
   /* The rest are safe to load, and loading them proves their requires resolve. */
-  ['api.js', 'store.js', 'ownership.js', 'embed.js'].forEach(name => {
+  ['api.js', 'store.js', 'embed.js'].forEach(name => {
     assert.doesNotThrow(() => require(path.join(ROOT, 'proxy', name)), `proxy/${name}`);
   });
 });
@@ -181,6 +181,39 @@ test('the stored game session is written owner-only and never returned', () => {
 /* Charts                                                            */
 /* ---------------------------------------------------------------- */
 
+test('charts start at zero on day one, with no gap in front of the line', () => {
+  /* An item has no RAP the day it is made and a player owns nothing the day
+   * they join, so zero is the true starting figure - and it draws the line
+   * from the beginning instead of leaving it hanging in mid-air. */
+  const chart = read('assets/js/history-chart.js');
+  assert.match(chart, /valueSeries\.unshift\(\[floor, 0\]\)/);
+  assert.match(chart, /rapSeries\.unshift\(\[floor, 0\]\)/);
+  assert.ok(!/unshift\(\[floor, null\]\)/.test(chart), 'a null point leaves the gap back');
+});
+
+test('a profile chart ends on the figures the page is showing', () => {
+  /* The series is rebuilt from price points that lag, so without this the
+   * chart could disagree with the RAP printed at the top of the same page. */
+  const player = read('assets/js/player.js');
+  assert.match(player, /const rapNow = items\.reduce/);
+  assert.match(player, /const valueNow = items\.reduce/);
+  assert.match(player, /series\.push\(\{ time: today, rap: rapNow, value: valueNow \}\)/);
+});
+
+test('the ownership history feature is fully gone, not half removed', () => {
+  const fs2 = require('node:fs');
+  assert.ok(!fs2.existsSync(path.join(ROOT, 'proxy', 'ownership.js')));
+  ['assets/js/item.js', 'assets/js/player.js', 'proxy/api.js', 'proxy/server.js']
+    .forEach(file => {
+      assert.ok(!/ownership\.js|owner_history|player_item_history|startOwnershipTracking/.test(read(file)),
+        `${file} still references the removed feature`);
+    });
+  assert.ok(!read('item/index.html').includes('owner_history'));
+  assert.ok(!read('player/index.html').includes('player_item_history'));
+  /* The Ownership *chart* tab is a different thing and stays. */
+  assert.ok(read('item/index.html').includes('ownership_chart_tab'));
+});
+
 test('charts open on All and start where the subject started', () => {
   const chart = read('assets/js/history-chart.js');
   assert.match(chart, /selected:\s*5/, 'the range selector should open on All');
@@ -201,55 +234,6 @@ test('the announcement banner cannot cover the navbar menus', () => {
   assert.ok(/width: 100%/.test(banner[1]), 'the match did not reach the end of the declaration');
   assert.ok(!/z-index/.test(banner[1]), 'a z-index here paints it over the dropdowns');
   assert.ok(!/position:/.test(banner[1]));
-});
-
-/* ---------------------------------------------------------------- */
-/* Ownership history layout                                          */
-/* ---------------------------------------------------------------- */
-
-test('the owner history tab is not pinned to the chart\'s fixed height', () => {
-  /* .item_page_chart_container is height:400px. A list inside it spilled out
-   * and overlapped the rest of the page. */
-  const html = read('item/index.html');
-  const pane = html.match(/<div class="([^"]*)" id="owner_history_container"/);
-  assert.ok(pane, 'owner history pane not found');
-  assert.ok(!pane[1].includes('item_page_chart_container'), 'still in the fixed-height box');
-  assert.ok(pane[1].includes('item_page_list_container'));
-
-  const css = read('css/wolimons.css');
-  assert.match(css, /\.item_page_chart_container \{[^}]*height: 400px/);
-  assert.ok(!/\.item_page_list_container \{[^}]*height:/.test(css), 'the list box must grow');
-});
-
-test('history lists are paged rather than dumped out whole', () => {
-  assert.match(read('assets/js/item.js'), /OWNER_HISTORY_PAGE/);
-  assert.match(read('assets/js/player.js'), /HISTORY_PAGE/);
-  assert.ok(read('item/index.html').includes('owner_history_more'));
-  assert.ok(read('player/index.html').includes('player_item_history_more'));
-});
-
-test('a profile\'s item history is a wrapping grid, not one long column', () => {
-  const html = read('player/index.html');
-  assert.match(html, /<div class="mix_container[^"]*" id="player_item_history_list"/,
-    'must use the grid the inventory uses, which wraps 4+ across on a desktop');
-  assert.ok(!/id="player_item_history_list"[^>]*trade_ad_picker_results/.test(html),
-    'the capped scroller is what broke the layout');
-
-  /* And that grid really does go four or more across on a desktop. The
-   * selectors are comma lists shared with the catalog, so this looks for a
-   * rule that names page-player and sets a quarter width, rather than
-   * assuming the two sit next to each other. */
-  const quarter = read('css/wolimons.css')
-    .split('\n')
-    .some(line => line.includes('.page-player .mix_item') && line.includes('width: calc(25%'));
-  assert.ok(quarter, 'the profile grid never reaches four across');
-});
-
-test('history cards show a real thumbnail, not just the fallback path', () => {
-  const player = read('assets/js/player.js');
-  assert.match(player, /API\.getItemDetails\(ids/, 'names and pictures are resolved in one batch');
-  assert.match(player, /API\.fetchThumbnails\(ids\)/, 'and a second pass fills any gaps');
-  assert.match(player, /detail\.thumbnail \|\| API\.thumbnailUrl/, 'fallback only when unresolved');
 });
 
 /* ---------------------------------------------------------------- */

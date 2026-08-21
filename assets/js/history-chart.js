@@ -150,22 +150,22 @@
     const rapSeries = rows.map(row => [row.time, row.rap]);
 
     /*
-     * Every chart reaches back to the beginning of the thing it is about: the
-     * day an item was created, or the day a player joined. `since` carries
-     * that; a caller with nothing to say leaves it out and the chart is just
-     * its data.
+     * Every chart starts at the beginning of the thing it is about: the day an
+     * item was created, or the day a player joined. `since` carries that; a
+     * caller with nothing to say leaves it out and the chart is just its data.
      *
-     * A limited that first sold three weeks ago used to draw a three-week
-     * chart, which reads as though that is the whole story. Now the axis
-     * starts where the item does. Both series get a null point at that mark -
-     * null draws nothing, so the axis stretches back while the line still
-     * begins where real data begins, rather than inventing a flat run of
-     * figures nobody recorded.
+     * The starting figure is zero, and that is not a placeholder - it is the
+     * truth. An item has no recent-average-price the day it is made, because
+     * nothing has sold yet, and a player owns nothing the day they sign up.
+     *
+     * This used to be a null point, which left the line hanging in mid-air
+     * with an empty stretch in front of it. Zero draws the line from the
+     * beginning instead, which is both tidier and more honest.
      */
     const floor = Number(names.since) || 0;
     if (floor && rows.length && rows[0].time > floor) {
-      valueSeries.unshift([floor, null]);
-      rapSeries.unshift([floor, null]);
+      valueSeries.unshift([floor, 0]);
+      rapSeries.unshift([floor, 0]);
     }
 
     return {

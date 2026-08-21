@@ -2102,4 +2102,6 @@ async function handle(req, res, url, readBody) {
   }
 }
 
-module.exports = { handle, startOwnershipTracking };
+/* `capabilities` is exported so the test suite can assert the permission
+ * table directly rather than re-implementing it and drifting from it. */
+module.exports = { handle, startOwnershipTracking, capabilities, ROLE_RANK };

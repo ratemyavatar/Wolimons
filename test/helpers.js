@@ -160,4 +160,50 @@ function idsIn(html) {
   return [...html.matchAll(/\sid="([^"]+)"/g)].map(match => match[1]);
 }
 
-module.exports = { ROOT, read, loadBrowserScript, extractDeclaration, sitePages, idsIn };
+/*
+ * Selectors in a stylesheet that are NOT under `scope`.
+ *
+ * Used on the sheets lifted from snapshots, which carry very generic names -
+ * .widget, .spinner, .card - and would collide with the rest of the site if
+ * even one rule escaped. @keyframes and @font-face bodies are skipped: their
+ * inner blocks are percentages and descriptors, not selectors.
+ */
+function unscopedSelectors(css, scope) {
+  let text = css.replace(/\/\*[\s\S]*?\*\//g, '');
+  text = text.replace(/@(?:-webkit-|-moz-)?keyframes[^{]*\{(?:[^{}]|\{[^{}]*\})*\}/g, '');
+  text = text.replace(/@font-face\s*\{[^}]*\}/g, '');
+
+  const out = [];
+  let buffer = '';
+  for (const ch of text) {
+    if (ch === '{') {
+      const selector = buffer.trim();
+      if (selector && !selector.startsWith('@') && !selector.includes(scope)) {
+        out.push(selector.slice(0, 60));
+      }
+      buffer = '';
+    } else if (ch === '}') {
+      buffer = '';
+    } else {
+      buffer += ch;
+    }
+  }
+  return out;
+}
+
+/* @keyframes that got a selector glued to the front are invalid and kill the
+ * animation silently - the exact mistake a naive prefixer makes. */
+function brokenKeyframes(css) {
+  return (css.match(/[.\w-]+\s+@(?:-webkit-|-moz-)?keyframes/g) || []);
+}
+
+module.exports = {
+  ROOT,
+  read,
+  loadBrowserScript,
+  extractDeclaration,
+  sitePages,
+  idsIn,
+  unscopedSelectors,
+  brokenKeyframes,
+};

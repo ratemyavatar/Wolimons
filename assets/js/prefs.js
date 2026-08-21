@@ -18,6 +18,7 @@
  * ---------------------------------------------------------------------------
  *   hideTablets         leave tablet items out of the catalog listing
  *   hideUnobtainables   leave unobtainable items out of the catalog listing
+ *   theme2018           dress the site the way it looked in 2018
  *
  * Both act on the community categories in values.js - the same
  * "tablet" and "unobtainable" flags the admin panel assigns - so they hide
@@ -40,6 +41,9 @@
   const DEFAULTS = {
     hideTablets: false,
     hideUnobtainables: false,
+    /* Dress the whole site as it looked in 2018. Lives here with the rest so
+     * it is reset by the same button and carried by the same storage. */
+    theme2018: false,
   };
 
   const NAMES = Object.keys(DEFAULTS);
@@ -83,6 +87,15 @@
   const listeners = new Set();
 
   function notify() {
+    /* theme.js applies the 2018 theme and runs in <head>, before this file
+     * exists. A storage event would reach other tabs but never this one, so
+     * it is told directly. */
+    try {
+      window.dispatchEvent(new CustomEvent('wolimons:theme'));
+    } catch (error) {
+      /* An old browser without CustomEvent still gets the setting on reload. */
+    }
+
     listeners.forEach(fn => {
       try {
         fn({ ...current });

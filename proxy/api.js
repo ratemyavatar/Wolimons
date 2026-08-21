@@ -473,6 +473,92 @@ const ROLE_LABELS = { website_owner: 'Website Owner', owner: 'Site Owner', value
 const VAULT_PASSWORD = String(process.env.VAULT_PASSWORD || 'ilovegod123');
 
 /* ---------------------------------------------------------------------- */
+/* The Discord widget                                                      */
+/* ---------------------------------------------------------------------- */
+
+/*
+ * Who is online in the Wolimons Discord, for the panel on the front page.
+ *
+ * Asked for here rather than in the browser for two reasons: the answer is
+ * the same for every visitor so it should be fetched once and cached, and
+ * going through the server means the page never depends on Discord sending
+ * the right CORS headers to our origin.
+ *
+ * Discord offers two ways to ask, and this uses whichever is available:
+ *
+ *   widget.json   the full picture - who is online, their avatars and what
+ *                 they are playing. Only answers when the server owner has
+ *                 switched the widget on in Server Settings.
+ *   the invite    always answers, and carries the online and member counts,
+ *                 but names nobody.
+ *
+ * So the panel shows real numbers immediately, and fills in with faces the
+ * moment the widget is enabled - without anything here changing.
+ */
+const DISCORD_GUILD_ID = String(process.env.DISCORD_GUILD_ID || '1490444783435518013');
+const DISCORD_INVITE_CODE = String(process.env.DISCORD_INVITE_CODE || 'vCwRzWSMf');
+const DISCORD_TTL_MS = 60 * 1000;
+
+async function discordJson(url) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000);
+  try {
+    const response = await fetch(url, {
+      headers: { Accept: 'application/json', 'User-Agent': UPSTREAM_HEADERS['User-Agent'] },
+      signal: controller.signal,
+    });
+    if (!response.ok) return null;
+    return await response.json();
+  } catch (error) {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function discordPresence({ fresh = false } = {}) {
+  const cached = fresh ? null : cacheRead('discord:presence');
+  if (cached) return cached;
+
+  const invite = `https://discord.gg/${DISCORD_INVITE_CODE}`;
+  let out = { ok: true, enabled: false, name: 'Wolimons', invite, online: null, total: null, members: [] };
+
+  /* The full widget, when the server allows it. */
+  const widget = await discordJson(`https://discord.com/api/guilds/${DISCORD_GUILD_ID}/widget.json`);
+  if (widget && Array.isArray(widget.members)) {
+    out = {
+      ok: true,
+      enabled: true,
+      name: String(widget.name || 'Wolimons'),
+      invite: String(widget.instant_invite || invite),
+      online: Number(widget.presence_count) || widget.members.length,
+      total: null,
+      members: widget.members.slice(0, 60).map(member => ({
+        id: String(member.id || ''),
+        name: String(member.username || ''),
+        avatar: String(member.avatar_url || ''),
+        status: ['online', 'idle', 'dnd'].includes(member.status) ? member.status : 'online',
+        game: member.game && member.game.name ? String(member.game.name) : '',
+      })),
+    };
+  }
+
+  /* The counts always come from the invite, which answers whether or not the
+   * widget is on - and gives a total the widget never reports. */
+  const meta = await discordJson(
+    `https://discord.com/api/v10/invites/${encodeURIComponent(DISCORD_INVITE_CODE)}?with_counts=true`,
+  );
+  if (meta && meta.guild) {
+    out.name = String(meta.guild.name || out.name);
+    out.total = Number(meta.approximate_member_count) || out.total;
+    if (out.online === null) out.online = Number(meta.approximate_presence_count) || null;
+  }
+
+  if (out.online === null && !out.enabled) out.ok = false;
+  return cacheWrite('discord:presence', out, DISCORD_TTL_MS);
+}
+
+/* ---------------------------------------------------------------------- */
 /* Lucky Cat                                                               */
 /* ---------------------------------------------------------------------- */
 
@@ -1492,6 +1578,12 @@ async function handle(req, res, url, readBody) {
 
     /* Whether a player has verified on this site. Public: it is a badge on a
      * public profile, and it says nothing a visitor cannot already see. */
+    /* Who is in the Discord right now, for the front page panel. */
+    if (req.method === 'GET' && route === '/api/discord') {
+      send(res, 200, await discordPresence());
+      return true;
+    }
+
     /* Today's Lucky Cat, the same answer for every visitor. */
     if (req.method === 'GET' && route === '/api/luckycat') {
       try {
@@ -2037,4 +2129,6 @@ async function handle(req, res, url, readBody) {
 
 /* `capabilities` is exported so the test suite can assert the permission
  * table directly rather than re-implementing it and drifting from it. */
-module.exports = { handle, capabilities, ROLE_RANK };
+/* `capabilities` and `discordPresence` are exported so the test suite can
+ * assert them directly rather than re-implementing them and drifting. */
+module.exports = { handle, capabilities, ROLE_RANK, discordPresence };

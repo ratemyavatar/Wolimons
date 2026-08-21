@@ -1,0 +1,165 @@
+/*
+ * Wolimons - the Discord panel.
+ *
+ * Built by tools/build-discord-widget.py from the widget stylesheet the 2018
+ * site embedded, the same way every other piece of this site came out of a
+ * snapshot. The 2018 Discord CDN fonts and images are gone, so the rules that
+ * only existed to paint them are dropped and the panel inherits the site's
+ * own font. Everything is scoped to .wolimons_discord.
+ *
+ * Do not edit the generated section. Re-run the tool. Additions the 2018
+ * sheet had no rule for live at the bottom, below the marker.
+ */
+.wolimons_discord .spinner { -webkit-box-align: center; -webkit-box-pack: center; align-items: center; display: flex; justify-content: center; }
+.wolimons_discord .spinner-inner { display: inline-block; height: 32px; position: relative; width: 32px; }
+.wolimons_discord .spinner-wandering-cubes .spinner-item { animation: 1.8s ease-in-out 0s infinite normal none running spinner-wandering-cubes; background-color: rgb(114, 137, 218); height: 10px; left: 0px; position: absolute; top: 0px; width: 10px; }
+.wolimons_discord .spinner-wandering-cubes .spinner-item:last-child { animation-delay: -0.9s; }
+
+
+@-webkit-keyframes spinner-wandering-cubes { 
+  25% { transform: translateX(22px) rotate(-90deg) scale(0.5); }
+  50% { transform: translateX(22px) translateY(22px) rotate(-180deg); }
+  75% { transform: translateX(0px) translateY(22px) rotate(-270deg) scale(0.5); }
+  100% { transform: rotate(-1turn); }
+}
+
+@keyframes spinner-wandering-cubes { 
+  25% { transform: translateX(22px) rotate(-90deg) scale(0.5); }
+  50% { transform: translateX(22px) translateY(22px) rotate(-180deg); }
+  75% { transform: translateX(0px) translateY(22px) rotate(-270deg) scale(0.5); }
+  100% { transform: rotate(-1turn); }
+}.wolimons_discord .spinner-chasing-dots { animation: 2s linear 0s infinite normal none running spinner-chasing-dots-rotate; }
+.wolimons_discord .spinner-chasing-dots .spinner-item { animation: 2s ease-in-out 0s infinite normal none running spinner-chasing-dots-bounce; background-color: rgb(114, 137, 218); border-radius: 100%; display: inline-block; height: 60%; position: absolute; top: 0px; width: 60%; }
+.wolimons_discord .spinner-chasing-dots .spinner-item:last-child { animation-delay: -1s; bottom: 0px; top: auto; }
+
+
+@-webkit-keyframes spinner-chasing-dots-rotate { 
+  100% { transform: rotate(1turn); }
+}
+
+@keyframes spinner-chasing-dots-rotate { 
+  100% { transform: rotate(1turn); }
+}
+
+@-webkit-keyframes spinner-chasing-dots-bounce { 
+  0%, 100% { transform: scale(0); }
+  50% { transform: scale(1); }
+}
+
+@keyframes spinner-chasing-dots-bounce { 
+  0%, 100% { transform: scale(0); }
+  50% { transform: scale(1); }
+}.wolimons_discord .spinner-pulsing-ellipsis { -webkit-box-pack: center; display: flex; height: auto; justify-content: center; position: relative; width: 28px; }
+.wolimons_discord .spinner-pulsing-ellipsis .spinner-item { animation: 1.4s ease-in-out 0s infinite normal none running spinner-ellipsis; background-color: rgb(153, 170, 181); border-radius: 3px; display: inline-block; height: 6px; margin-right: 2px; opacity: 0.3; width: 6px; }
+.wolimons_discord .spinner-pulsing-ellipsis .spinner-item:nth-of-type(2) { animation-delay: 0.2s; }
+.wolimons_discord .spinner-pulsing-ellipsis .spinner-item:nth-of-type(3) { animation-delay: 0.4s; }
+.wolimons_discord .stop-animation .spinner-pulsing-ellipsis .spinner-item { animation: auto ease 0s 1 normal none running none; }
+
+
+@-webkit-keyframes spinner-ellipsis { 
+  0% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.3; transform: scale(0.8); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes spinner-ellipsis { 
+  0% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.3; transform: scale(0.8); }
+  100% { opacity: 1; transform: scale(1); }
+}.wolimons_discord .spinner.spinner-spinning-circle { width: 100%; }
+.wolimons_discord .spinner.spinner-spinning-circle .circular { animation: 2s linear 0s infinite normal none running spinner-spinning-circle-rotate; height: 100%; width: 100%; }
+.wolimons_discord .spinner.spinner-spinning-circle .path { animation: 1.5s ease-in-out 0s infinite normal none running spinner-spinning-circle-dash; fill: none; stroke: rgb(114, 137, 218); stroke-dasharray: 1, 200; stroke-dashoffset: 0; stroke-linecap: round; stroke-miterlimit: 10; stroke-width: 6; }
+
+
+@-webkit-keyframes spinner-spinning-circle-rotate { 
+  100% { transform: rotate(1turn); }
+}
+
+@keyframes spinner-spinning-circle-rotate { 
+  100% { transform: rotate(1turn); }
+}
+
+@-webkit-keyframes spinner-spinning-circle-dash { 
+  0% { stroke-dasharray: 1, 200; stroke-dashoffset: 0; }
+  50% { stroke-dasharray: 89, 200; stroke-dashoffset: -35; }
+  100% { stroke-dasharray: 89, 200; stroke-dashoffset: -124; }
+}
+
+@keyframes spinner-spinning-circle-dash { 
+  0% { stroke-dasharray: 1, 200; stroke-dashoffset: 0; }
+  50% { stroke-dasharray: 89, 200; stroke-dashoffset: -35; }
+  100% { stroke-dasharray: 89, 200; stroke-dashoffset: -124; }
+}.wolimons_discord a, .wolimons_discord abbr, .wolimons_discord acronym, .wolimons_discord address, .wolimons_discord applet, .wolimons_discord big, .wolimons_discord blockquote, .wolimons_discord body, .wolimons_discord caption, .wolimons_discord cite, .wolimons_discord code, .wolimons_discord dd, .wolimons_discord del, .wolimons_discord dfn, .wolimons_discord div, .wolimons_discord dl, .wolimons_discord dt, .wolimons_discord em, .wolimons_discord fieldset, .wolimons_discord form, .wolimons_discord h1, .wolimons_discord h2, .wolimons_discord h3, .wolimons_discord h4, .wolimons_discord h5, .wolimons_discord h6, .wolimons_discord, .wolimons_discord iframe, .wolimons_discord img, .wolimons_discord ins, .wolimons_discord kbd, .wolimons_discord label, .wolimons_discord legend, .wolimons_discord li, .wolimons_discord object, .wolimons_discord ol, .wolimons_discord p, .wolimons_discord pre, .wolimons_discord q, .wolimons_discord s, .wolimons_discord samp, .wolimons_discord small, .wolimons_discord span, .wolimons_discord strike, .wolimons_discord strong, .wolimons_discord sub, .wolimons_discord sup, .wolimons_discord table, .wolimons_discord tbody, .wolimons_discord td, .wolimons_discord tfoot, .wolimons_discord th, .wolimons_discord thead, .wolimons_discord tr, .wolimons_discord tt, .wolimons_discord ul, .wolimons_discord var { border: 0px; font-family: inherit; font-size: 100%; font-style: inherit; font-weight: inherit; margin: 0px; outline: 0px; padding: 0px; vertical-align: baseline; }
+.wolimons_discord ol, .wolimons_discord ul { list-style: none; }
+.wolimons_discord a img { border: none; }
+.wolimons_discord * { box-sizing: border-box; }
+.wolimons_discord body { background-color: transparent; line-height: 1; }
+.wolimons_discord #discord-widget { inset: 0px; color: rgb(255, 255, 255); display: flex; font-family: Whitney, "Helvetica Neue", Helvetica, Arial, sans-serif; font-size: 14px; position: absolute; }
+.wolimons_discord #discord-widget a { color: rgb(255, 255, 255); text-decoration: none; }
+.wolimons_discord #discord-widget strong { font-weight: 700; }
+.wolimons_discord #discord-widget .widget { -webkit-box-direction: normal; -webkit-box-flex: 1; -webkit-box-orient: vertical; border-radius: 5px; display: flex; flex: 1 1 0%; flex-direction: column; overflow: hidden; }
+.wolimons_discord #discord-widget .widget-loading { -webkit-box-align: center; -webkit-box-pack: center; align-items: center; display: flex; justify-content: center; }
+.wolimons_discord #discord-widget .widget-logo {  display: inline-block; height: 34px; transition: opacity 0.25s ease-out; width: 124px; }
+.wolimons_discord #discord-widget .widget-logo:hover { opacity: 0.6; }
+.wolimons_discord #discord-widget .widget-header { -webkit-box-align: center; align-items: center; background-color: rgb(114, 137, 218); display: flex; flex-shrink: 0; padding: 20px; }
+.wolimons_discord #discord-widget .widget-header .widget-header-count { -webkit-box-flex: 1; flex: 1 1 0%; text-align: right; }
+.wolimons_discord #discord-widget .widget-footer { -webkit-box-align: center; align-items: center; background-color: rgb(30, 33, 36); box-shadow: rgba(0, 0, 0, 0.2) 0px -1px 18px, rgba(0, 0, 0, 0.2) 0px -1px 0px; display: flex; flex-shrink: 0; min-height: 30px; padding: 6px 6px 6px 20px; }
+.wolimons_discord #discord-widget .widget-footer .widget-footer-info { -webkit-box-flex: 1; display: inline-block; flex: 1 1 0%; font-weight: 500; opacity: 0.1; }
+.wolimons_discord #discord-widget .widget-btn-connect { -webkit-box-align: center; -webkit-box-pack: center; align-items: center; background-clip: padding-box; background-color: rgba(255, 255, 255, 0.1); border: 1px solid rgb(33, 35, 37); border-radius: 4px; box-shadow: rgba(255, 255, 255, 0.04) 0px 1px 0px inset; display: flex; flex-shrink: 0; height: 30px; justify-content: center; transition: opacity 0.25s ease-out; width: 120px; }
+.wolimons_discord #discord-widget .widget-btn-connect:hover { opacity: 0.6; }
+.wolimons_discord #discord-widget .widget-body { -webkit-box-flex: 1; background-color: rgb(30, 33, 36);  background-position: 0px 100%, 100% 100%; background-repeat: no-repeat, no-repeat; background-size: 200px 180px, 110px 130px; box-shadow: rgba(0, 0, 0, 0.2) 0px 1px 0px; flex: 1 1 0%; overflow-y: scroll; padding: 20px; }
+.wolimons_discord #discord-widget .widget-channel { margin-top: 12px; }
+.wolimons_discord #discord-widget .widget-channel:first-child { margin-top: 0px; }
+.wolimons_discord #discord-widget .widget-channel:last-child { margin-bottom: 30px; }
+.wolimons_discord #discord-widget .widget-channel-name { font-size: 18px; font-weight: 600; margin-bottom: 12px; }
+.wolimons_discord #discord-widget .widget-members-online { color: rgb(138, 142, 148); font-weight: 600; margin-bottom: 12px; text-transform: uppercase; }
+.wolimons_discord #discord-widget .widget-member { -webkit-box-align: center; align-items: center; display: flex; margin: 6px 0px; padding-left: 10px; }
+.wolimons_discord #discord-widget .widget-member .widget-member-name { -webkit-box-flex: 1; color: rgb(138, 142, 148); flex: 1 1 0%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wolimons_discord #discord-widget .widget-member .widget-member-game { -webkit-box-flex: 1; color: rgb(79, 84, 92); flex: 1 1 0%; overflow: hidden; text-align: right; text-overflow: ellipsis; white-space: nowrap; }
+.wolimons_discord #discord-widget .widget-member-avatar { height: 16px; margin-right: 4px; position: relative; width: 16px; }
+.wolimons_discord #discord-widget .widget-member-avatar img { border-radius: 8px; height: 16px; width: 16px; }
+.wolimons_discord #discord-widget .widget-member-status { border-radius: 3px; bottom: 0px; height: 6px; position: absolute; right: 0px; width: 6px; }
+.wolimons_discord #discord-widget .widget-member-status-online { background-color: rgb(67, 181, 129); }
+.wolimons_discord #discord-widget .widget-member-status-idle { background-color: rgb(250, 166, 26); }
+.wolimons_discord #discord-widget .widget-member-status-offline { background-color: rgb(116, 127, 141); }
+.wolimons_discord #discord-widget .widget-member-status-dnd { background-color: rgb(240, 71, 71); }
+.wolimons_discord #discord-widget .widget-icon { background-color: transparent; background-size: 16px 16px; display: inline-block; height: 16px; width: 16px; }
+.wolimons_discord #discord-widget .widget-icon + .widget-icon { margin-left: 8px; }
+.wolimons_discord #discord-widget ::-webkit-scrollbar { width: 10px; }
+.wolimons_discord #discord-widget ::-webkit-scrollbar-thumb { background-clip: padding-box; background-color: rgba(255, 255, 255, 0.1); border: 3px solid transparent; border-radius: 5px; }
+.wolimons_discord #discord-widget ::-webkit-scrollbar-track-piece { background-clip: padding-box; background-color: transparent; border: 3px solid transparent; border-radius: 5px; }
+.wolimons_discord #discord-widget .widget-theme-light ::-webkit-scrollbar-thumb { background-color: rgba(0, 0, 0, 0.1); }
+.wolimons_discord #discord-widget .widget-theme-light .widget-body, .wolimons_discord #discord-widget .widget-theme-light .widget-footer { background-color: rgb(255, 255, 255); }
+.wolimons_discord #discord-widget .widget-theme-light .widget-btn-connect, .wolimons_discord #discord-widget .widget-theme-light .widget-footer-info { color: rgb(0, 0, 0); opacity: 0.7; }
+.wolimons_discord #discord-widget .widget-theme-light .widget-channel-name, .wolimons_discord #discord-widget .widget-theme-light .widget-online-members { color: rgb(138, 142, 148); }
+/* ---- additions ---- */
+/* ---------------------------------------------------------------------- */
+/* The few pieces the 2018 sheet had no rule for                           */
+/* ---------------------------------------------------------------------- */
+
+/* The original painted its logo from a CDN image that no longer exists, so
+   the mark is inline SVG now and needs sizing. */
+.wolimons_discord .widget-logo-svg { width: 24px; height: 24px; color: #7289da; flex: 0 0 auto; }
+.wolimons_discord .widget-header { display: flex; align-items: center; gap: 8px; }
+
+/* The member list scrolls inside the panel rather than stretching the page,
+   which is what the iframe did at a fixed 450px tall. */
+.wolimons_discord .widget-member-list { max-height: 300px; overflow-y: auto; }
+
+/* Shown when the widget is switched off and Discord will only give counts. */
+.wolimons_discord .widget-note { text-align: center; padding: 18px 12px 6px; }
+.wolimons_discord .widget-note-figure { font-size: 2.1em; font-weight: 600; color: #e9ecef; line-height: 1.1; }
+.wolimons_discord .widget-note-label { font-size: .8em; color: #7a8288; text-transform: uppercase; letter-spacing: .06em; }
+.wolimons_discord .widget-note-text { font-size: .82em; color: #7a8288; margin: 12px 4px 0; }
+
+/* The 2018 widget's join button, which lived in its footer. */
+.wolimons_discord .widget-join {
+  display: block; margin: 12px 10px 10px; padding: 8px 0; border-radius: 3px;
+  background-color: #7289da; color: #fff; text-align: center; font-size: .9em;
+  font-weight: 600; text-decoration: none;
+}
+.wolimons_discord .widget-join:hover { background-color: #677bc4; color: #fff; text-decoration: none; }
+
+/* The panel is a fixed-width card like the iframe it replaces. */
+.wolimons_discord { display: inline-block; width: 100%; max-width: 350px; text-align: left; }
+.wolimons_discord .widget { border-radius: 3px; overflow: hidden; }

@@ -23,7 +23,7 @@
   const CONFIG = window.WOLIMONS_CONFIG || {};
   const API_BASE = CONFIG.apiBase || '';
   const SITE_BASE = CONFIG.siteBase || 'https://wanwoo.xyz';
-  const CHART = window.WolimonsHistoryChart;
+  const CHART = window.WolimonsChart2018;
   const PREFS = window.WolimonsPrefs;
 
   /* values.js, read defensively - a browser holding an older cached copy of
@@ -60,7 +60,19 @@
     46: 'Back Accessory', 47: 'Waist Accessory',
   };
 
-  const number = value => (Number.isFinite(Number(value)) ? Number(value) : null);
+  /*
+   * A figure, or null when there isn't one.
+   *
+   * Deliberately not `Number.isFinite(Number(value))`: Number(null) is 0 and
+   * Number('') is 0, so that version turned every unknown figure into a
+   * confident zero - a catalog card claiming an item has no copies available
+   * when the truth is that Wanwood did not say.
+   */
+  const number = value => {
+    if (value === null || value === undefined || value === '') return null;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
   const money = value => (number(value) === null ? EMPTY : Number(value).toLocaleString('en-US'));
   const byId = id => document.getElementById(id);
   const query = () => new URLSearchParams(window.location.search);
@@ -1037,45 +1049,73 @@
   /* The item page's five charts                                         */
   /* ------------------------------------------------------------------ */
 
-  function historyRows(resale) {
+  /*
+   * The sale prices Wanwood has recorded, oldest first.
+   *
+   * These are the figures behind the capture's "Avg Daily Sales Price" line:
+   * one point per day that this item sold, carrying that day's price.
+   */
+  function salePoints(resale) {
     const points = Array.isArray(resale?.priceDataPoints) ? resale.priceDataPoints : [];
-    const rows = points
-      .map(point => ({ time: Date.parse(point?.date), value: number(point?.value) }))
-      .filter(row => Number.isFinite(row.time) && row.value !== null)
-      .sort((a, b) => a.time - b.time)
-      .map(row => ({ time: row.time, value: row.value, rap: row.value }));
-    const rap = number(resale?.recentAveragePrice);
-    if (rows.length && rap !== null) rows.push({ time: Date.now(), value: rap, rap });
-    return rows;
+    return points
+      .map(point => [Date.parse(point?.date), number(point?.value)])
+      .filter(point => Number.isFinite(point[0]) && point[1] !== null)
+      .sort((a, b) => a[0] - b[0]);
   }
 
-  function copiesRows(owners, listings) {
+  /*
+   * The RAP line.
+   *
+   * Wanwood publishes one RAP - today's - and RAP is defined as the average
+   * of an item's last ten sales, so the line behind today is that same
+   * average taken at each recorded sale. It is a reconstruction rather than a
+   * record, but it is the definition applied to real recorded prices, not a
+   * shape invented to fill the chart. It ends on the figure Wanwood itself
+   * reports, so the right-hand end always matches the number on the page.
+   */
+  function rapPoints(resale) {
+    const sales = salePoints(resale);
+    if (!sales.length) return [];
+    const line = sales.map((point, index) => {
+      const window = sales.slice(Math.max(0, index - 9), index + 1);
+      const mean = window.reduce((sum, entry) => sum + entry[1], 0) / window.length;
+      return [point[0], Math.round(mean)];
+    });
+    const rap = number(resale?.recentAveragePrice);
+    if (rap !== null) line.push([Date.now(), rap]);
+    return line;
+  }
+
+  /* Copies in circulation, counted up by the date each one was created. */
+  function copiesPoints(owners) {
     const stamps = owners
       .map(owner => Date.parse(owner.created))
       .filter(Number.isFinite)
       .sort((a, b) => a - b);
     if (!stamps.length) return [];
-    const rows = stamps.map((time, index) => ({ time, value: index + 1, rap: listings.length }));
-    rows.push({ time: Date.now(), value: stamps.length, rap: listings.length });
-    return rows;
+    const line = stamps.map((time, index) => [time, index + 1]);
+    line.push([Date.now(), stamps.length]);
+    return line;
   }
 
-  function ownershipRows(owners) {
+  /* Distinct holders over the same period. */
+  function ownersPoints(owners) {
     const rows = owners
       .map(owner => ({ time: Date.parse(owner.created), userId: owner.userId }))
       .filter(row => Number.isFinite(row.time))
       .sort((a, b) => a.time - b.time);
     if (!rows.length) return [];
     const seen = new Set();
-    const out = rows.map((row, index) => {
+    const line = rows.map(row => {
       seen.add(row.userId);
-      return { time: row.time, value: seen.size, rap: index + 1 };
+      return [row.time, seen.size];
     });
-    out.push({ time: Date.now(), value: seen.size, rap: rows.length });
-    return out;
+    line.push([Date.now(), seen.size]);
+    return line;
   }
 
-  function hoardingRows(owners) {
+  /* Copies held by somebody who holds more than one. */
+  function hoardedPoints(owners) {
     const rows = owners
       .map(owner => ({ time: Date.parse(owner.created), userId: owner.userId }))
       .filter(row => Number.isFinite(row.time))
@@ -1083,82 +1123,81 @@
     if (!rows.length) return [];
     const held = new Map();
     let hoarded = 0;
-    const out = rows.map(row => {
+    const line = rows.map(row => {
       const count = (held.get(row.userId) || 0) + 1;
       held.set(row.userId, count);
       /* The copy that turns a holder into a hoarder brings its first one
        * with it. */
       if (count === 2) hoarded += 2;
       else if (count > 2) hoarded += 1;
-      return { time: row.time, value: hoarded, rap: held.size };
+      return [row.time, hoarded];
     });
-    out.push({ time: Date.now(), value: hoarded, rap: held.size });
-    return out;
+    line.push([Date.now(), hoarded]);
+    return line;
   }
 
-  function valueRows(resale, value, changes, id) {
+  /*
+   * The value line, replayed from this site's change log.
+   *
+   * Every value edit is recorded with its date, so the value as it stood on
+   * any day is a fact rather than a guess. An item nobody has re-valued draws
+   * a straight line, which is the truth about it.
+   */
+  function valuePoints(value, changes, id) {
     const edits = (Array.isArray(changes) ? changes : [])
       .filter(change => change && Number(change.id) === id && change.field === 'value'
         && Number.isFinite(Number(change.at)))
-      .sort((a, b) => a.at - b.at);
+      .sort((a, b) => Number(a.at) - Number(b.at));
+    if (!edits.length) return value ? [[Date.now(), value]] : [];
 
-    const valueAt = when => {
-      let current = Number(edits.length ? edits[0].old : value) || 0;
-      edits.forEach(edit => { if (edit.at <= when) current = Number(edit.new) || 0; });
-      return current;
-    };
-
-    const points = Array.isArray(resale?.priceDataPoints) ? resale.priceDataPoints : [];
-    const rapAt = new Map();
-    points.forEach(point => {
-      const time = Date.parse(point?.date);
-      const rap = number(point?.value);
-      if (Number.isFinite(time) && rap !== null) rapAt.set(time, rap);
-    });
-    const today = Date.now();
-    const currentRap = number(resale?.recentAveragePrice);
-    if (currentRap !== null) rapAt.set(today, currentRap);
-
-    const stamps = new Set([...rapAt.keys(), ...edits.map(edit => Number(edit.at))]);
-    if (edits.length) stamps.add(today);
-    if (stamps.size < 2) return [];
-
-    const sorted = [...rapAt.entries()].sort((a, b) => a[0] - b[0]);
-    const rapFor = when => {
-      let last = 0;
-      sorted.forEach(([time, rap]) => { if (time <= when) last = rap; });
-      return last;
-    };
-
-    return [...stamps].sort((a, b) => a - b)
-      .map(time => ({ time, value: valueAt(time), rap: rapFor(time) }));
+    const line = [[Number(edits[0].at), Number(edits[0].old) || 0]];
+    edits.forEach(edit => line.push([Number(edit.at), Number(edit.new) || 0]));
+    line.push([Date.now(), Number(edits[edits.length - 1].new) || value || 0]);
+    return line;
   }
 
   function drawItemCharts(data) {
     if (!CHART) return;
     const since = Number.isFinite(data.created) ? data.created : 0;
+    const listed = data.listings.length;
+
     const panes = {
       history_chart_container: {
-        rows: () => historyRows(data.resale),
+        series: () => [
+          { name: 'Avg Daily Sales Price', data: salePoints(data.resale) },
+          { name: 'RAP', data: rapPoints(data.resale) },
+        ],
         empty: 'Wanwood has not recorded any sales of this item yet.',
       },
       value_chart_container: {
-        rows: () => valueRows(data.resale, data.value, data.changes, data.id),
+        series: () => [
+          { name: 'Value', data: valuePoints(data.value, data.changes, data.id) },
+          { name: 'RAP', data: rapPoints(data.resale) },
+        ],
         empty: 'This item\u2019s value has not been changed yet, so there is nothing to plot.',
       },
       copies_chart_container: {
-        rows: () => copiesRows(data.owners, data.listings),
-        names: { value: 'Copies', rap: 'Listed for sale', axis: 'Copies' },
+        series: () => [
+          { name: 'Copies', data: copiesPoints(data.owners) },
+          { name: 'Listed for sale', color: '#f6b702', data: listed ? [[Date.now(), listed]] : [] },
+        ],
+        axis: 'Copies',
         empty: 'No copies of this item have a visible owner.',
       },
       ownership_chart_container: {
-        rows: () => ownershipRows(data.owners),
-        names: { value: 'Owners', rap: 'Copies held', axis: 'Players' },
+        series: () => [
+          { name: 'Owners', data: ownersPoints(data.owners) },
+          { name: 'Copies held', color: '#990099', data: copiesPoints(data.owners) },
+        ],
+        axis: 'Players',
         empty: 'No copies of this item have a visible owner.',
       },
       hoarding_chart_container: {
-        rows: () => hoardingRows(data.owners),
-        names: { value: 'Hoarded copies', rap: 'Holders', axis: 'Copies' },
+        series: () => [
+          { name: 'Hoarded copies', color: '#cc0000', data: hoardedPoints(data.owners) },
+          { name: 'Copies', data: copiesPoints(data.owners) },
+        ],
+        axis: 'Copies',
         empty: 'Nobody holds more than one copy of this item.',
       },
     };
@@ -1171,7 +1210,7 @@
       drawn.add(paneId);
       /* Highcharts measures its container, so a hidden tab would come out
        * zero-wide; each one is drawn the first time it is opened. */
-      CHART.render(box, spec.rows(), { ...(spec.names || {}), since }, spec.empty);
+      CHART.render(box, spec.series(), { since, axis: spec.axis, empty: spec.empty });
     }
 
     draw('history_chart_container');
@@ -1226,13 +1265,16 @@
     say(grid, 'Loading this player\u2019s inventory\u2026');
 
     const optional = promise => promise.catch(() => null);
-    const [profile, collectibles, stats] = await Promise.all([
-      optional(API.getProfileById(id)),
+    const [account, collectibles, stats] = await Promise.all([
+      /* users/v1 carries the join date as well as the name, and the chart
+       * starts the line the day the account was made. */
+      optional(API.fetchJson(`${API.API_BASE}/apisite/users/v1/users/${id}`)),
       optional(API.getCollectibles(id)),
       optional(fetch(`${API_BASE}/api/playerstats?id=${id}`).then(r => r.json())),
     ]);
 
-    const name = profile?.name || `User ${id}`;
+    const name = String(account?.name || account?.displayName || '').trim() || `User ${id}`;
+    const joined = Date.parse(account?.created || '') || 0;
     document.title = `${name} - Wolimons`;
     if (titleBox) {
       const first = [...titleBox.childNodes].find(node => node.nodeType === 3);
@@ -1266,6 +1308,30 @@
     }
 
     const rows = Array.isArray(collectibles) ? collectibles : [];
+
+    /*
+     * When each copy came to this player.
+     *
+     * The collectibles endpoint names the copies but does not date them; the
+     * owners feed for an asset does, and carries the same user-asset ids. A
+     * profile holds a handful of distinct items, so that is a handful of
+     * requests - capped, because a hoarder's profile should not turn into
+     * fifty of them.
+     */
+    const owned = new Map();
+    const distinct = [...new Set(rows.map(row => Number(row.assetId)))].slice(0, 12);
+    await Promise.all(distinct.map(async assetId => {
+      try {
+        const copies = await API.getAssetOwners(assetId);
+        copies.forEach(copy => {
+          if (copy.userId !== id) return;
+          const when = Date.parse(copy.updated || copy.created || '');
+          if (Number.isFinite(when)) owned.set(copy.userAssetId, when);
+        });
+      } catch (error) {
+        /* The card simply shows a dash for that copy. */
+      }
+    }));
     const totals = rows.reduce((sum, row) => {
       const value = VALUES.get(Number(row.assetId));
       return {
@@ -1306,7 +1372,12 @@
           value: VALUES.get(assetId),
           rap: number(row.recentAveragePrice),
           serial: number(row.serialNumber),
-          owned: Date.parse(row.updated || row.created || '') || 0,
+          /* The copy's own id, which is what the card's UAID row is for. */
+          uaid: number(row.userAssetId ?? row.id),
+          /* Wanwood stamps each copy when it last changed hands, in the
+           * owners feed rather than in this one. */
+          owned: owned.get(Number(row.userAssetId ?? row.id))
+            || Date.parse(row.updated || row.created || '') || 0,
           copies: rows.filter(other => Number(other.assetId) === assetId).length,
         };
       });
@@ -1337,6 +1408,10 @@
             setLink(node, `/item/?id=${item.id}`);
             setRow(node, 'Value', item.value ? money(item.value) : EMPTY);
             setRow(node, 'RAP', money(item.rap));
+            setRow(node, 'UAID', money(item.uaid));
+            setRow(node, 'Owner Since', item.owned
+              ? new Date(item.owned).toISOString().slice(0, 10)
+              : EMPTY);
             setRow(node, 'Serial', item.serial === null ? EMPTY : `#${item.serial}`);
             setRow(node, 'Copies', money(item.copies));
             return node;
@@ -1366,7 +1441,7 @@
       paint();
     }
 
-    drawPlayerChart(stats, totals);
+    drawPlayerChart(stats, totals, joined);
   }
 
   /* The player page's stat rows have no <small> label - they are two plain
@@ -1380,27 +1455,55 @@
     });
   }
 
-  function drawPlayerChart(stats, totals) {
+  /*
+   * The profile's Value and RAP history.
+   *
+   * /api/playerstats answers { ok, live: {value, rap, copies},
+   * history: [ {at, value, rap, copies} ] } - the readings this site records
+   * once a day. Wanwood publishes nothing about what a player owned in the
+   * past, so there is nothing earlier than the day this profile was first
+   * opened, and the chart says so rather than drawing a line back to zero.
+   */
+  function drawPlayerChart(stats, totals, joined) {
     if (!CHART) return;
     const box = document.querySelector('#playerhistorytab .rounded, #playerhistorytab');
     if (!box) return;
     box.textContent = '';
-    box.style.minHeight = '300px';
+    box.style.minHeight = '320px';
 
-    const readings = Array.isArray(stats?.readings) ? stats.readings : [];
-    const rows = readings
-      .map(reading => ({
-        time: Number(reading.at),
-        value: Number(reading.value) || 0,
-        rap: Number(reading.rap) || 0,
-      }))
-      .filter(row => Number.isFinite(row.time));
-    rows.push({ time: Date.now(), value: totals.value, rap: totals.rap });
+    const recorded = Array.isArray(stats?.history) ? stats.history : [];
+    const value = [];
+    const rap = [];
+    recorded.forEach(reading => {
+      const at = Number(reading?.at);
+      if (!Number.isFinite(at)) return;
+      value.push([at, Number(reading.value) || 0]);
+      rap.push([at, Number(reading.rap) || 0]);
+    });
 
-    CHART.render(box, rows, { since: Number(stats?.joined) || 0 },
-      'Value and RAP history starts from the first time this profile is opened. '
-      + 'Wanwood keeps no record of what a player owned in the past, so there is '
-      + 'nothing earlier to show.');
+    /* Today, from the reading the server just took - or, if it could not
+     * reach Wanwood, from the totals this page worked out itself, so the end
+     * of the line always matches the figures printed above it. */
+    const live = stats && stats.live ? stats.live : totals;
+    const today = Date.now();
+    const last = value.length ? value[value.length - 1][0] : 0;
+    if (live && today - last > 60 * 60 * 1000) {
+      value.push([today, Number(live.value) || 0]);
+      rap.push([today, Number(live.rap) || 0]);
+    } else if (live && value.length) {
+      value[value.length - 1] = [last, Number(live.value) || 0];
+      rap[rap.length - 1] = [last, Number(live.rap) || 0];
+    }
+
+    CHART.render(box, [
+      { name: 'Value', data: value },
+      { name: 'RAP', data: rap },
+    ], {
+      since: Number(joined) || 0,
+      empty: 'Value and RAP history starts from the first time this profile is opened. '
+        + 'Wanwood keeps no record of what a player owned in the past, so there is '
+        + 'nothing earlier to show.',
+    });
   }
 
   /* ------------------------------------------------------------------ */
@@ -1411,54 +1514,115 @@
     const grid = container('item');
     if (!grid || !fromTemplate('item')) return;
 
-    /* The eight slots the archived page already has: four offer, four
-     * request, each a picture with a remove button behind it. */
-    const slots = [...document.querySelectorAll('.trade-item')].map((slot, index) => ({
-      index,
-      node: slot,
-      side: index < 4 ? 'offer' : 'request',
-      image: slot.querySelector(`#item_img_${index}`) || slot.querySelector('img'),
-      remove: slot.querySelector(`#item_remove_${index}`),
-      /* The empty-slot picture the page already ships, so a cleared slot
-       * looks the way it did rather than going blank. */
-      empty: (slot.querySelector(`#item_img_${index}`) || slot.querySelector('img') || {})
-        .getAttribute ? (slot.querySelector(`#item_img_${index}`) || slot.querySelector('img'))
-          .getAttribute('src') : '',
-      item: null,
-    }));
+    const offerBox = byId('offer_items');
+    const requestBox = byId('request_items');
+    const specimen = document.querySelector('.trade-item');
+    if (!offerBox || !requestBox || !specimen) return;
 
-    const state = { items: [], keyword: '' };
+    /* One empty slot, as the page ships it, kept to clone from when somebody
+     * asks the Options dialog for more than the four it starts with. */
+    const blank = specimen.cloneNode(true);
+    const emptyArt = (blank.querySelector('img') || {}).getAttribute
+      ? blank.querySelector('img').getAttribute('src')
+      : '';
 
-    function totalFor(side) {
-      return slots
-        .filter(slot => slot.side === side && slot.item)
-        .reduce((sum, slot) => ({
-          value: sum.value + (slot.item.value || slot.item.rap || 0),
-          rap: sum.rap + (slot.item.rap || 0),
-        }), { value: 0, rap: 0 });
+    const state = { items: [], keyword: '', multiplier: 1 };
+    let slots = [];
+
+    function totals(side) {
+      const items = slots.filter(slot => slot.side === side && slot.item);
+      const robux = (boxValue(`${side}_robux_textbox`) || 0) * state.multiplier;
+      return items.reduce((sum, slot) => ({
+        value: sum.value + (slot.item.value || slot.item.rap || 0),
+        rap: sum.rap + (slot.item.rap || 0),
+      }), { value: robux, rap: robux });
     }
 
     function paintTotals() {
-      const offer = totalFor('offer');
-      const request = totalFor('request');
-      const offerRobux = boxValue('offer_robux_textbox') || 0;
-      const requestRobux = boxValue('request_robux_textbox') || 0;
+      const offer = totals('offer');
+      const request = totals('request');
       const set = (id, figure) => {
         const box = byId(id);
         if (box) box.textContent = money(figure);
       };
-      set('offer_value_total_textbox', offer.value + offerRobux);
-      set('offer_rap_total_textbox', offer.rap + offerRobux);
-      set('request_value_total_textbox', request.value + requestRobux);
-      set('request_rap_total_textbox', request.rap + requestRobux);
+      set('offer_value_total_textbox', offer.value);
+      set('offer_rap_total_textbox', offer.rap);
+      set('request_value_total_textbox', request.value);
+      set('request_rap_total_textbox', request.rap);
+
+      /* The two small captions beside the R$ boxes: 2018 used them to show
+       * what the multiplier had turned the robux into. */
+      ['offer', 'request'].forEach(side => {
+        const caption = byId(`${side}_robux_multiplier_text`);
+        if (!caption) return;
+        const robux = boxValue(`${side}_robux_textbox`) || 0;
+        caption.textContent = state.multiplier !== 1 && robux
+          ? `\u00d7${state.multiplier} = ${money(Math.round(robux * state.multiplier))}`
+          : '';
+      });
     }
 
     function paintSlot(slot) {
       if (!slot.image) return;
-      slot.image.src = slot.item ? slot.item.thumbnail : slot.empty;
+      slot.image.src = slot.item ? slot.item.thumbnail : emptyArt;
       slot.image.alt = slot.item ? slot.item.name : 'Empty slot';
       slot.image.title = slot.item ? slot.item.name : '';
       if (slot.remove) slot.remove.classList.toggle('d-none', !slot.item);
+    }
+
+    function clear(slot) {
+      slot.item = null;
+      paintSlot(slot);
+      paintTotals();
+    }
+
+    /*
+     * Build the slots.
+     *
+     * The Options dialog can ask for anything from four to a hundred a side,
+     * so the extra ones are clones of the slot the page already had - the
+     * only way to add one without writing markup. Whatever was in a slot
+     * stays in it.
+     */
+    function buildSlots(offerCount, requestCount) {
+      const held = { offer: [], request: [] };
+      slots.forEach(slot => {
+        if (slot.item) held[slot.side].push(slot.item);
+      });
+
+      slots = [];
+      let index = 0;
+      [[offerBox, 'offer', offerCount], [requestBox, 'request', requestCount]]
+        .forEach(([box, side, count]) => {
+          box.textContent = '';
+          for (let seat = 0; seat < count; seat += 1) {
+            const node = blank.cloneNode(true);
+            const images = [...node.querySelectorAll('img')];
+            /* The three images in a slot are the picture, the select overlay
+             * and the remove button, in the order 2018 put them. */
+            images.forEach((image, position) => {
+              const names = ['item_img', 'item_select', 'item_remove'];
+              image.id = `${names[position] || 'item_extra'}_${index}`;
+            });
+            const slot = {
+              side,
+              node,
+              image: images[0] || null,
+              remove: images[2] || null,
+              item: held[side][seat] || null,
+            };
+            slot.remove?.addEventListener('click', event => {
+              event.stopPropagation();
+              clear(slot);
+            });
+            node.addEventListener('click', () => { if (slot.item) clear(slot); });
+            box.appendChild(node);
+            slots.push(slot);
+            paintSlot(slot);
+            index += 1;
+          }
+        });
+      paintTotals();
     }
 
     function add(item) {
@@ -1469,20 +1633,55 @@
       paintTotals();
     }
 
-    slots.forEach(slot => {
-      paintSlot(slot);
-      const clear = () => {
-        slot.item = null;
-        paintSlot(slot);
-        paintTotals();
-      };
-      slot.remove?.addEventListener('click', clear);
-      slot.node.addEventListener('click', () => { if (slot.item) clear(); });
-    });
+    buildSlots(4, 4);
 
     ['offer_robux_textbox', 'request_robux_textbox'].forEach(id => {
       byId(id)?.addEventListener('input', paintTotals);
     });
+
+    /*
+     * The Options dialog.
+     *
+     * A Bootstrap modal with no Bootstrap to open it, so it is opened the way
+     * navbar.js opens the search modal: the classes the stylesheet is already
+     * waiting for.
+     */
+    const dialog = byId('trade_options_dialog');
+    const openButton = byId('trade_options_dialog_button');
+    if (dialog && openButton) {
+      const show = open => {
+        dialog.classList.toggle('show', open);
+        dialog.style.display = open ? 'block' : 'none';
+        dialog.setAttribute('aria-hidden', String(!open));
+        document.body.classList.toggle('modal-open', open);
+      };
+      openButton.addEventListener('click', event => {
+        event.preventDefault();
+        show(true);
+      });
+      dialog.querySelectorAll('[data-dismiss="modal"]').forEach(button => {
+        button.addEventListener('click', () => show(false));
+      });
+      dialog.addEventListener('click', event => {
+        if (event.target === dialog) show(false);
+      });
+
+      const slotsOf = id => {
+        const box = byId(id);
+        const wanted = Math.round(Number(box && box.value) || 4);
+        return Math.min(100, Math.max(4, wanted));
+      };
+      ['offer_slots_textbox', 'request_slots_textbox'].forEach(id => {
+        byId(id)?.addEventListener('change', () => {
+          buildSlots(slotsOf('offer_slots_textbox'), slotsOf('request_slots_textbox'));
+        });
+      });
+      byId('robux_multiplier_textbox')?.addEventListener('input', event => {
+        const wanted = Number(event.target.value);
+        state.multiplier = Number.isFinite(wanted) && wanted > 0 ? wanted : 1;
+        paintTotals();
+      });
+    }
 
     function render() {
       const keyword = state.keyword.toLowerCase();
@@ -1497,7 +1696,6 @@
         const node = fromTemplate('item');
         setTitle(node, item.name);
         setImage(node, item.thumbnail, `${item.name} thumbnail`);
-        node.style.cursor = 'pointer';
         node.title = `Value ${money(item.value)}   RAP ${money(item.rap)}`;
         node.addEventListener('click', () => add(item));
         return node;

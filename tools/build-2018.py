@@ -353,9 +353,16 @@ def blank_data(soup):
             cell.append(NavigableString('-'))
 
     for heading in soup.select('[data-2018="item-title"], [data-2018="player-title"]'):
+        # The name is the heading's first piece of text; the adapter replaces
+        # it. Anything else loose in there was the whitespace around markup
+        # that has been taken out, and printing a second ellipsis after the
+        # name is not what it was for.
+        first = True
         for node in list(heading.children):
-            if isinstance(node, NavigableString):
-                node.replace_with(NavigableString('\u2026 '))
+            if not isinstance(node, NavigableString):
+                continue
+            node.replace_with(NavigableString('\u2026 ' if first else ''))
+            first = False
 
     for image in soup.select('img'):
         if image.get('alt'):
@@ -586,6 +593,38 @@ def tidy_item(soup):
             box.clear()
 
 
+RENOTE = [
+    ('Player rankings are recalculated every ten minutes. Visit your profile page to update your value',
+     'Rankings are worked out from Wanwood\u2019s owner lists, and refresh a few '
+     'minutes after a trade goes through.'),
+    ('Item details are not updated in real time. Best price and other standard details '
+     'are usually updated approximately every half-hour',
+     'Best price, RAP and copies come from Wanwood when this page is opened. Value, '
+     'demand and trend are set by the Wolimons value team.'),
+    ('Certain item details are not updated in real time. Check back in a little while '
+     'if something isn\'t updated',
+     'This inventory comes from Wanwood as it is now. Value is set by the Wolimons '
+     'value team, and the history below is what this site has recorded since the '
+     'profile was first opened.'),
+]
+
+
+def renote(soup):
+    """Replace the notes that describe how the old site worked.
+
+    They are statements about somebody else's refresh schedule. Leaving them
+    on a page that fetches live would be telling readers something untrue.
+    """
+    for node in soup.find_all(string=True):
+        if isinstance(node, Comment):
+            continue
+        text = str(node).strip()
+        for old, new in RENOTE:
+            if text.startswith(old[:60]):
+                node.replace_with(NavigableString(new))
+                break
+
+
 def tidy_player(soup):
     """The player page: hooks, real buttons, and no Builders Club badge."""
     title = soup.select_one('h3.text-truncate')
@@ -617,6 +656,13 @@ def tidy_player(soup):
 
     for image in soup.select('.col-md-4 img'):
         image['data-2018'] = 'player-image'
+
+    # Every inventory card carried a link to the old site's own page for that
+    # one copy. There is no such page here, so the row goes rather than
+    # sitting there as the words "UAID Page" that do nothing.
+    for row in soup.select('.playerpg_item_cell .d-flex'):
+        if row.get_text(strip=True) == 'UAID Page':
+            row.decompose()
 
 
 def tidy_charts(soup):
@@ -815,6 +861,7 @@ def build_page(src, folder, route, page_id, outdir, navbar, footer,
         repair(soup)
 
     blank_data(body)
+    renote(body)
 
     templates = extract_templates(soup, page_id)
     if page_id in ('item', 'player'):
@@ -842,7 +889,10 @@ def build_page(src, folder, route, page_id, outdir, navbar, footer,
     css = '\n'.join(f'<link rel="stylesheet" href="/2018/css/{name}?v=VERSION">' for name in sheets)
     names = list(SCRIPTS)
     if CHART_SCRIPTS.get(page_id):
+        # history-chart.js is only here for its loader; the chart itself is
+        # the 2018 one, rebuilt from the capture's own SVG.
         names.insert(names.index('site2018.js'), 'history-chart.js')
+        names.insert(names.index('site2018.js'), 'chart2018.js')
     for extra in EXTRA_SCRIPTS.get(page_id, []):
         names.insert(names.index('site2018.js'), extra)
     scripts = '\n'.join(f'<script src="/assets/js/{name}?v=VERSION" defer></script>'

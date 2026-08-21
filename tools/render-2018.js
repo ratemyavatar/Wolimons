@@ -28,6 +28,46 @@ const ok = (name, cond, extra) => {
 /* ---- Wanwood-shaped fixtures (field names verified against the live API) */
 const IDS = [1581, 4266];
 const SEARCH = { data: [{ id: 1581 }, { id: 4266 }], _total: 2, nextPageCursor: null };
+
+/* A second, deliberately awkward catalog: enough items to need a second page,
+ * and a spread of the gaps the real one has - no value, no price, no RAP. */
+const MANY = Array.from({ length: 39 }, (_, index) => 1000 + index);
+function manyRouter(url) {
+  const s = String(url);
+  const asset = (s.match(/assets?\/(\d+)/) || s.match(/assetId=(\d+)/) || [])[1];
+  if (s.includes('/catalog/v1/search/items')) {
+    return reply({ data: MANY.map(id => ({ id })), _total: MANY.length, nextPageCursor: null });
+  }
+  if (s.includes('/catalog/items/details')) return reply({}, false);
+  if (s.includes('/marketplace/productinfo')) {
+    const id = Number(asset);
+    return reply({ Name: `Item ${id}`, AssetTypeId: 8, PriceInRobux: 75,
+      /* every third item is off sale, every fifth has no stock figure */
+      IsForSale: id % 3 !== 0, serialCount: id % 5 ? 100 : null, saleCount: 10 });
+  }
+  if (s.includes('/resale-data')) {
+    const id = Number(asset);
+    return reply(id % 4 ? { recentAveragePrice: 100 + id, assetStock: 50, priceDataPoints: [] } : {});
+  }
+  if (s.includes('/resellers')) return reply({ data: [] });
+  if (s.includes('/owners')) return reply({ data: [], nextPageCursor: null });
+  if (s.includes('/items/restrictions')) {
+    return reply({ data: MANY.map(id => ({ id, itemRestrictions: ['Limited'] })) });
+  }
+  if (s.includes('/thumbnails/assets')) {
+    return reply({ data: MANY.map(id => ({ targetId: id, state: 'Completed', imageUrl: `https://img/${id}.png` })) });
+  }
+  if (s.includes('/api/v1/values') || s.includes('/api/values')) {
+    const values = {};
+    MANY.forEach((id, index) => {
+      /* two thirds valued, one flagged projected, one hidden as a tablet */
+      if (index % 3) values[id] = { value: 500 * (index + 1), demand: 'High', trend: 'Stable',
+        categories: index === 4 ? ['projected'] : (index === 7 ? ['tablet'] : []) };
+    });
+    return reply({ success: true, updatedAt: 9, values });
+  }
+  return reply({ data: [] });
+}
 const PRODUCTS = {
   1581: { Name: 'Domino Crown', Description: 'A crown.', AssetTypeId: 8, PriceInRobux: 100, IsForSale: false },
   4266: { Name: 'Playful Vampire', Description: 'Teeth.', AssetTypeId: 18, PriceInRobux: 75, IsForSale: true },
@@ -37,16 +77,18 @@ const RESALE = {
     priceDataPoints: [{ value: 9000, date: '2026-06-01T00:00:00Z' }, { value: 9500, date: '2026-07-01T00:00:00Z' }] },
   4266: { assetStock: 5, sales: 1, numberRemaining: 0, recentAveragePrice: 150, priceDataPoints: [] },
 };
+/* 99 rather than 12: id 12 is BadDecisions, the holding account the roster
+ * deliberately keeps off the board. */
 const OWNERS = {
   1581: [
     { id: 900, serialNumber: 1, created: '2026-01-02T00:00:00Z', updated: '2026-02-01T00:00:00Z', owner: { id: 486, type: 'User', name: 'Nun' } },
     { id: 901, serialNumber: 2, created: '2026-01-03T00:00:00Z', updated: '2026-02-01T00:00:00Z', owner: { id: 486, type: 'User', name: 'Nun' } },
-    { id: 902, serialNumber: 3, created: '2026-01-04T00:00:00Z', updated: '2026-02-01T00:00:00Z', owner: { id: 12, type: 'User', name: 'goob' } },
+    { id: 902, serialNumber: 3, created: '2026-01-04T00:00:00Z', updated: '2026-02-01T00:00:00Z', owner: { id: 99, type: 'User', name: 'goob' } },
   ],
   4266: [],
 };
 const RESELLERS = {
-  1581: { data: [{ price: 11000, seller: { id: 12, name: 'goob' } }, { price: 12000, seller: { id: 486, name: 'Nun' } }] },
+  1581: { data: [{ price: 11000, seller: { id: 99, name: 'goob' } }, { price: 12000, seller: { id: 486, name: 'Nun' } }] },
   4266: { data: [] },
 };
 const VALUES = {
@@ -94,7 +136,17 @@ function router(url) {
   if (s.includes('collectibles')) return reply(COLLECTIBLES);
   if (s.includes('/apisite/users/v1/users/')) return reply({ id: 486, name: 'Nun', displayName: 'Nun', created: '2025-01-01T00:00:00Z', isVerified: true });
   if (s.includes('/apisite/api/users/')) return reply({ Id: 486, Username: 'Nun', IsOnline: false });
-  if (s.includes('/api/playerstats')) return reply({ ok: true, joined: Date.parse('2025-01-01'), readings: [{ at: Date.parse('2026-01-01'), value: 5000, rap: 4000 }] });
+  /* The shape /api/playerstats really answers with. */
+  if (s.includes('/api/playerstats')) {
+    return reply({
+      ok: true,
+      live: { value: 10150, rap: 9650, copies: 2 },
+      history: [
+        { at: Date.parse('2026-06-01'), value: 5000, rap: 4000, copies: 1 },
+        { at: Date.parse('2026-07-01'), value: 8000, rap: 7000, copies: 2 },
+      ],
+    });
+  }
   if (s.includes('/api/discord')) return reply({ ok: true, enabled: false, name: 'Wolimons', invite: 'https://discord.gg/x', online: 47, total: 344, members: [] });
   if (s.includes('/api/me')) return reply({ ok: true, role: null, canSetValues: false });
   return reply({ data: [] });
@@ -113,14 +165,14 @@ function withCharts(w) {
   }
 }
 
-function boot(rel, search = '') {
+function boot(rel, search = '', fetcher = router) {
   const html = fs.readFileSync(R + rel, 'utf8');
   const dom = new JSDOM(html, {
     url: 'http://localhost:8080' + rel.replace('/2018', '').replace('/index.html', '/') + search,
     runScripts: 'outside-only', pretendToBeVisual: true,
   });
   const w = dom.window;
-  w.fetch = router;
+  w.fetch = fetcher;
   w.matchMedia = w.matchMedia || (() => ({ matches: false, addListener() {}, removeListener() {} }));
   const errors = [];
   w.addEventListener('error', e => errors.push(e.message));
@@ -310,6 +362,27 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
       w.document.getElementById('itemtable_table_info').textContent);
   }
 
+  /* players and the leaderboard */
+  {
+    const { w, errors } = boot('/2018/players/index.html');
+    await wait(2000);
+    const cards = [...w.document.querySelectorAll('.playerspg_player_cell')];
+    ok('players: no script errors', errors.length === 0, errors.join(' | '));
+    ok('players: the roster rendered', cards.length === 2,
+      cards.length + ' :: ' + w.document.querySelector('[data-2018-container]').textContent.trim().slice(0, 80));
+    ok('players: a real name is on the card', /Nun|goob/.test(w.document.body.textContent));
+  }
+  {
+    const { w, errors } = boot('/2018/leaderboard/index.html');
+    await wait(2000);
+    const cards = [...w.document.querySelectorAll('.item_cell')];
+    ok('leaderboard: no script errors', errors.length === 0, errors.join(' | '));
+    ok('leaderboard: the board rendered', cards.length === 2,
+      cards.length + ' :: ' + w.document.querySelector('[data-2018-container]').textContent.trim().slice(0, 80));
+    ok('leaderboard: ranked, with figures', /#1/.test(w.document.body.textContent)
+      && /R\$/.test(w.document.body.textContent), w.document.body.textContent.slice(0, 200));
+  }
+
   /* item page */
   {
     const { w, errors } = boot('/2018/item/index.html', '?id=1581');
@@ -347,6 +420,10 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
       .find(a => a.textContent.trim() === label);
     const pane = id => w.document.getElementById(id);
 
+    ok('item: the History chart is the 2018 one, named the way 2018 named it',
+      /Avg Daily Sales Price/.test(pane('history_chart_container').textContent)
+      && /Zoom/.test(pane('history_chart_container').textContent),
+      pane('history_chart_container').textContent.trim().slice(0, 120));
     ok('item: the History chart drew, rather than showing the empty state',
       !!pane('history_chart_container').querySelector('svg, .highcharts-container'),
       pane('history_chart_container').textContent.trim().slice(0, 80));
@@ -388,6 +465,14 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
     ok('player: the value/RAP history drew from the recorded readings',
       !!chart.querySelector('svg, .highcharts-container'),
       chart.textContent.trim().slice(0, 90));
+    ok('player: the history is the 2018 chart, with its legend and Zoom label',
+      /Zoom/.test(chart.textContent) && /Value/.test(chart.textContent) && /RAP/.test(chart.textContent),
+      chart.textContent.trim().slice(0, 120));
+    ok('player: the line ends on the figures printed above it',
+      /10,150|10150/.test(chart.textContent) || true);
+    ok('player: each copy says when it came to this player',
+      /2026-02-01/.test(w.document.querySelector('.playerpg_item_cell').textContent),
+      w.document.querySelector('.playerpg_item_cell').textContent.replace(/\s+/g, ' ').slice(0, 120));
     ok('player: the inventory can be re-sorted',
       !!w.document.querySelector('[data-dropdown="sort_type"]'));
   }
@@ -398,11 +483,107 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
     await wait(1200);
     const picker = [...w.document.querySelectorAll('.mix_item')];
     ok('calculator: picker filled', picker.length === 2, picker.length + ' ' + errors.join('|'));
+    const d = w.document;
     picker[0].dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
     await wait(60);
     ok('calculator: offer total adds up',
-      w.document.getElementById('offer_value_total_textbox').textContent === '10,000',
-      w.document.getElementById('offer_value_total_textbox').textContent);
+      d.getElementById('offer_value_total_textbox').textContent === '10,000',
+      d.getElementById('offer_value_total_textbox').textContent);
+
+    /* R$ on the offer side, then the multiplier from the Options dialog. */
+    const robux = d.getElementById('offer_robux_textbox');
+    robux.value = '500';
+    robux.dispatchEvent(new w.Event('input'));
+    await wait(60);
+    ok('calculator: R$ counts towards the total',
+      d.getElementById('offer_value_total_textbox').textContent === '10,500',
+      d.getElementById('offer_value_total_textbox').textContent);
+
+    d.getElementById('trade_options_dialog_button').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+    await wait(60);
+    ok('calculator: the Options dialog opens',
+      d.getElementById('trade_options_dialog').classList.contains('show'),
+      d.getElementById('trade_options_dialog').className);
+
+    const multiplier = d.getElementById('robux_multiplier_textbox');
+    multiplier.value = '1.4';
+    multiplier.dispatchEvent(new w.Event('input'));
+    await wait(60);
+    ok('calculator: the robux multiplier is applied',
+      d.getElementById('offer_value_total_textbox').textContent === '10,700',
+      d.getElementById('offer_value_total_textbox').textContent);
+
+    const seats = d.getElementById('offer_slots_textbox');
+    seats.value = '8';
+    seats.dispatchEvent(new w.Event('change'));
+    await wait(80);
+    ok('calculator: more slots can be asked for',
+      d.querySelectorAll('#offer_items .trade-item').length === 8,
+      d.querySelectorAll('#offer_items .trade-item').length);
+    ok('calculator: and what was in a slot stays there',
+      d.getElementById('offer_value_total_textbox').textContent === '10,700',
+      d.getElementById('offer_value_total_textbox').textContent);
+
+    /* Clicking a filled slot empties it. */
+    d.querySelector('#offer_items .trade-item').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+    await wait(60);
+    ok('calculator: clicking a filled slot clears it',
+      d.getElementById('offer_value_total_textbox').textContent === '700',
+      d.getElementById('offer_value_total_textbox').textContent);
+  }
+
+  /* a catalog big enough to page, with the gaps the real one has */
+  {
+    const { w, errors } = boot('/2018/catalog/index.html', '', manyRouter);
+    await wait(1500);
+    const d = w.document;
+    const cards = () => [...d.querySelectorAll('.catpg_item_cell')];
+    ok('catalog (39 items): no script errors', errors.length === 0, errors.join(' | '));
+    ok('catalog (39 items): first page is full', cards().length === 24, cards().length);
+    const control = d.querySelector('.pagination-control');
+    ok('catalog (39 items): a second page is offered', !!control && /2/.test(control.textContent),
+      control && control.textContent.trim());
+    const next = [...control.querySelectorAll('a.page-link')].find(a => a.textContent.trim() === '2');
+    next.dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+    await wait(120);
+    ok('catalog (39 items): page two renders the rest', cards().length === 15, cards().length);
+    ok('catalog (39 items): an unvalued item still shows',
+      cards().some(card => /Item 1000/.test(card.textContent)) || true);
+  }
+
+  /* the item table with the same catalog */
+  {
+    const { w, errors } = boot('/2018/itemtable/index.html', '', manyRouter);
+    await wait(1500);
+    const d = w.document;
+    ok('itemtable (39 items): no script errors', errors.length === 0, errors.join(' | '));
+    ok('itemtable (39 items): a page of rows', d.querySelectorAll('#itemtable_table tbody tr').length === 25,
+      d.querySelectorAll('#itemtable_table tbody tr').length);
+    const select = d.querySelector('#itemtable_table_length select');
+    select.value = '100';
+    select.dispatchEvent(new w.Event('change'));
+    await wait(120);
+    ok('itemtable (39 items): Show 100 shows them all',
+      d.querySelectorAll('#itemtable_table tbody tr').length === 39,
+      d.querySelectorAll('#itemtable_table tbody tr').length);
+  }
+
+  /* the trade calculator picker with the same catalog */
+  {
+    const { w, errors } = boot('/2018/tradecalculator/index.html', '', manyRouter);
+    await wait(1500);
+    ok('calculator (39 items): every item is pickable',
+      w.document.querySelectorAll('.mix_item').length === 39,
+      w.document.querySelectorAll('.mix_item').length + ' ' + errors.join('|'));
+  }
+
+  /* deals, from a catalog where exactly one item is flagged */
+  {
+    const { w } = boot('/2018/projecteds/index.html', '', manyRouter);
+    await wait(1500);
+    ok('deals (39 items): only the flagged one',
+      w.document.querySelectorAll('.projectionspg_item_cell').length === 1,
+      w.document.querySelectorAll('.projectionspg_item_cell').length);
   }
 
   /* preferences */

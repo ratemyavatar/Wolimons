@@ -423,10 +423,18 @@ async function serveStatic(req, res, url) {
     return true;
   }
 
-  /* Never hand out the git history, the secrets file, or the design
-   * reference copies - the public site is Wolimons and nothing else. */
+  /*
+   * Never hand out the git history, the secrets file, the design reference
+   * copies - or the server's own directory.
+   *
+   * proxy/ holds the backend source, the live data file and the Wanwood
+   * session cookie. None of it is a page, and the session in particular is
+   * the keys to an account, so the whole folder is off limits rather than
+   * blocklisting files inside it one at a time.
+   */
+  const DENIED = new Set(['.git', '.env', 'node_modules', 'snapshots', 'proxy', 'cards']);
   const relative = path.relative(SITE_ROOT, resolved).split(path.sep);
-  if (relative.some(part => part === '.git' || part === '.env' || part === 'node_modules' || part === 'snapshots')) {
+  if (relative.some(part => DENIED.has(part))) {
     res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
     res.end('Not found');
     return true;

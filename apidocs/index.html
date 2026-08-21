@@ -510,6 +510,51 @@ pre {
   <summary class="op-head">
     <svg class="chev" width="10" height="10" viewBox="0 0 10 10"><path d="M2 0l6 5-6 5z" fill="currentColor"/></svg>
     <span class="verb">POST</span>
+    <span class="path">/api/vault/session</span>
+    <span class="summary">Store a Wanwood session</span>
+  </summary>
+  <div class="op-body">
+    <h4>Description</h4>
+    <p>Hands the server a signed-in Wanwood cookie so it can buy on your behalf. Website owner only, and the vault password must ride along in <code>x-vault-password</code>. The cookie is verified against Wanwood before it is accepted, written owner-only to a file outside the served tree, and never returned by any endpoint &mdash; only its last six characters are ever echoed back. Send <code>{"clear": true}</code> to forget it.</p>
+    <h4>Body</h4>
+    <table>
+      <tr><th>Name</th><th>Type</th><th>Description</th></tr>
+      <tr><td class="pname">cookie</td><td class="ptype">string</td><td>The cookie header value from a signed-in Wanwood tab.</td></tr>
+      <tr><td class="pname">clear</td><td class="ptype">boolean</td><td>Forget the stored session instead.</td></tr>
+    </table>
+    <h4>Example response</h4>
+<pre>{ "ok": true, "linked": true, "hint": "\u2026RET123",
+  "account": { "id": 1, "name": "Nun" }, "balance": 1000 }</pre>
+  </div>
+</details>
+
+<details class="op post">
+  <summary class="op-head">
+    <svg class="chev" width="10" height="10" viewBox="0 0 10 10"><path d="M2 0l6 5-6 5z" fill="currentColor"/></svg>
+    <span class="verb">POST</span>
+    <span class="path">/api/vault/buy</span>
+    <span class="summary">Buy an item</span>
+  </summary>
+  <div class="op-body">
+    <h4>Description</h4>
+    <p>Buys one item using the stored session. This runs on the server on purpose: a browser will not attach Wanwood cookies to a request from another origin, so the same call from the page is blocked by CORS before it is sent. The price given is the price sent, so a listing that moved is refused upstream rather than costing more than was shown.</p>
+    <h4>Body</h4>
+    <table>
+      <tr><th>Name</th><th>Type</th><th>Description</th></tr>
+      <tr><td class="pname">productId<span class="req">required</span></td><td class="ptype">integer</td><td>From the feed.</td></tr>
+      <tr><td class="pname">price<span class="req">required</span></td><td class="ptype">integer</td><td>The expected price.</td></tr>
+      <tr><td class="pname">sellerId</td><td class="ptype">integer</td><td>The expected seller. Defaults to 1.</td></tr>
+      <tr><td class="pname">userAssetId</td><td class="ptype">integer</td><td>For buying a specific resale copy.</td></tr>
+    </table>
+    <h4>Example response</h4>
+<pre>{ "ok": true, "bought": true, "status": 200, "reason": null, "balance": 750 }</pre>
+  </div>
+</details>
+
+<details class="op post">
+  <summary class="op-head">
+    <svg class="chev" width="10" height="10" viewBox="0 0 10 10"><path d="M2 0l6 5-6 5z" fill="currentColor"/></svg>
+    <span class="verb">POST</span>
     <span class="path">/api/values/set</span>
     <span class="summary">Change an item value</span>
   </summary>

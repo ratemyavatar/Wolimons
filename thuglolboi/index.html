@@ -6,9 +6,9 @@
 <title>thuglolboi</title>
 <meta name="robots" content="noindex, nofollow">
 <link rel="icon" type="image/svg+xml" href="/assets/Wolimonslogoo.png">
-<link rel="stylesheet" href="/css/sitecombined2.css?v=13">
-<link rel="stylesheet" href="/css/wolimons.css?v=13">
-<link rel="stylesheet" href="/css/tradeads.css?v=13">
+<link rel="stylesheet" href="/css/sitecombined2.css?v=14">
+<link rel="stylesheet" href="/css/wolimons.css?v=14">
+<link rel="stylesheet" href="/css/tradeads.css?v=14">
 <style>
 body.page-admin { background-color: rgb(39, 43, 48); }
 .vault_wrap { max-width: 940px; margin: 0 auto; padding: 24px 16px 80px; }
@@ -68,10 +68,30 @@ body.page-admin { background-color: rgb(39, 43, 48); }
         </div>
       </div>
       <div class="small mt-2" style="color:#7a8288;">
-        Buying goes straight from this browser to Wanwood so your own login is
-        used - it does not pass through the Wolimons server, which has no
-        access to your account.
+        Buying runs on the server with the session below, because a browser
+        will not attach your Wanwood login to a request from another site.
       </div>
+    </div>
+
+    <!-- The Wanwood session the server buys with. -->
+    <div class="vault_pane shadow px-3 px-sm-4 py-3 mb-3">
+      <div class="d-flex justify-content-between align-items-center flex-wrap">
+        <h6 class="card-subtitle text-muted stat-header mb-0">Wanwood session</h6>
+        <div class="small" id="vault_session_state" style="color:#7a8288;">Checking…</div>
+      </div>
+      <div class="small mt-2" style="color:#7a8288;">
+        Your browser will not send your Wanwood login to another site, so the
+        purchase is made by the server instead. Paste the cookie from a signed-in
+        Wanwood tab: DevTools &rarr; Application &rarr; Cookies &rarr; wanwoo.xyz,
+        copy the whole value. It is stored on your own machine, never shown again
+        and never sent back to this page.
+      </div>
+      <div class="d-flex flex-wrap align-items-center mt-2" id="vault_session_form">
+        <input class="filter-text-box form-control filter-textbox-small mr-2 mb-2" id="vault_cookie" type="password" placeholder="Paste cookie" autocomplete="off" style="flex:1 1 320px;">
+        <input class="btn btn-flat-light-blue shadow mr-2 mb-2" id="vault_session_save" type="submit" value="Link session">
+        <input class="btn btn-flat-dark-gray shadow mb-2" id="vault_session_clear" type="submit" value="Forget">
+      </div>
+      <div class="small" id="vault_session_notice" style="color:#7a8288;"></div>
     </div>
 
     <div class="vault_pane shadow px-3 px-sm-4 py-3 mb-3">
@@ -87,9 +107,9 @@ body.page-admin { background-color: rgb(39, 43, 48); }
 
 </div>
 
-<script src="/assets/js/config.js?v=13"></script>
-<script src="/assets/js/wanwood-api.js?v=13"></script>
-<script src="/assets/js/account.js?v=13"></script>
-<script src="/assets/js/vault.js?v=13"></script>
+<script src="/assets/js/config.js?v=14"></script>
+<script src="/assets/js/wanwood-api.js?v=14"></script>
+<script src="/assets/js/account.js?v=14"></script>
+<script src="/assets/js/vault.js?v=14"></script>
 </body>
 </html>

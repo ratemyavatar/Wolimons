@@ -56,6 +56,7 @@
 
 const crypto = require('crypto');
 const path = require('path');
+const fs = require('fs');
 const fsp = require('fs/promises');
 const store = require('./store');
 
@@ -471,6 +472,175 @@ const ROLE_LABELS = { website_owner: 'Website Owner', owner: 'Site Owner', value
  */
 const VAULT_PASSWORD = String(process.env.VAULT_PASSWORD || 'ilovegod123');
 
+/* ---------------------------------------------------------------------- */
+/* The vault's Wanwood session                                             */
+/* ---------------------------------------------------------------------- */
+
+/*
+ * Why this exists.
+ *
+ * A purchase has to be made as a signed-in Wanwood account. The obvious place
+ * to do that from is the browser, which already holds the login - but a
+ * browser will not attach cookies to a cross-site request unless the other
+ * site explicitly allows it, and Wanwood does not. That is CORS doing exactly
+ * its job, and no amount of front-end code gets around it.
+ *
+ * So the request is made from here instead. A server has no CORS: it is not a
+ * browser, there is no origin to check, and the session cookie is attached by
+ * hand. This is the same thing curl would do.
+ *
+ * The cookie is the keys to the account, so it is treated like one: kept in a
+ * file of its own under proxy/data (already git-ignored), written with owner-
+ * only permissions, never logged, and never sent back out of any endpoint -
+ * the panel only ever learns the last few characters and which account it
+ * belongs to.
+ */
+const SESSION_FILE = path.resolve(
+  process.env.WANWOOD_SESSION_FILE || path.join(__dirname, 'data', 'wanwood-session.json'),
+);
+
+/* An env var wins, so a server can be handed its session without a file. */
+let sessionCookie = String(process.env.WANWOOD_COOKIE || '');
+
+function loadSession() {
+  if (sessionCookie) return sessionCookie;
+  try {
+    const raw = JSON.parse(fs.readFileSync(SESSION_FILE, 'utf8'));
+    sessionCookie = String(raw.cookie || '');
+  } catch (error) {
+    sessionCookie = '';
+  }
+  return sessionCookie;
+}
+
+function saveSession(cookie) {
+  sessionCookie = String(cookie || '');
+  try {
+    fs.mkdirSync(path.dirname(SESSION_FILE), { recursive: true });
+    if (!sessionCookie) {
+      fs.rmSync(SESSION_FILE, { force: true });
+      return true;
+    }
+    fs.writeFileSync(SESSION_FILE, JSON.stringify({ cookie: sessionCookie, savedAt: Date.now() }), { mode: 0o600 });
+    try { fs.chmodSync(SESSION_FILE, 0o600); } catch (error) { /* Windows */ }
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
+
+/* Only ever shown as a tail, so the panel can tell two sessions apart
+ * without the value itself crossing the wire again. */
+function sessionHint(cookie) {
+  const value = String(cookie || '');
+  if (!value) return '';
+  return `\u2026${value.slice(-6)}`;
+}
+
+/*
+ * The CSRF pair that belongs to the signed-in session. Deliberately separate
+ * from the proxy's anonymous one: a token minted for a logged-out visitor is
+ * not valid for a logged-in purchase.
+ */
+const gameCsrf = { token: '', cookie: '' };
+
+function cookieHeader() {
+  const parts = [loadSession()];
+  if (gameCsrf.cookie) parts.push(gameCsrf.cookie);
+  return parts.filter(Boolean).join('; ');
+}
+
+function rememberGameCsrf(response) {
+  const token = response.headers.get('x-csrf-token');
+  if (token) gameCsrf.token = token;
+  const jar = typeof response.headers.getSetCookie === 'function'
+    ? response.headers.getSetCookie()
+    : [response.headers.get('set-cookie')].filter(Boolean);
+  jar.forEach(entry => {
+    const match = /(^|[;,\s])(rbxcsrf4=[^;]+)/.exec(String(entry));
+    if (match) gameCsrf.cookie = match[2];
+  });
+}
+
+/*
+ * One request to Wanwood as the signed-in account. POSTs do the CSRF dance:
+ * send, and if the middleware answers 403 with a fresh token, replay once
+ * with it.
+ */
+async function gameFetch(pathname, { method = 'GET', body = null } = {}) {
+  const cookie = loadSession();
+  if (!cookie) throw new Error('No Wanwood session is linked on the server yet.');
+
+  const send = async () => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
+    try {
+      const init = {
+        method,
+        headers: { ...UPSTREAM_HEADERS, Cookie: cookieHeader() },
+        signal: controller.signal,
+      };
+      if (body !== null) {
+        init.headers['Content-Type'] = 'application/json';
+        init.body = JSON.stringify(body);
+      }
+      if (gameCsrf.token) init.headers['x-csrf-token'] = gameCsrf.token;
+      return await fetch(`${UPSTREAM}${pathname}`, init);
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+
+  let response = await send();
+  if (response.status === 403 && method !== 'GET') {
+    rememberGameCsrf(response);
+    if (gameCsrf.token) response = await send();
+  }
+  rememberGameCsrf(response);
+
+  const text = await response.text();
+  let payload = null;
+  try { payload = text ? JSON.parse(text) : null; } catch (error) { payload = null; }
+  return { status: response.status, ok: response.ok, payload, text };
+}
+
+/*
+ * Who the stored cookie actually is. Different Roblox-alike backends expose
+ * this under different names, so the likely ones are tried in turn and the
+ * first that answers with an id wins. A cookie that resolves to nobody is
+ * expired, and saying so is far more useful than a purchase failing later.
+ */
+const WHOAMI_PATHS = [
+  '/apisite/users/v1/users/authenticated',
+  '/apisite/api/users/authenticated',
+  '/apisite/mobileapi/userinfo',
+  '/apisite/api/currency/balance',
+];
+
+async function whoAmI() {
+  for (const pathname of WHOAMI_PATHS) {
+    const result = await gameFetch(pathname).catch(() => null);
+    if (!result || !result.payload) continue;
+    const body = result.payload;
+    const id = Number(body.id ?? body.Id ?? body.UserID ?? body.userId);
+    const name = String(body.name ?? body.Name ?? body.UserName ?? body.username ?? '').trim();
+    if (Number.isSafeInteger(id) && id > 0) {
+      return { id, name: name || `User ${id}`, via: pathname };
+    }
+  }
+  return null;
+}
+
+/* The account's spendable balance, when the backend will say. */
+async function gameBalance() {
+  for (const pathname of ['/apisite/economy/v1/user/currency', '/apisite/mobileapi/userinfo']) {
+    const result = await gameFetch(pathname).catch(() => null);
+    const amount = Number(result?.payload?.robux ?? result?.payload?.RobuxBalance);
+    if (Number.isFinite(amount)) return amount;
+  }
+  return null;
+}
+
 /* Item ids the vault has already seen. Anything absent from this on a later
  * poll is a fresh release. */
 const vaultSeen = new Set();
@@ -819,6 +989,156 @@ async function handle(req, res, url, readBody) {
         return true;
       }
       send(res, 200, { ok: true, name: auth.name });
+      return true;
+    }
+
+    /* A vault call is website-owner rank plus the password, every time. */
+    const vaultGuard = async () => {
+      const auth = await authorize(req, {}, { need: 'website' });
+      if (!auth.ok) return { ok: false, status: auth.status, error: auth.error };
+      if (String(req.headers['x-vault-password'] || '') !== VAULT_PASSWORD) {
+        return { ok: false, status: 403, error: 'Wrong password.' };
+      }
+      return auth;
+    };
+
+    /* What session the server is holding, if any. Never the cookie itself. */
+    if (req.method === 'GET' && route === '/api/vault/session') {
+      const guard = await vaultGuard();
+      if (!guard.ok) {
+        send(res, guard.status, { ok: false, error: guard.error });
+        return true;
+      }
+      const cookie = loadSession();
+      if (!cookie) {
+        send(res, 200, { ok: true, linked: false });
+        return true;
+      }
+      const account = await whoAmI().catch(() => null);
+      send(res, 200, {
+        ok: true,
+        linked: true,
+        hint: sessionHint(cookie),
+        valid: Boolean(account),
+        account,
+        balance: account ? await gameBalance().catch(() => null) : null,
+      });
+      return true;
+    }
+
+    /* Hand the server a Wanwood session, or take it away again. */
+    if (req.method === 'POST' && route === '/api/vault/session') {
+      const guard = await vaultGuard();
+      if (!guard.ok) {
+        send(res, guard.status, { ok: false, error: guard.error });
+        return true;
+      }
+      const payload = readJson(await readBody(req));
+
+      if (payload.clear) {
+        saveSession('');
+        gameCsrf.token = '';
+        gameCsrf.cookie = '';
+        send(res, 200, { ok: true, linked: false });
+        return true;
+      }
+
+      const cookie = String(payload.cookie || '').trim();
+      if (!cookie) {
+        send(res, 400, { ok: false, error: 'Paste the cookie first.' });
+        return true;
+      }
+
+      const previous = loadSession();
+      if (!saveSession(cookie)) {
+        saveSession(previous);
+        send(res, 500, { ok: false, error: 'The session file could not be written.' });
+        return true;
+      }
+      gameCsrf.token = '';
+      gameCsrf.cookie = '';
+
+      /* Prove it works before saying it is linked - an expired cookie should
+       * be caught here, not in the middle of a drop. */
+      const account = await whoAmI().catch(() => null);
+      if (!account) {
+        saveSession(previous);
+        send(res, 400, {
+          ok: false,
+          error: 'Wanwood did not recognise that cookie. Copy it again while signed in.',
+        });
+        return true;
+      }
+
+      send(res, 200, {
+        ok: true,
+        linked: true,
+        hint: sessionHint(cookie),
+        account,
+        balance: await gameBalance().catch(() => null),
+      });
+      return true;
+    }
+
+    /*
+     * The purchase. Made from here rather than from the browser, because a
+     * browser cannot attach a Wanwood cookie to a request from another site
+     * and a server can.
+     */
+    if (req.method === 'POST' && route === '/api/vault/buy') {
+      const guard = await vaultGuard();
+      if (!guard.ok) {
+        send(res, guard.status, { ok: false, error: guard.error });
+        return true;
+      }
+      if (!loadSession()) {
+        send(res, 400, { ok: false, error: 'Link a Wanwood session on this page first.' });
+        return true;
+      }
+
+      const payload = readJson(await readBody(req));
+      const productId = Number(payload.productId);
+      const price = Number(payload.price);
+      const sellerId = Number(payload.sellerId) || 1;
+      if (!Number.isSafeInteger(productId) || productId <= 0) {
+        send(res, 400, { ok: false, error: 'That item has no product id to buy.' });
+        return true;
+      }
+      if (!Number.isFinite(price) || price < 0) {
+        send(res, 400, { ok: false, error: 'That item has no price.' });
+        return true;
+      }
+
+      /* The price the panel showed is the price that gets sent, so a listing
+       * that moved between the poll and the click is refused upstream rather
+       * than silently costing more. */
+      const body = { expectedCurrency: 1, expectedPrice: price, expectedSellerId: sellerId };
+      const userAssetId = Number(payload.userAssetId);
+      if (Number.isSafeInteger(userAssetId) && userAssetId > 0) body.userAssetId = userAssetId;
+
+      try {
+        const result = await gameFetch(`/apisite/economy/v1/purchases/products/${productId}`, {
+          method: 'POST',
+          body,
+        });
+        const answer = result.payload || {};
+        const bought = answer.purchased === true || answer.success === true;
+        send(res, 200, {
+          ok: true,
+          bought,
+          status: result.status,
+          /* Whatever the game said about it, passed through unedited. */
+          reason: bought
+            ? null
+            : (answer.errorMsg || answer.reason || answer.message
+              || (result.status === 401 || result.status === 403
+                ? 'The stored session is not signed in any more - link it again.'
+                : `Wanwood answered ${result.status}.`)),
+          balance: await gameBalance().catch(() => null),
+        });
+      } catch (error) {
+        send(res, 502, { ok: false, error: 'Wanwood could not be reached from the server.' });
+      }
       return true;
     }
 

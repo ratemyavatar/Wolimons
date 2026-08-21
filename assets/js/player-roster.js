@@ -64,8 +64,21 @@
    * finished result is parked in sessionStorage. Navigating between the
    * pages that use it is then instant, and the numbers still refresh often
    * enough to stay honest. */
-  const CACHE_KEY = 'wolimons_roster_v1';
+  const CACHE_KEY = 'wolimons_roster_v2';
   const CACHE_TTL_MS = 10 * 60 * 1000;
+
+  /*
+   * How the totals in a cached roster were worked out.
+   *
+   * The cache is stamped with the values table's version, which catches a
+   * value being edited - but not the site changing its mind about what a
+   * value *is*. When unvalued items started counting at their RAP, every
+   * browser with a roster in hand kept serving the old totals until the
+   * ten-minute window ran out: the numbers were stale and nothing on the
+   * page could tell. Bump this whenever the arithmetic below changes and
+   * those caches are thrown away on the next read instead.
+   */
+  const RULE = 'value-or-rap';
 
   /* In-flight scan, so two callers on one page cannot start two scans. */
   let pending = null;
@@ -112,6 +125,8 @@
       const saved = JSON.parse(raw);
       if (!saved || !Array.isArray(saved.players) || !saved.at) return null;
       if (Date.now() - saved.at > CACHE_TTL_MS) return null;
+      /* Totals worked out under a different rule are not totals any more. */
+      if (saved.rule !== RULE) return null;
       /* The baked-in totals are only good for the table they were summed
        * from. A mismatched stamp - or a cache written before stamps existed,
        * which carries none - means rebuild. */
@@ -134,8 +149,12 @@
        * look them up again. Ranks are left out for the same reason: they
        * belong to whichever ordering a page chose, not to the roster. */
       const saved = players.map(({ verified, rank, ...player }) => player);
-      window.sessionStorage.setItem(CACHE_KEY,
-        JSON.stringify({ at: Date.now(), valuesVersion: valuesVersion(), players: saved }));
+      window.sessionStorage.setItem(CACHE_KEY, JSON.stringify({
+        at: Date.now(),
+        rule: RULE,
+        valuesVersion: valuesVersion(),
+        players: saved,
+      }));
     } catch (error) {
       /* Private mode or a full quota - the roster just rebuilds next time. */
     }
@@ -380,5 +399,6 @@
     AVATAR_SIZE,
     CACHE_KEY,
     CACHE_TTL_MS,
+    RULE,
   };
 })();

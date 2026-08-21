@@ -95,6 +95,33 @@ test('the public API says which figure it is handing out', () => {
   assert.match(docs, /"valued": false/);
 });
 
+test('a cached roster is thrown away when the rule behind it changes', () => {
+  /*
+   * The roster caches each player's totals for ten minutes, stamped with the
+   * values table's version - which catches a value being edited, but not the
+   * site changing its mind about what a value is. When unvalued items started
+   * counting at their RAP, every browser holding a roster kept serving the
+   * old totals until that window ran out.
+   */
+  const roster = read('assets/js/player-roster.js');
+  assert.match(roster, /const RULE = '[a-z-]+'/);
+  assert.match(roster, /if \(saved\.rule !== RULE\) return null/);
+  assert.match(roster, /rule: RULE,/);
+  /* And the key moved, so caches written before the stamp existed go too. */
+  assert.match(roster, /const CACHE_KEY = 'wolimons_roster_v2'/);
+});
+
+test('both boards rebuild when a value is set while the page is open', () => {
+  /* /players has always done this; the leaderboard did not, so a value set in
+   * the admin panel left the board on its old totals until the cache aged
+   * out. Both drop the cache and reload now. */
+  ['players.js', 'leaderboard.js'].forEach(name => {
+    const page = read(`assets/js/${name}`);
+    assert.match(page, /VALUES\.subscribe\(/, `${name} ignores value changes`);
+    assert.match(page, /ROSTER\.clearCache\(\);\s*\n\s*load\(\);/, `${name} does not rebuild`);
+  });
+});
+
 test('link previews rank players by the same rule', () => {
   assert.match(read('proxy/embed.js'), /setValue > 0 \? setValue : \(Number\(rap\) \|\| 0\)/);
 });

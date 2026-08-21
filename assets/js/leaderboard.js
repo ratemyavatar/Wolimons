@@ -367,6 +367,9 @@
   /* Boot                                                                */
   /* ------------------------------------------------------------------ */
 
+  /* Set once the first board is up; see the values subscription below. */
+  let valuesSettled = false;
+
   async function load() {
     if (!ROSTER) {
       setStatus('The player roster script failed to load.');
@@ -401,10 +404,12 @@
       });
     } catch (error) {
       setStatus('Could not reach Wanwood to build the leaderboard. Try again shortly.');
+      valuesSettled = true;
       return;
     }
 
     publish(players);
+    valuesSettled = true;
   }
 
   /* Sort, number, and draw - shared by the live scan and the cache. */
@@ -412,6 +417,24 @@
     ranked = [...players].sort(byRank);
     ranked.forEach((player, index) => { player.rank = index + 1; });
     applyFilter({ keepPage });
+  }
+
+  /*
+   * A value edited while this page is open rebuilds the board.
+   *
+   * /players has done this from the start; the board did not, so setting a
+   * value in the admin panel left it showing the old totals until the roster
+   * cache expired on its own. The owner lists are already memoised by the API
+   * client, so the rebuild is cheap. The first, synchronous callback fires
+   * before anything has loaded and is skipped - load() waits for the table
+   * itself.
+   */
+  if (VALUES && typeof VALUES.subscribe === 'function') {
+    VALUES.subscribe(() => {
+      if (!valuesSettled) return;
+      ROSTER.clearCache();
+      load();
+    });
   }
 
   /* Certified Wanwoodian is awarded by the owner and arrives from the backend

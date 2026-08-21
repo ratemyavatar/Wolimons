@@ -400,6 +400,18 @@ function cacheSet(key, value) {
  * Returns true when it answered. `/catalog/` maps to `catalog/index.html`, the
  * way the pages' root-absolute links expect.
  */
+/*
+ * Has this browser asked for the 2018 site?
+ *
+ * theme.js writes the cookie when the preference is set, so the server can
+ * answer a plain page request with the 2018 page and the reader never sees a
+ * redirect or a different address.
+ */
+function wants2018(req) {
+  const cookie = String(req.headers.cookie || '');
+  return /(?:^|;\s*)wolimons_theme=2018(?:;|$)/.test(cookie);
+}
+
 async function serveStatic(req, res, url) {
   if (!SERVE_STATIC) return false;
   if (req.method !== 'GET' && req.method !== 'HEAD') return false;
@@ -416,7 +428,7 @@ async function serveStatic(req, res, url) {
    * what stops /../../etc/passwd and its many encodings: it is checked after
    * decoding and normalising, not before.
    */
-  const resolved = path.resolve(SITE_ROOT, `.${path.posix.normalize(pathname)}`);
+  let resolved = path.resolve(SITE_ROOT, `.${path.posix.normalize(pathname)}`);
   if (resolved !== SITE_ROOT && !resolved.startsWith(SITE_ROOT + path.sep)) {
     res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
     res.end('Forbidden');
@@ -438,6 +450,32 @@ async function serveStatic(req, res, url) {
     res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
     res.end('Not found');
     return true;
+  }
+
+  /*
+   * The 2018 site.
+   *
+   * Turning on the 2018 theme does not restyle these pages - it serves
+   * different ones. They are the actual 2018 pages, rebuilt from snapshots
+   * and wired to this API, and they live under /2018.
+   *
+   * The switch is a cookie rather than the URL, so a reader keeps the address
+   * they are on, links they share work for everybody, and nothing has to be
+   * duplicated into a second set of routes. A request that explicitly asks
+   * for /2018/... still gets it, which is what makes the pages testable.
+   */
+  if (wants2018(req)) {
+    const alternative = path.join(SITE_ROOT, '2018', path.relative(SITE_ROOT, resolved));
+    if (!path.relative(SITE_ROOT, resolved).startsWith('2018')) {
+      const candidate = alternative.endsWith('.html')
+        ? alternative
+        : path.join(alternative, 'index.html');
+      /* stat throws for "no such file", which is the normal answer for a
+       * page 2018 never had - the admin panel, the trade board. Anything
+       * else would be a real fault and is left to surface. */
+      const alt = await fsp.stat(candidate).catch(() => null);
+      if (alt && alt.isFile()) resolved = candidate;
+    }
   }
 
   let file = resolved;

@@ -147,10 +147,19 @@ function extractDeclaration(relative, name) {
   return new Function(`return ${source.slice(open, end)};`)();
 }
 
-/* Every page on the site, as [name, html] pairs. */
+/*
+ * Every page of the modern site, as [name, html] pairs.
+ *
+ * /2018 is deliberately left out. Those are the 2018 pages - a separate site
+ * with its own markup, its own footer and its own stylesheets - and holding
+ * them to the modern site's rules would be checking the wrong thing. They
+ * have their own tests.
+ */
 function sitePages() {
   const entries = fs.readdirSync(ROOT, { withFileTypes: true })
-    .filter(entry => entry.isDirectory() && fs.existsSync(path.join(ROOT, entry.name, 'index.html')))
+    .filter(entry => entry.isDirectory()
+      && entry.name !== '2018'
+      && fs.existsSync(path.join(ROOT, entry.name, 'index.html')))
     .map(entry => `${entry.name}/index.html`);
   return ['index.html', ...entries].map(name => [name, read(name)]);
 }

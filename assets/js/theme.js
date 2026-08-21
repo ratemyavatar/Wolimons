@@ -1,21 +1,24 @@
 /*
- * Wolimons - theme switch.
+ * Wolimons - the 2018 switch.
  *
- * Deliberately tiny, and deliberately loaded in <head> before the page is
- * painted. Everything else on this site loads at the end of <body>, which is
- * right for behaviour and wrong for a theme: the reader would get a flash of
- * the modern site before the 2018 one replaced it.
+ * The 2018 theme is not a restyle. Turning it on serves genuinely different
+ * pages: the actual 2018 pages, rebuilt from snapshots and wired to this
+ * site's API, which live under /2018 and are served in place of the modern
+ * ones for a reader who has asked for them.
  *
- * So this runs first, reads the one preference it cares about straight out of
- * localStorage rather than waiting for prefs.js, and marks the document. The
- * 2018 stylesheet is scoped entirely to html.theme-2018, so adding that class
- * is the whole switch.
+ * That decision has to be made on the server, before any HTML is sent, so the
+ * preference is mirrored into a cookie. localStorage stays the source of
+ * truth - it is what /preferences reads and writes - and this keeps the two
+ * in step on every page load.
+ *
+ * Loaded in <head> so the cookie is in place before anything else runs.
  */
 (() => {
   'use strict';
 
   const KEY = 'wolimons_prefs_v1';
-  const CLASS = 'theme-2018';
+  const COOKIE = 'wolimons_theme';
+  const YEAR = 60 * 60 * 24 * 365;
 
   function wanted() {
     try {
@@ -25,33 +28,63 @@
       return Boolean(parsed && parsed.theme2018 === true);
     } catch (error) {
       /* Private mode, disabled storage, hand-edited nonsense - the modern
-       * theme is the one that should survive any of that. */
+       * site is the one that should survive any of that. */
       return false;
     }
   }
 
-  function apply(on) {
-    const root = document.documentElement;
-    root.classList.toggle(CLASS, on);
-
-    /* The stylesheet ships disabled so a browser never downloads and applies
-     * it for a reader who has not asked for it. */
-    const sheet = document.getElementById('theme_2018_stylesheet');
-    if (sheet) sheet.disabled = !on;
+  function cookieSaysOn() {
+    return /(?:^|;\s*)wolimons_theme=2018(?:;|$)/.test(document.cookie || '');
   }
 
-  apply(wanted());
+  function writeCookie(on) {
+    /* Lax rather than Strict: somebody following a link to the site from
+     * Discord should still land on the version they chose. */
+    document.cookie = on
+      ? `${COOKIE}=2018; path=/; max-age=${YEAR}; samesite=lax`
+      : `${COOKIE}=; path=/; max-age=0; samesite=lax`;
+  }
 
   /*
-   * Turning it on and off from /preferences takes effect on every open tab,
-   * the same way the catalog filters already do - no reload, no half-applied
-   * page. The storage event covers other tabs; prefs.js dispatches the custom
-   * one for this tab, because storage does not fire in the tab that wrote it.
+   * Bring the cookie into line with the preference, and reload when that
+   * changes which page should have been served.
+   *
+   * The reload only ever happens on the load where the setting changed - the
+   * cookie matches from then on - so this cannot loop.
    */
-  window.addEventListener('storage', event => {
-    if (event.key === KEY) apply(wanted());
-  });
-  window.addEventListener('wolimons:theme', () => apply(wanted()));
+  function sync({ allowReload = true } = {}) {
+    const on = wanted();
+    const was = cookieSaysOn();
+    document.documentElement.classList.toggle('theme-2018', on);
+    if (on === was) return;
 
-  window.WolimonsTheme = { apply, isOn: () => document.documentElement.classList.contains(CLASS) };
+    writeCookie(on);
+    /* A page built for 2018 is already the 2018 page; only the modern pages
+     * need fetching again. */
+    const already2018 = document.body && document.body.hasAttribute('data-page-2018');
+    if (allowReload && on !== already2018) window.location.reload();
+  }
+
+  sync();
+
+  /* Changed in another tab, or on /preferences in this one. */
+  window.addEventListener('storage', event => {
+    if (event.key === KEY) sync();
+  });
+  window.addEventListener('wolimons:theme', () => sync());
+
+  window.WolimonsTheme = {
+    isOn: () => wanted(),
+    set(on) {
+      try {
+        const raw = window.localStorage.getItem(KEY);
+        const parsed = raw ? JSON.parse(raw) : {};
+        parsed.theme2018 = Boolean(on);
+        window.localStorage.setItem(KEY, JSON.stringify(parsed));
+      } catch (error) {
+        /* Nothing to do - the preference simply will not stick. */
+      }
+      sync();
+    },
+  };
 })();

@@ -1,0 +1,13 @@
+/*
+ * Wolimons - the handful of rules the 2018 pages need and 2018 did not have.
+ *
+ * Kept deliberately short. These pages are the 2018 pages; anything that can
+ * be left to their own stylesheet is.
+ */
+
+/* The snapshots were taken with ad slots in the layout. Those are gone, so
+   the gap they left goes with them. */
+.banner_ad, .mock_banner_ad { display: none !important; }
+
+/* The Discord panel sits in the box the 2018 iframe used to occupy. */
+.wolimons_discord { display: inline-block; width: 100%; max-width: 350px; text-align: left; }

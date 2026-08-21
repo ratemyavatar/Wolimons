@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en-US" class="theme-2018">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<title>Trade Calculator - Wolimons</title>
+<link rel="icon" type="image/png" href="/assets/Wolimonslogoo.png">
+<link rel="stylesheet" href="/2018/css/bootstrap.css?v=24">
+<link rel="stylesheet" href="/2018/css/site.css?v=24">
+<link rel="stylesheet" href="/2018/css/wolimons2018.css?v=24">
+</head>
+<body data-page-2018="tradecalculator">
+ -->
+ 
+  
+  <div class="header">
+    <nav class="navbar navbar-expand-md navbar-dark bg-primary px-2"><a class="navbar-brand border-0 py-1 pl-2 pr-1" href="/" data-toggle="tooltip" data-placement="bottom" title="" data-original-title="Wolimons"><img src="/assets/Wolimonslogoo.png" width="32" height="32" alt="Logo"></a>
+      <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation"><span class="navbar-toggler-icon"></span></button>
+      <div class="collapse navbar-collapse" id="navbarSupportedContent">
+        <ul class="navbar-nav mr-auto">
+          <li class="nav-item border-0"><a class="nav-link border-0" href="/catalog">Catalog</a></li>
+          <li class="nav-item"><a class="nav-link border-0" href="/players">Players</a></li>
+          <li class="nav-item"><a class="nav-link border-0" href="https://www.wolimons/trades">Trades</a></li>
+          <li class="nav-item border-0"><a class="nav-link border-0" href="/valuechanges">Changes</a></li>
+          <li class="nav-item d-block d-md-none d-lg-block"><a class="nav-link border-0" href="/leaderboard">Leaderboard</a></li>
+          <li class="nav-item d-block d-md-none d-lg-block active"><a class="nav-link border-0" href="/tradecalculator">Calculator</a></li>
+          <li class="nav-item"><a class="nav-link border-0" href="/projecteds">Deals</a></li>
+          <li class="nav-item"><a class="nav-link border-0" href="https://www.wolimons/leaks">Leaks</a></li>
+          <li class="nav-item dropdown active"><a class="nav-link dropdown-toggle border-0" id="navbarDropdown" href="/tradecalculator" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">Features</a>
+            <div class="dropdown-menu" aria-labelledby="navbarDropdown"><a class="dropdown-item d-none d-md-block d-lg-none" href="/leaderboard">Leaderboard</a><a class="dropdown-item d-none d-md-block d-lg-none" href="/tradecalculator">Trade Calculator</a><a class="dropdown-item" href="/itemtable">Item Table</a><a class="dropdown-item" href="/projecteds">Projected Items</a><a class="dropdown-item" href="https://www.wolimons/marketactivity">Market Activity</a>
+              <div class="dropdown-divider"></div><a class="dropdown-item" href="https://www.wolimons/videos">Videos</a><a class="dropdown-item" href="https://www.wolimons/supporters">Supporters</a><a class="dropdown-item" href="https://www.wolimons/halloffame">Hall of Fame</a>
+              <div class="dropdown-divider"></div><a class="dropdown-item" href="/preferences">Preferences</a>
+              <div class="dropdown-divider"></div><a class="dropdown-item" href="https://discord.gg/fDSD8RP" target="_blank">Discord</a>
+            </div>
+          </li>
+        </ul>
+        <ul class="navbar-nav ml-auto">
+          <li class="nav-item">
+            <form class="form-inline my-1 my-md-0">
+              <input class="form-control w-100 p-2" id="navbar_search_box" style="background-color: #eee;" type="search" placeholder="Item lookup" aria-label="Item lookup" autocomplete="off">
+            </form>
+          </li>
+        </ul>
+      </div>
+    </nav>
+  </div>
+  
+  <div class="container-fluid text-center mt-3" id="nn_bb1"></div>
+  <div class="container-fluid text-center" id="nn_mobile_mpu1"></div>
+  <div class="container mt-4 mb-4 shadow bg-primary rounded">
+    <div class="row">
+      <div class="col-12 col-md-6 d-flex justify-content-center">
+        <div data-toggle="tooltip" title="" data-original-title="Options"><a id="trade_options_dialog_button" data-toggle="modal" data-target="#trade_options_dialog">
+            <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" focusable="false" width="1.4em" height="1.4em" style="-ms-transform: rotate(360deg); -webkit-transform: rotate(360deg); transform: rotate(360deg);" preserveAspectRatio="xMidYMid meet" viewBox="0 0 512 512">
+              <path d="M487.4 315.7l-42.6-24.6c4.3-23.2 4.3-47 0-70.2l42.6-24.6c4.9-2.8 7.1-8.6 5.5-14-11.1-35.6-30-67.8-54.7-94.6-3.8-4.1-10-5.1-14.8-2.3L380.8 110c-17.9-15.4-38.5-27.3-60.8-35.1V25.8c0-5.6-3.9-10.5-9.4-11.7-36.7-8.2-74.3-7.8-109.2 0-5.5 1.2-9.4 6.1-9.4 11.7V75c-22.2 7.9-42.8 19.8-60.8 35.1L88.7 85.5c-4.9-2.8-11-1.9-14.8 2.3-24.7 26.7-43.6 58.9-54.7 94.6-1.7 5.4.6 11.2 5.5 14L67.3 221c-4.3 23.2-4.3 47 0 70.2l-42.6 24.6c-4.9 2.8-7.1 8.6-5.5 14 11.1 35.6 30 67.8 54.7 94.6 3.8 4.1 10 5.1 14.8 2.3l42.6-24.6c17.9 15.4 38.5 27.3 60.8 35.1v49.2c0 5.6 3.9 10.5 9.4 11.7 36.7 8.2 74.3 7.8 109.2 0 5.5-1.2 9.4-6.1 9.4-11.7v-49.2c22.2-7.9 42.8-19.8 60.8-35.1l42.6 24.6c4.9 2.8 11 1.9 14.8-2.3 24.7-26.7 43.6-58.9 54.7-94.6 1.5-5.5-.7-11.3-5.6-14.1zM256 336c-44.1 0-80-35.9-80-80s35.9-80 80-80 80 35.9 80 80-35.9 80-80 80z" fill="#9d9fa2"></path>
+            </svg></a></div>
+        <div>
+          <div class="w-100 text-center pt-2"><span class="font-weight-bold text-white">Offer</span></div>
+          <div class="d-flex flex-wrap" id="offer_items"><div class="trade-item rounded" data-item-slot="0"><img id="item_img_0" class="rounded trade-item-img m-0" src="/images/empty_trade_slot.png"><img id="item_select_0" class="rounded trade-item-img m-0 trade-btn-shadow d-none" src="/images/item_select.png"><img id="item_remove_0" class="rounded trade-item-img m-0 trade-btn-shadow d-none" src="/images/item_remove.png"></div><div class="trade-item rounded" data-item-slot="1"><img id="item_img_1" class="rounded trade-item-img m-0" src="/images/empty_trade_slot.png"><img id="item_select_1" class="rounded trade-item-img m-0 trade-btn-shadow d-none" src="/images/item_select.png"><img id="item_remove_1" class="rounded trade-item-img m-0 trade-btn-shadow d-none" src="/images/item_remove.png"></div><div class="trade-item rounded" data-item-slot="2"><img id="item_img_2" class="rounded trade-item-img m-0" src="/images/empty_trade_slot.png"><img id="item_select_2" class="rounded trade-item-img m-0 trade-btn-shadow d-none" src="/images/item_select.png"><img id="item_remove_2" class="rounded trade-item-img m-0 trade-btn-shadow d-none" src="/images/item_remove.png"></div><div class="trade-item rounded" data-item-slot="3"><img id="item_img_3" class="rounded trade-item-img m-0" src="/images/empty_trade_slot.png"><img id="item_select_3" class="rounded trade-item-img m-0 trade-btn-shadow d-none" src="/images/item_select.png"><img id="item_remove_3" class="rounded trade-item-img m-0 trade-btn-shadow d-none" src="/images/item_remove.png"></div></div>
+        </div>
+      </div>
+      <div class="col-12 col-md-6 d-flex justify-content-center">
+        <div>
+          <div class="w-100 text-center pt-2"><span class="font-weight-bold text-white">Request</span></div>
+          <div class="d-flex flex-wrap" id="request_items"><div class="trade-item rounded" data-item-slot="4"><img id="item_img_4" class="rounded trade-item-img m-0" src="/images/empty_trade_slot.png"><img id="item_select_4" class="rounded trade-item-img m-0 trade-btn-shadow d-none" src="/images/item_select.png"><img id="item_remove_4" class="rounded trade-item-img m-0 trade-btn-shadow d-none" src="/images/item_remove.png"></div><div class="trade-item rounded" data-item-slot="5"><img id="item_img_5" class="rounded trade-item-img m-0" src="/images/empty_trade_slot.png"><img id="item_select_5" class="rounded trade-item-img m-0 trade-btn-shadow d-none" src="/images/item_select.png"><img id="item_remove_5" class="rounded trade-item-img m-0 trade-btn-shadow d-none" src="/images/item_remove.png"></div><div class="trade-item rounded" data-item-slot="6"><img id="item_img_6" class="rounded trade-item-img m-0" src="/images/empty_trade_slot.png"><img id="item_select_6" class="rounded trade-item-img m-0 trade-btn-shadow d-none" src="/images/item_select.png"><img id="item_remove_6" class="rounded trade-item-img m-0 trade-btn-shadow d-none" src="/images/item_remove.png"></div><div class="trade-item rounded" data-item-slot="7"><img id="item_img_7" class="rounded trade-item-img m-0" src="/images/empty_trade_slot.png"><img id="item_select_7" class="rounded trade-item-img m-0 trade-btn-shadow d-none" src="/images/item_select.png"><img id="item_remove_7" class="rounded trade-item-img m-0 trade-btn-shadow d-none" src="/images/item_remove.png"></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="row d-md-none mt-1">
+      <div class="col-6 d-flex justify-content-center"><span class="small">Offer</span></div>
+      <div class="col-6 d-flex justify-content-center"><span class="small">Request</span></div>
+    </div>
+    <div class="row mt-0 mt-md-3">
+      <div class="col-12 d-flex justify-content-around">
+        <div><span class="font-weight-bold align-baseline text-success" id="offer_robux_label" data-toggle="tooltip" title="" data-original-title="Offered Robux - Must be equal or less than the offered RAP (will warn in 4-slot mode)">R$</span><span class="input-group input-group-sm d-inline ml-1">
+            <input class="form-control d-inline" id="offer_robux_textbox" type="number" aria-label="Robux" style="width: 100px; background-color: #eee;" min="0" step="1"></span><span class="font-weight-bold align-baseline ml-1 text-warning" id="offer_robux_multiplier_text" style="white-space: nowrap;"></span></div>
+        <div><span class="font-weight-bold align-baseline text-success" id="request_robux_label" data-toggle="tooltip" title="" data-original-title="Requested Robux - Must be equal or less than the requested RAP (will warn in 4-slot mode)">R$</span><span class="input-group input-group-sm d-inline ml-1">
+            <input class="form-control d-inline" id="request_robux_textbox" type="number" aria-label="Robux" style="width: 100px; background-color: #eee;" min="0" step="1"></span><span class="font-weight-bold align-baseline ml-1 text-warning" id="request_robux_multiplier_text" style="white-space: nowrap;"></span></div>
+      </div>
+    </div>
+    <div class="row mt-1 pb-1">
+      <div class="col-6 d-flex justify-content-center"><span class="text-truncate"><span class="small mr-2 text-right">Value</span><span class="small mr-2 text-right d-block" style="padding-top: 3px;">RAP</span></span><span class="text-truncate"><span class="text-info font-weight-bold" id="offer_value_total_textbox">0</span><span class="text-success font-weight-bold d-block" id="offer_rap_total_textbox">0</span></span></div>
+      <div class="col-6 d-flex justify-content-center">
+        <div class="text-truncate"><span class="small mr-2 text-right">Value</span><span class="small mr-2 text-right d-block" style="padding-top: 3px;">RAP</span></div>
+        <div class="text-truncate"><span class="text-info font-weight-bold d-block" id="request_value_total_textbox">0</span><span class="text-success font-weight-bold" id="request_rap_total_textbox">0</span></div>
+      </div>
+    </div>
+    <div class="row mt-3">
+      <div class="col">
+        <div class="input-group">
+          <input class="form-control form-control-lg" id="trade_calculator_page_search_textbox" style="background-color: #eee;" type="search" placeholder="Search for items by name" autofocus="">
+        </div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="col-12 pt-3 mix_container" data-ref="mix_container" id="MixItUp58FB6F">
+        <div class="card px-1 pb-1 mb-3 mix_item" data-ref="item" style=""><div><h6 class="card-title item-card-title text-light text-truncate" title="Dominus Empyreus">Dominus Empyreus</h6></div><div class="std_item_card_img_bkgnd_gradient text-center rounded border border-dark"><img class="d-block-inline my-1 my-xl-2" src="/assets/Wolimonslogoo.png" height="75" width="75" alt="Item Thumbnail"></div></div> <div class="card px-1 pb-1 mb-3 mix_item" data-ref="item" style=""><div><h6 class="card-title item-card-title text-light text-truncate" title="Lord of the Federation">Lord of the Federation</h6></div><div class="std_item_card_img_bkgnd_gradient text-center rounded border border-dark"><img class="d-block-inline my-1 my-xl-2" src="/assets/Wolimonslogoo.png" height="75" width="75" alt="Item Thumbnail"></div></div> <div class="card px-1 pb-1 mb-3 mix_item" data-ref="item" style=""><div><h6 class="card-title item-card-title text-light text-truncate" title="Dominus Frigidus">Dominus Frigidus</h6></div><div class="std_item_card_img_bkgnd_gradient text-center rounded border border-dark"><img class="d-block-inline my-1 my-xl-2" src="/assets/Wolimonslogoo.png" height="75" width="75" alt="Item Thumbnail"></div></div> <div class="card px-1 pb-1 mb-3 mix_item" data-ref="item" style=""><div><h6 class="card-title item-card-title text-light text-truncate" title="Dominus Astra">Dominus Astra</h6></div><div class="std_item_card_img_bkgnd_gradient text-center rounded border border-dark"><img class="d-block-inline my-1 my-xl-2" src="/assets/Wolimonslogoo.png" height="75" width="75" alt="Item Thumbnail"></div></div> <div class="card px-1 pb-1 mb-3 mix_item" data-ref="item" style=""><div><h6 class="card-title item-card-title text-light text-truncate" title="Dominus Infernus">Dominus Infernus</h6></div><div class="std_item_card_img_bkgnd_gradient text-center rounded border border-dark"><img class="d-block-inline my-1 my-xl-2" src="/assets/Wolimonslogoo.png" height="75" width="75" alt="Item Thumbnail"></div></div> <div class="card px-1 pb-1 mb-3 mix_item" data-ref="item" style=""><div><h6 class="card-title item-card-title text-light text-truncate" title="Eccentric Shop Teacher">Eccentric Shop Teacher</h6></div><div class="std_item_card_img_bkgnd_gradient text-center rounded border border-dark"><img class="d-block-inline my-1 my-xl-2" src="/assets/Wolimonslogoo.png" height="75" width="75" alt="Item Thumbnail"></div></div> <div class="card px-1 pb-1 mb-3 mix_item" data-ref="item" style=""><div><h6 class="card-title item-card-title text-light text-truncate" title="Domino Crown">Domino Crown</h6></div><div class="std_item_card_img_bkgnd_gradient text-center rounded border border-dark"><img class="d-block-inline my-1 my-xl-2" src="/assets/Wolimonslogoo.png" height="75" width="75" alt="Item Thumbnail"></div></div> <div class="card px-1 pb-1 mb-3 mix_item" data-ref="item" style=""><div><h6 class="card-title item-card-title text-light text-truncate" title="The Wanwood Crown">The Wanwood Crown</h6></div><div class="std_item_card_img_bkgnd_gradient text-center rounded border border-dark"><img class="d-block-inline my-1 my-xl-2" src="/assets/Wolimonslogoo.png" height="75" width="75" alt="Item Thumbnail"></div></div> <div class="card px-1 pb-1 mb-3 mix_item" data-ref="item" style=""><div><h6 class="card-title item-card-title text-light text-truncate" title="The Kleos Aphthiton">The Kleos Aphthiton</h6></div><div class="std_item_card_img_bkgnd_gradient text-center rounded border border-dark"><img class="d-block-inline my-1 my-xl-2" src="/assets/Wolimonslogoo.png" height="75" width="75" alt="Item Thumbnail"></div></div> <div class="card px-1 pb-1 mb-3 mix_item" data-ref="item" style=""><div><h6 class="card-title item-card-title text-light text-truncate" title="Lady of the Federation">Lady of the Federation</h6></div><div class="std_item_card_img_bkgnd_gradient text-center rounded border border-dark"><img class="d-block-inline my-1 my-xl-2" src="/assets/Wolimonslogoo.png" height="75" width="75" alt="Item Thumbnail"></div></div> <div class="mix_gap" data-ref="first-gap"></div>
+        <div class="mix_gap"></div>
+        <div class="mix_gap"></div>
+        <div class="mix_gap"></div>
+        <div class="mix_gap"></div>
+        <div class="mix_gap"></div>
+      </div>
+    </div>
+  </div>
+  <div class="container-fluid text-center" id="nn_bb2"></div>
+  <div class="container mt-4 pb-2"></div>
+  <div class="modal fade" id="trade_options_dialog" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-sm" role="document">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Options</h5>
+          <button class="close" type="button" data-dismiss="modal" aria-label="Close"><span class="text-light" aria-hidden="true">×</span></button>
+        </div>
+        <div class="modal-body">
+          <form>
+            <div class="form-group">
+              <label class="mb-1" for="robux_multiplier_textbox" data-toggle="tooltip" title="" data-original-title="Multiplies the value of all robux included in the trade">Robux Multiplier</label>
+              <input class="form-control form-control-sm" id="robux_multiplier_textbox" type="number" aria-label="Robux" value="1" min="1" step="0.1">
+            </div>
+            <div class="form-group">
+              <label class="mb-1" for="offer_slots_textbox" data-toggle="tooltip" title="" data-original-title="Number of offer slots">Offer Slots</label>
+              <input class="form-control form-control-sm" id="offer_slots_textbox" type="number" aria-label="Offer Slots" value="4" min="4" max="100" step="1">
+            </div>
+            <div class="form-group">
+              <label class="mb-1" for="request_slots_textbox" data-toggle="tooltip" title="" data-original-title="Number of request slots">Request Slots</label>
+              <input class="form-control form-control-sm" id="request_slots_textbox" type="number" aria-label="Request Slots" value="4" min="4" max="100" step="1">
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+  <footer class="navbar-dark bg-primary">
+    <div class="container">
+      <div class="row pt-3">
+        <div class="col-sm-3 px-2"><a class="nav-link text-light text-center px-0" href="https://www.wolimons/about" style="font-size: 13px;">About</a></div>
+        <div class="col-sm-3 px-2"><a class="nav-link text-light text-center px-0" href="https://www.wolimons/termsandprivacy" style="font-size: 13px;">Terms &amp; Privacy</a></div>
+        <div class="col-sm-3 px-2"><a class="nav-link text-light text-center px-0" style="font-size: 13px; cursor: pointer;">Manage Cookie Settings</a></div>
+        <div class="col-sm-3 px-2"><a class="nav-link text-light text-center px-0" href="https://www.wolimons/contact" style="font-size: 13px;">Contact</a></div>
+      </div>
+      <div class="row pt-2 pb-2">
+        <div class="col-12">
+          <p class="text-center small text-muted">Wanwood and its various marks and logos are trademarks of Wanwood Corporation<br>Wolimons is not endorsed, sponsored or affiliated with Wanwood Corporation<br>Copyright © Wolimons 2019 - A Wanwood fan site</p>
+        </div>
+      </div><a class="rounded" id="scroll-to-top" data-toggle="tooltip" data-placement="left" title="" href="/tradecalculator" data-original-title="Back to top">➤</a>
+    </div>
+  </footer>
+  
+  
+  
+  
+
+<div class="autocomplete-suggestions" style="position: absolute; display: none; max-height: 300px; z-index: 9999;"></div><div style="display: none; visibility: hidden;">
+
+
+</div>
+
+
+<div style="display: none; visibility: hidden;">
+</div></body></html><!--
+     FILE ARCHIVED ON 12:11:34 Jun 03, 2019 AND RETRIEVED FROM THE
+     INTERNET ARCHIVE ON 06:26:00 Aug 21, 2026.
+     JAVASCRIPT APPENDED BY WAYBACK MACHINE, COPYRIGHT INTERNET ARCHIVE.
+
+     ALL OTHER CONTENT MAY ALSO BE PROTECTED BY COPYRIGHT (17 U.S.C.
+     SECTION 108(a)(3)).
+--><!--
+playback timings (ms):
+  captures_list: 0.556
+  exclusion.robots: 0.061
+  exclusion.robots.policy: 0.047
+  esindex: 0.008
+  cdx.remote: 12.066
+  LoadShardBlock: 230.854 (3)
+  PetaboxLoader3.datanode: 80.801 (4)
+  PetaboxLoader3.resolve: 5160.014 (2)
+  load_resource: 5079.304
+  nav: 0.313 (6)
+-->
+
+<script src="/assets/js/config.js?v=24"></script>
+<script src="/assets/js/values.js?v=24"></script>
+<script src="/assets/js/wanwood-api.js?v=24"></script>
+<script src="/assets/js/account.js?v=24"></script>
+<script src="/assets/js/prefs.js?v=24"></script>
+<script src="/assets/js/theme.js?v=24"></script>
+<script src="/assets/js/site2018.js?v=24" defer></script>
+</body>
+</html>

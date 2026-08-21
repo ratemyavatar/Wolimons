@@ -58,6 +58,7 @@ const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
 const fsp = require('fs/promises');
+const ownership = require('./ownership.js');
 const store = require('./store');
 
 /*
@@ -471,6 +472,26 @@ const ROLE_LABELS = { website_owner: 'Website Owner', owner: 'Site Owner', value
  * the repository; the default is the one that was asked for.
  */
 const VAULT_PASSWORD = String(process.env.VAULT_PASSWORD || 'ilovegod123');
+
+/* ---------------------------------------------------------------------- */
+/* Ownership tracking                                                      */
+/* ---------------------------------------------------------------------- */
+
+/*
+ * How the tracker reaches Wanwood. Kept here rather than inside the tracker
+ * so that file stays a plain diff-and-remember engine with no idea what a
+ * catalogue is.
+ */
+function ownershipHooks() {
+  return {
+    listItems: () => listCatalogIds(),
+    readOwners: assetId => assetOwners(assetId),
+  };
+}
+
+function startOwnershipTracking() {
+  ownership.start(ownershipHooks());
+}
 
 /* ---------------------------------------------------------------------- */
 /* Lucky Cat                                                               */
@@ -1489,6 +1510,49 @@ async function handle(req, res, url, readBody) {
 
     /* Whether a player has verified on this site. Public: it is a badge on a
      * public profile, and it says nothing a visitor cannot already see. */
+    /* What has happened to one item's copies since tracking began. */
+    if (req.method === 'GET' && route === '/api/ownership/item') {
+      const assetId = Number(url.searchParams.get('id')) || 0;
+      if (!assetId) {
+        send(res, 400, { ok: false, error: 'An item id is required.' });
+        return true;
+      }
+      send(res, 200, {
+        ok: true,
+        status: ownership.status(),
+        events: ownership.itemHistory(assetId, { limit: url.searchParams.get('limit') }),
+      });
+      return true;
+    }
+
+    /* What one player has gained and lost since tracking began. */
+    if (req.method === 'GET' && route === '/api/ownership/player') {
+      const userId = Number(url.searchParams.get('id')) || 0;
+      if (!userId) {
+        send(res, 400, { ok: false, error: 'A user id is required.' });
+        return true;
+      }
+      send(res, 200, {
+        ok: true,
+        status: ownership.status(),
+        events: ownership.playerHistory(userId, { limit: url.searchParams.get('limit') }),
+      });
+      return true;
+    }
+
+    /* Force a pass now instead of waiting for the timer. Staff only - it is
+     * a lot of upstream requests. */
+    if (req.method === 'POST' && route === '/api/ownership/scan') {
+      const auth = await authorize(req, {}, { need: 'staff' });
+      if (!auth.ok) {
+        send(res, auth.status, { ok: false, error: auth.error });
+        return true;
+      }
+      const result = await ownership.scan(ownershipHooks()).catch(() => null);
+      send(res, 200, { ok: true, result, status: ownership.status() });
+      return true;
+    }
+
     /* Today's Lucky Cat, the same answer for every visitor. */
     if (req.method === 'GET' && route === '/api/luckycat') {
       try {
@@ -2032,4 +2096,4 @@ async function handle(req, res, url, readBody) {
   }
 }
 
-module.exports = { handle };
+module.exports = { handle, startOwnershipTracking };

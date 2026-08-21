@@ -210,6 +210,12 @@ body.page-trades .tag_button, body.page-playertrades .tag_button { width: 55px; 
 /* Wolimons additions                                                */
 /* ---------------------------------------------------------------- */
 
+/* The picker row is also the shape the ownership log uses on /item and
+ * /player, so those two body classes are on the selectors above. Without
+ * them the rows would land on those pages with no styling at all - the rules
+ * are scoped precisely because names like .mix_item mean different things on
+ * different pages. */
+
 /* The composer is the one piece with no snapshot equivalent: the original
  * puts ad creation on its own /tradeadcreate page, while ours is inline
  * so a linked account can post without leaving the board. It borrows the
@@ -254,12 +260,12 @@ body.page-trades .trade_ad_locked_notice, body.page-playertrades .trade_ad_locke
 }
 
 /* The picker list inside the create modal. */
-body.page-trades .trade_ad_picker_results, body.page-playertrades .trade_ad_picker_results, body.page-admin .trade_ad_picker_results {
+body.page-trades .trade_ad_picker_results, body.page-playertrades .trade_ad_picker_results, body.page-admin .trade_ad_picker_results, body.page-item .trade_ad_picker_results, body.page-player .trade_ad_picker_results {
   max-height: 320px;
   overflow-y: auto;
 }
 
-body.page-trades .trade_ad_picker_row, body.page-playertrades .trade_ad_picker_row, body.page-admin .trade_ad_picker_row {
+body.page-trades .trade_ad_picker_row, body.page-playertrades .trade_ad_picker_row, body.page-admin .trade_ad_picker_row, body.page-item .trade_ad_picker_row, body.page-player .trade_ad_picker_row {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -269,8 +275,8 @@ body.page-trades .trade_ad_picker_row, body.page-playertrades .trade_ad_picker_r
   color: #e9ecef;
 }
 
-body.page-trades .trade_ad_picker_row:hover:hover, body.page-playertrades .trade_ad_picker_row:hover:hover, body.page-admin .trade_ad_picker_row:hover:hover { background-color: rgb(52, 58, 64); }
-body.page-trades .trade_ad_picker_row img, body.page-playertrades .trade_ad_picker_row img, body.page-admin .trade_ad_picker_row img { width: 44px; height: 44px; border-radius: 4px; background-color: rgb(43, 47, 51); }
+body.page-trades .trade_ad_picker_row:hover:hover, body.page-playertrades .trade_ad_picker_row:hover:hover, body.page-admin .trade_ad_picker_row:hover:hover, body.page-item .trade_ad_picker_row:hover:hover, body.page-player .trade_ad_picker_row:hover:hover { background-color: rgb(52, 58, 64); }
+body.page-trades .trade_ad_picker_row img, body.page-playertrades .trade_ad_picker_row img, body.page-admin .trade_ad_picker_row img, body.page-item .trade_ad_picker_row img, body.page-player .trade_ad_picker_row img { width: 44px; height: 44px; border-radius: 4px; background-color: rgb(43, 47, 51); }
 
 /* Tag chips in the request composer. */
 body.page-trades .trade_ad_tag_option, body.page-playertrades .trade_ad_tag_option {

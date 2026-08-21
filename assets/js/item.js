@@ -715,6 +715,100 @@
    * that is display:none when the chart is created comes out zero-wide; the
    * three inactive tabs are therefore left until they are first opened.
    */
+  /*
+   * The Owner History tab.
+   *
+   * Not a chart - a list of who handed what to whom. It can only cover the
+   * period since the server started watching, so the note above it says when
+   * that was rather than letting a short list read as the whole story.
+   */
+  async function loadOwnerHistory(assetId) {
+    const list = document.getElementById('owner_history_list');
+    const note = document.getElementById('owner_history_note');
+    if (!list) return;
+
+    list.replaceChildren();
+    const loading = el('div', 'small py-2', 'Reading the ownership log\u2026');
+    loading.style.color = '#7a8288';
+    list.appendChild(loading);
+
+    let payload;
+    try {
+      const base = (window.WOLIMONS_CONFIG && window.WOLIMONS_CONFIG.apiBase) || '';
+      const response = await fetch(`${base}/api/ownership/item?id=${assetId}&limit=200`);
+      payload = await response.json();
+      if (!payload || payload.ok === false) throw new Error('refused');
+    } catch (error) {
+      list.replaceChildren();
+      const failed = el('div', 'small py-2', 'The ownership log could not be read.');
+      failed.style.color = '#7a8288';
+      list.appendChild(failed);
+      return;
+    }
+
+    const events = Array.isArray(payload.events) ? payload.events : [];
+    const status = payload.status || {};
+
+    if (note) {
+      note.textContent = status.tracking
+        ? `Tracked since ${new Date(status.startedAt).toISOString().slice(0, 10)}. `
+          + 'Trades made before then are not recorded anywhere and cannot be shown.'
+        : 'Ownership tracking has not taken its first reading yet.';
+    }
+
+    list.replaceChildren();
+    if (!events.length) {
+      const empty = el('div', 'small py-2',
+        'No copy of this item has changed hands since tracking began.');
+      empty.style.color = '#7a8288';
+      list.appendChild(empty);
+      return;
+    }
+
+    events.forEach(event => list.appendChild(transferRow(event)));
+  }
+
+  /* One "#12  luke -> Nun" line. */
+  function transferRow(event) {
+    const row = el('div', 'trade_ad_picker_row');
+
+    const serial = el('div', 'text-nowrap mr-2', event.serial ? `#${formatNumber(event.serial)}` : 'No serial');
+    serial.style.color = event.serial ? '#c9a227' : '#7a8288';
+    serial.style.minWidth = '78px';
+    row.appendChild(serial);
+
+    const body = el('div', 'flex-grow-1');
+    const line = el('div', 'd-flex align-items-center flex-wrap');
+
+    const from = el('a', null, event.fromName || `User ${event.from}`);
+    from.href = `/player/?id=${event.from}`;
+    from.style.color = '#e9ecef';
+    line.appendChild(from);
+
+    const arrow = el('span', 'mx-2', '\u2192');
+    arrow.style.color = '#7a8288';
+    line.appendChild(arrow);
+
+    const to = el('a', null, event.toName || `User ${event.to}`);
+    to.href = `/player/?id=${event.to}`;
+    to.style.color = '#81c784';
+    line.appendChild(to);
+
+    body.appendChild(line);
+    const when = el('div', 'small', utcStamp(event.at));
+    when.style.color = '#7a8288';
+    body.appendChild(when);
+    row.appendChild(body);
+
+    return row;
+  }
+
+  function utcStamp(timestamp) {
+    const when = new Date(Number(timestamp));
+    if (Number.isNaN(when.getTime())) return '';
+    return when.toISOString().replace('T', ' ').slice(0, 16) + ' UTC';
+  }
+
   function drawChart(pane) {
     if (!CHART || charts.drawn.has(pane) || !charts.data) return;
     const spec = CHART_PANES[pane];
@@ -730,7 +824,16 @@
     charts.drawn.clear();
     /* The open tab can be drawn straight away; the rest wait for their click. */
     drawChart('history_chart_container');
-    tabListeners.add(drawChart);
+    tabListeners.add(pane => {
+      if (pane === 'owner_history_container') {
+        if (!charts.drawn.has(pane)) {
+          charts.drawn.add(pane);
+          loadOwnerHistory(data.id);
+        }
+        return;
+      }
+      drawChart(pane);
+    });
   }
 
   /* ------------------------------------------------------------------ */
@@ -1236,7 +1339,7 @@
     paintHeadshots();
 
     /* Charts -------------------------------------------------------- */
-    initCharts({ resale, listings, owners, changes, value: VALUES.get(id) });
+    initCharts({ id, resale, listings, owners, changes, value: VALUES.get(id) });
 
     /* About --------------------------------------------------------- */
     const kind = [

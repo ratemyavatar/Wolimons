@@ -833,6 +833,18 @@ server.listen(PORT, '0.0.0.0', () => {
   }
 
   console.log('Admin writes are locked to the staff roster - no key. Public API index: /api');
+
+  /*
+   * Start watching who owns what. Nothing can be answered about ownership
+   * history that was not recorded while the server was up, so the sooner
+   * this starts the sooner the item and profile pages have something to
+   * show. Off with OWNERSHIP_TRACKING=0 for a server that should not be
+   * making its own upstream requests.
+   */
+  if (!/^(0|false|no|off)$/i.test(String(process.env.OWNERSHIP_TRACKING || '1'))) {
+    api.startOwnershipTracking();
+    console.log('Ownership tracking on: transfers are recorded for item and player history.');
+  }
   if (PROTECT_SOURCES) {
     console.log('Source guard on: served pages and scripts are stripped of comments.');
   }

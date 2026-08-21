@@ -217,6 +217,115 @@
     }
   }
 
+  /*
+   * What this player has gained and lost.
+   *
+   * Read from the server's ownership log, which is the only place the answer
+   * exists - Wanwood reports who owns a copy now and has never reported who
+   * owned it before. The log only covers the period since the server started
+   * watching, and the note says so rather than letting a short list pass for
+   * a complete one.
+   */
+  const itemHistory = { events: [], filter: 'all', status: null };
+
+  async function loadItemHistory(userId) {
+    const list = el('player_item_history_list');
+    if (!list) return;
+
+    list.replaceChildren();
+    const loading = text('div', 'small py-2', 'Reading the ownership log\u2026');
+    loading.style.color = '#7a8288';
+    list.appendChild(loading);
+
+    try {
+      const base = (window.WOLIMONS_CONFIG && window.WOLIMONS_CONFIG.apiBase) || '';
+      const response = await fetch(`${base}/api/ownership/player?id=${userId}&limit=200`);
+      const payload = await response.json();
+      if (!payload || payload.ok === false) throw new Error('refused');
+      itemHistory.events = Array.isArray(payload.events) ? payload.events : [];
+      itemHistory.status = payload.status || null;
+    } catch (error) {
+      list.replaceChildren();
+      const failed = text('div', 'small py-2', 'The ownership log could not be read.');
+      failed.style.color = '#7a8288';
+      list.appendChild(failed);
+      return;
+    }
+    renderItemHistory();
+  }
+
+  function renderItemHistory() {
+    const list = el('player_item_history_list');
+    const note = el('player_item_history_note');
+    if (!list) return;
+
+    const status = itemHistory.status || {};
+    if (note) {
+      note.textContent = status.tracking
+        ? `Tracked since ${new Date(status.startedAt).toISOString().slice(0, 10)}`
+        : 'Tracking has not taken its first reading yet';
+    }
+
+    const rows = itemHistory.filter === 'all'
+      ? itemHistory.events
+      : itemHistory.events.filter(event => event.direction === itemHistory.filter);
+
+    list.replaceChildren();
+    if (!rows.length) {
+      const empty = text('div', 'small py-2', itemHistory.events.length
+        ? `Nothing ${itemHistory.filter} since tracking began.`
+        : 'This player has not gained or lost a copy since tracking began.');
+      empty.style.color = '#7a8288';
+      list.appendChild(empty);
+      return;
+    }
+    rows.forEach(event => list.appendChild(historyRow(event)));
+  }
+
+  /* One line: the item, which way it went, and who the other side was. */
+  function historyRow(event) {
+    const row = text('div', 'trade_ad_picker_row');
+
+    const image = document.createElement('img');
+    image.width = 44;
+    image.height = 44;
+    image.loading = 'lazy';
+    image.alt = '';
+    image.src = API.thumbnailUrl(event.assetId);
+    row.appendChild(image);
+
+    const body = text('div', 'flex-grow-1');
+    const head = text('div', 'd-flex align-items-center flex-wrap');
+
+    const gained = event.direction === 'gained';
+    const arrow = text('span', 'mr-2', gained ? '\u2192' : '\u2190');
+    arrow.style.color = gained ? '#81c784' : '#e57373';
+    arrow.style.fontWeight = '700';
+    head.appendChild(arrow);
+
+    const link = document.createElement('a');
+    link.href = `/item/?id=${event.assetId}`;
+    link.className = 'text-truncate';
+    link.style.color = '#e9ecef';
+    link.textContent = event.serial
+      ? `Item ${event.assetId} #${formatNumber(event.serial)}`
+      : `Item ${event.assetId}`;
+    head.appendChild(link);
+    body.appendChild(head);
+
+    const other = gained
+      ? { id: event.from, name: event.fromName }
+      : { id: event.to, name: event.toName };
+    const sub = text('div', 'small');
+    sub.style.color = '#7a8288';
+    sub.textContent = `${gained ? 'from' : 'to'} ${other.name || `User ${other.id}`}`
+      + ` \u00b7 ${new Date(event.at).toISOString().replace('T', ' ').slice(0, 16)} UTC`;
+    body.appendChild(sub);
+    row.appendChild(body);
+
+    return row;
+  }
+
   /* Re-scores the current inventory and redraws the row. Safe to call more
    * than once - the profile does, because the item supply figures only
    * arrive with resale-data, after the inventory has already rendered. */
@@ -685,6 +794,7 @@
     renderNameBadges();
     loadSiteVerified(userId);
     loadLuckyCat(userId);
+    loadItemHistory(userId);
 
     if (avatarImage) {
       const url = avatars && avatars.get ? avatars.get(userId) : null;
@@ -881,6 +991,18 @@
     /* Re-run now that supply figures are real. */
     refreshBadges();
   }
+
+  document.querySelectorAll('[data-history-filter]').forEach(button => {
+    button.addEventListener('click', () => {
+      itemHistory.filter = button.dataset.historyFilter;
+      document.querySelectorAll('[data-history-filter]').forEach(other => {
+        const on = other === button;
+        other.setAttribute('aria-pressed', on ? 'true' : 'false');
+        other.classList.toggle('active', on);
+      });
+      renderItemHistory();
+    });
+  });
 
   if (sortSelect) sortSelect.addEventListener('change', renderInventory);
   if (stackToggle) stackToggle.addEventListener('change', renderInventory);

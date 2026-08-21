@@ -226,7 +226,16 @@
    * watching, and the note says so rather than letting a short list pass for
    * a complete one.
    */
-  const itemHistory = { events: [], filter: 'all', status: null };
+  const HISTORY_PAGE = 12;
+  const itemHistory = {
+    events: [],
+    filter: 'all',
+    status: null,
+    shown: HISTORY_PAGE,
+    /* assetId -> { name, thumbnail }, resolved in one batch so each card does
+     * not fetch its own picture. */
+    details: new Map(),
+  };
 
   async function loadItemHistory(userId) {
     const list = el('player_item_history_list');
@@ -244,6 +253,7 @@
       if (!payload || payload.ok === false) throw new Error('refused');
       itemHistory.events = Array.isArray(payload.events) ? payload.events : [];
       itemHistory.status = payload.status || null;
+      itemHistory.shown = HISTORY_PAGE;
     } catch (error) {
       list.replaceChildren();
       const failed = text('div', 'small py-2', 'The ownership log could not be read.');
@@ -251,6 +261,48 @@
       list.appendChild(failed);
       return;
     }
+    renderItemHistory();
+    loadHistoryDetails();
+  }
+
+  /*
+   * Names and pictures for the items in the history.
+   *
+   * The log stores an asset id and nothing else - it is a record of who held
+   * what, not a copy of the catalogue. So the cards were reading "Item 1581"
+   * with a blank square: thumbnailUrl() alone is only a fallback path, not a
+   * resolved image. One batched lookup fills in both.
+   */
+  async function loadHistoryDetails() {
+    const ids = [...new Set(itemHistory.events.map(event => Number(event.assetId)))]
+      .filter(Boolean);
+    if (!ids.length || !API) return;
+
+    try {
+      const details = await API.getItemDetails(ids, { includePrice: false });
+      (Array.isArray(details) ? details : []).forEach(detail => {
+        itemHistory.details.set(Number(detail.id), {
+          name: detail.name || '',
+          thumbnail: detail.thumbnail || '',
+        });
+      });
+    } catch (error) {
+      /* Names stay as ids rather than the section failing. */
+    }
+
+    /* Whatever the lookup could not name still needs a picture. */
+    try {
+      const map = await API.fetchThumbnails(ids);
+      ids.forEach(id => {
+        const url = map && map.get ? map.get(id) : null;
+        if (!url) return;
+        const existing = itemHistory.details.get(id) || { name: '' };
+        if (!existing.thumbnail) itemHistory.details.set(id, { ...existing, thumbnail: url });
+      });
+    } catch (error) {
+      /* Cards fall back to the proxy thumbnail path. */
+    }
+
     renderItemHistory();
   }
 
@@ -273,67 +325,106 @@
       ? itemHistory.events
       : itemHistory.events.filter(event => event.direction === itemHistory.filter);
 
+    const more = el('player_item_history_more');
     list.replaceChildren();
+
     if (!rows.length) {
       const empty = text('div', 'small py-2', itemHistory.events.length
         ? `Nothing ${itemHistory.filter} in the recorded history.`
         : 'Nothing is recorded for this player yet.');
       empty.style.color = '#7a8288';
       list.appendChild(empty);
+      if (more) more.classList.add('d-none');
       return;
     }
-    rows.forEach(event => list.appendChild(historyRow(event)));
+
+    rows.slice(0, itemHistory.shown).forEach(event => list.appendChild(historyCard(event)));
+
+    const left = rows.length - itemHistory.shown;
+    if (more) {
+      more.classList.toggle('d-none', left <= 0);
+      if (left > 0) more.value = `See more (${formatNumber(left)} left)`;
+    }
   }
 
-  /* One line: the item, which way it went, and who the other side was. */
-  function historyRow(event) {
-    const row = text('div', 'trade_ad_picker_row');
-
-    const image = document.createElement('img');
-    image.width = 44;
-    image.height = 44;
-    image.loading = 'lazy';
-    image.alt = '';
-    image.src = API.thumbnailUrl(event.assetId);
-    row.appendChild(image);
-
-    const body = text('div', 'flex-grow-1');
-    const head = text('div', 'd-flex align-items-center flex-wrap');
-
+  /*
+   * One card per movement.
+   *
+   * This was a single stacked list, which on a profile with any history at
+   * all became an unreadable column running off the page. It is the same
+   * .mix_item card the inventory grid uses, so it wraps into four or more
+   * across on a desktop and one on a phone, and it sits in normal flow
+   * rather than a fixed-height scroller that overlapped what came after it.
+   */
+  function historyCard(event) {
     const gained = event.direction === 'gained';
-    const arrow = text('span', 'mr-2', gained ? '\u2192' : '\u2190');
-    arrow.style.color = gained ? '#81c784' : '#e57373';
-    arrow.style.fontWeight = '700';
-    head.appendChild(arrow);
+    const detail = itemHistory.details.get(Number(event.assetId)) || {};
+    const name = detail.name || `Item ${event.assetId}`;
+
+    const card = text('div', 'shadow_md_35 shift_up_md pb-2 mb-3 mix_item');
+    card.style.backgroundColor = '#30363c';
 
     const link = document.createElement('a');
     link.href = `/item/?id=${event.assetId}`;
-    link.className = 'text-truncate';
-    link.style.color = '#e9ecef';
-    link.textContent = event.serial
-      ? `Item ${event.assetId} #${formatNumber(event.serial)}`
-      : `Item ${event.assetId}`;
-    head.appendChild(link);
-    body.appendChild(head);
 
+    const heading = text('h6', 'item_card_name px-2 text-light my-1 text-truncate');
+    const title = text('div', 'text-truncate', name);
+    title.title = name;
+    heading.appendChild(title);
+
+    const imageWrap = text('div',
+      'position-relative std_item_card_img_bkgnd_gradient text-center border-top border-bottom border-dark');
+    const image = document.createElement('img');
+    image.className = 'd-block-inline my-1';
+    image.width = 100;
+    image.height = 100;
+    image.loading = 'lazy';
+    image.alt = `${name} thumbnail`;
+    image.src = detail.thumbnail || API.thumbnailUrl(event.assetId);
+    image.addEventListener('error', () => { image.style.visibility = 'hidden'; });
+    imageWrap.appendChild(image);
+
+    /* Which way it went, in the corner where the inventory shows a serial. */
+    const flag = text('div', 'position-absolute px-2', gained ? 'Gained' : 'Lost');
+    flag.style.cssText = 'top:4px;left:4px;border-radius:10px;font-size:.75em;font-weight:600;'
+      + `background-color:rgba(0,0,0,.55);color:${gained ? '#81c784' : '#e57373'};`;
+    imageWrap.appendChild(flag);
+
+    if (event.serial) {
+      const serial = text('div', 'position-absolute px-2', `#${formatNumber(event.serial)}`);
+      serial.style.cssText = 'top:4px;right:4px;background-color:rgba(0,0,0,.55);'
+        + 'border-radius:10px;font-size:.75em;color:#c9a227;';
+      imageWrap.appendChild(serial);
+    }
+
+    const stats = text('div', 'px-2 pt-1');
+    stats.appendChild(historyStat(gained ? 'From' : 'To', counterparty(event, gained)));
+    stats.appendChild(historyStat('When', new Date(event.at).toISOString().slice(0, 10)));
+
+    link.append(heading, imageWrap, stats);
+    card.appendChild(link);
+    return card;
+  }
+
+  /* Who the copy came from or went to - "minted" when it came from nowhere,
+   * "someone" when Wanwood no longer remembers. */
+  function counterparty(event, gained) {
+    if (event.kind === 'minted') return 'Minted';
     const other = gained
       ? { id: event.from, name: event.fromName }
       : { id: event.to, name: event.toName };
-    const stamp = `${new Date(event.at).toISOString().replace('T', ' ').slice(0, 16)} UTC`;
+    if (!other.id) return 'someone';
+    return other.name || `User ${other.id}`;
+  }
 
-    /* Where the copy came from, when that is knowable. A mint has no other
-     * side at all, and a move that predates tracking has one Wanwood does
-     * not remember - both say so rather than naming nobody as somebody. */
-    let detail;
-    if (event.kind === 'minted') detail = `minted \u00b7 ${stamp}`;
-    else if (!other.id) detail = `${gained ? 'from' : 'to'} someone \u00b7 ${stamp}`;
-    else detail = `${gained ? 'from' : 'to'} ${other.name || `User ${other.id}`} \u00b7 ${stamp}`;
-
-    const sub = text('div', 'small', detail);
-    sub.style.color = '#7a8288';
-    body.appendChild(sub);
-    row.appendChild(body);
-
+  function historyStat(label, value) {
+    const row = text('div', 'd-flex justify-content-between');
+    const left = text('div');
+    left.appendChild(text('small', 'text-muted', label));
+    const right = text('div', 'text-light text-truncate', value);
+    right.title = value;
+    right.style.maxWidth = '60%';
+    row.append(left, right);
     return row;
   }
 
@@ -1006,9 +1097,15 @@
     refreshBadges();
   }
 
+  el('player_item_history_more')?.addEventListener('click', () => {
+    itemHistory.shown += HISTORY_PAGE;
+    renderItemHistory();
+  });
+
   document.querySelectorAll('[data-history-filter]').forEach(button => {
     button.addEventListener('click', () => {
       itemHistory.filter = button.dataset.historyFilter;
+      itemHistory.shown = HISTORY_PAGE;
       document.querySelectorAll('[data-history-filter]').forEach(other => {
         const on = other === button;
         other.setAttribute('aria-pressed', on ? 'true' : 'false');

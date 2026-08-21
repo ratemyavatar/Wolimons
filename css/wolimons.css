@@ -812,6 +812,12 @@
 
 .item_page_chart_container .item_chart_inner { position: relative; flex: 1 1 auto; min-height: 0px; }
 
+/* The Owner History tab is a list, not a chart. It has to grow with what is
+   in it: pinned to the chart's fixed 400px it simply spilled out of the box
+   and over whatever came next on the page. */
+.item_page_list_container { background-color: rgb(50, 56, 62); padding: 12px; }
+.tab-content > .item_page_list_container.active { display: block; }
+
 .owners-table-scroll { max-height: 420px; min-height: 380px; overflow-y: auto; }
 
 .owners-table { color: rgb(204, 204, 204); margin-bottom: 4px; }

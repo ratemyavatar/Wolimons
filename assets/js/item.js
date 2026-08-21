@@ -722,6 +722,11 @@
    * period since the server started watching, so the note above it says when
    * that was rather than letting a short list read as the whole story.
    */
+  /* Shown a page at a time - a popular item has hundreds of transfers, and
+   * dropping all of them into the tab at once made a wall of text. */
+  const OWNER_HISTORY_PAGE = 25;
+  const ownerHistory = { events: [], shown: OWNER_HISTORY_PAGE };
+
   async function loadOwnerHistory(assetId) {
     const list = document.getElementById('owner_history_list');
     const note = document.getElementById('owner_history_note');
@@ -763,16 +768,35 @@
       }
     }
 
+    ownerHistory.events = events;
+    ownerHistory.shown = OWNER_HISTORY_PAGE;
+    renderOwnerHistory();
+  }
+
+  function renderOwnerHistory() {
+    const list = document.getElementById('owner_history_list');
+    const more = document.getElementById('owner_history_more');
+    if (!list) return;
+
     list.replaceChildren();
-    if (!events.length) {
+    if (!ownerHistory.events.length) {
       const empty = el('div', 'small py-2',
         'Nothing is recorded for this item yet - the tracker has not read it.');
       empty.style.color = '#7a8288';
       list.appendChild(empty);
+      if (more) more.classList.add('d-none');
       return;
     }
 
-    events.forEach(event => list.appendChild(transferRow(event)));
+    ownerHistory.events
+      .slice(0, ownerHistory.shown)
+      .forEach(event => list.appendChild(transferRow(event)));
+
+    const left = ownerHistory.events.length - ownerHistory.shown;
+    if (more) {
+      more.classList.toggle('d-none', left <= 0);
+      if (left > 0) more.value = `See more (${formatNumber(left)} left)`;
+    }
   }
 
   /*
@@ -846,6 +870,11 @@
     if (Number.isNaN(when.getTime())) return '';
     return when.toISOString().replace('T', ' ').slice(0, 16) + ' UTC';
   }
+
+  document.getElementById('owner_history_more')?.addEventListener('click', () => {
+    ownerHistory.shown += OWNER_HISTORY_PAGE;
+    renderOwnerHistory();
+  });
 
   function drawChart(pane) {
     if (!CHART || charts.drawn.has(pane) || !charts.data) return;

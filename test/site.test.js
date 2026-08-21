@@ -204,6 +204,55 @@ test('the announcement banner cannot cover the navbar menus', () => {
 });
 
 /* ---------------------------------------------------------------- */
+/* Ownership history layout                                          */
+/* ---------------------------------------------------------------- */
+
+test('the owner history tab is not pinned to the chart\'s fixed height', () => {
+  /* .item_page_chart_container is height:400px. A list inside it spilled out
+   * and overlapped the rest of the page. */
+  const html = read('item/index.html');
+  const pane = html.match(/<div class="([^"]*)" id="owner_history_container"/);
+  assert.ok(pane, 'owner history pane not found');
+  assert.ok(!pane[1].includes('item_page_chart_container'), 'still in the fixed-height box');
+  assert.ok(pane[1].includes('item_page_list_container'));
+
+  const css = read('css/wolimons.css');
+  assert.match(css, /\.item_page_chart_container \{[^}]*height: 400px/);
+  assert.ok(!/\.item_page_list_container \{[^}]*height:/.test(css), 'the list box must grow');
+});
+
+test('history lists are paged rather than dumped out whole', () => {
+  assert.match(read('assets/js/item.js'), /OWNER_HISTORY_PAGE/);
+  assert.match(read('assets/js/player.js'), /HISTORY_PAGE/);
+  assert.ok(read('item/index.html').includes('owner_history_more'));
+  assert.ok(read('player/index.html').includes('player_item_history_more'));
+});
+
+test('a profile\'s item history is a wrapping grid, not one long column', () => {
+  const html = read('player/index.html');
+  assert.match(html, /<div class="mix_container[^"]*" id="player_item_history_list"/,
+    'must use the grid the inventory uses, which wraps 4+ across on a desktop');
+  assert.ok(!/id="player_item_history_list"[^>]*trade_ad_picker_results/.test(html),
+    'the capped scroller is what broke the layout');
+
+  /* And that grid really does go four or more across on a desktop. The
+   * selectors are comma lists shared with the catalog, so this looks for a
+   * rule that names page-player and sets a quarter width, rather than
+   * assuming the two sit next to each other. */
+  const quarter = read('css/wolimons.css')
+    .split('\n')
+    .some(line => line.includes('.page-player .mix_item') && line.includes('width: calc(25%'));
+  assert.ok(quarter, 'the profile grid never reaches four across');
+});
+
+test('history cards show a real thumbnail, not just the fallback path', () => {
+  const player = read('assets/js/player.js');
+  assert.match(player, /API\.getItemDetails\(ids/, 'names and pictures are resolved in one batch');
+  assert.match(player, /API\.fetchThumbnails\(ids\)/, 'and a second pass fills any gaps');
+  assert.match(player, /detail\.thumbnail \|\| API\.thumbnailUrl/, 'fallback only when unresolved');
+});
+
+/* ---------------------------------------------------------------- */
 /* Deployment                                                        */
 /* ---------------------------------------------------------------- */
 

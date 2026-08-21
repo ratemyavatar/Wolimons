@@ -8,8 +8,11 @@ rem  Pulls the newest site code into C:\Users\Administrator\Documents\wolimons.
 rem  Double-click it. That's all.
 rem
 rem  It does NOT touch proxy\.env or proxy\data\ - both are gitignored, so
-rem  your settings and your saved values survive every pull. Restart the
-rem  Wolimons service afterwards to run the new code.
+rem  your settings and your saved values survive every pull.
+rem
+rem  It restarts the Wolimons service for you at the end, because a pull only
+rem  changes files on disk - the running process keeps the old code until it
+rem  is restarted. Run it as administrator so it can do that.
 rem ===========================================================================
 
 set "SITE=C:\Users\Administrator\Documents\wolimons"
@@ -158,12 +161,95 @@ echo.
 echo   Up to date. Newest commit:
 git log -1 --oneline
 echo.
-echo   Restart the service so it runs the new code:
-echo.
-echo       nssm restart Wolimons
-echo.
-echo   (If there is no service - you run it in a window - stop that window
-echo   and start it again.)
+
+rem ===========================================================================
+rem  Restart the service so the new code is actually running.
+rem
+rem  Pulling only changes files on disk - the running Node process keeps the
+rem  old code in memory until it is restarted, which is why a pull used to
+rem  look like it had done nothing.
+rem
+rem  nssm restart can report success while the service is still stopping, so
+rem  this stops it, waits for it to actually be down, then starts it and
+rem  confirms it came back up.
+rem ===========================================================================
+
+set "SERVICE=Wolimons"
+
+sc query "%SERVICE%" >nul 2>&1
+if errorlevel 1 (
+  echo   No "%SERVICE%" service is installed on this machine.
+  echo   If you run the site in a window, close that window and start it again.
+  echo.
+  pause
+  endlocal
+  exit /b 0
+)
+
+rem --- Needs administrator: a normal user cannot stop a service. -------------
+net session >nul 2>&1
+if errorlevel 1 (
+  echo   The site was updated, but restarting the service needs administrator
+  echo   rights and this window does not have them.
+  echo.
+  echo   Right-click this file and choose "Run as administrator", or run:
+  echo.
+  echo       nssm restart %SERVICE%
+  echo.
+  pause
+  endlocal
+  exit /b 0
+)
+
+echo   Restarting the %SERVICE% service...
+
+where nssm >nul 2>&1
+if errorlevel 1 (
+  set "NSSM=%~dp0nssm.exe"
+) else (
+  set "NSSM=nssm"
+)
+
+if /i not "%NSSM%"=="nssm" if not exist "%NSSM%" (
+  rem  No nssm anywhere - fall back to Windows' own service control.
+  net stop "%SERVICE%" >nul 2>&1
+  net start "%SERVICE%" >nul 2>&1
+  goto checkservice
+)
+
+"%NSSM%" stop "%SERVICE%" >nul 2>&1
+
+rem  Wait up to 20 seconds for it to really stop before starting it again.
+set /a WAITED=0
+:waitstop
+sc query "%SERVICE%" | find "STOPPED" >nul 2>&1
+if not errorlevel 1 goto startit
+if !WAITED! GEQ 20 goto startit
+timeout /t 1 /nobreak >nul
+set /a WAITED+=1
+goto waitstop
+
+:startit
+"%NSSM%" start "%SERVICE%" >nul 2>&1
+
+:checkservice
+rem  Give it a moment to come up, then say what actually happened.
+timeout /t 3 /nobreak >nul
+sc query "%SERVICE%" | find "RUNNING" >nul 2>&1
+if errorlevel 1 (
+  echo.
+  echo   The service did not come back up. Check what it said:
+  echo.
+  echo       nssm status %SERVICE%
+  echo.
+  echo   The log is usually in the folder you set when installing the service.
+  echo.
+  pause
+  endlocal
+  exit /b 1
+)
+
+echo   Service is running the new code.
 echo.
 pause
 endlocal

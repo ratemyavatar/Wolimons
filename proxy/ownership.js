@@ -27,13 +27,20 @@
  * locally, and never synced anywhere.
  *
  * ---------------------------------------------------------------------------
- * WHAT IT WILL NOT DO
+ * HOW IT REACHES BACK BEFORE IT WAS SWITCHED ON
  * ---------------------------------------------------------------------------
- * It cannot backfill. The log starts empty on the first run and only knows
- * what has happened since - the first scan is a baseline and records nothing,
- * because a copy being seen for the first time is not a transfer. Every page
- * that shows this says so, rather than presenting a short log as though it
- * were the whole history.
+ * The owners endpoint carries two timestamps per copy: `created`, when that
+ * copy was minted, and `updated`, when it last changed hands. Those are real
+ * dates from Wanwood, so the first time a copy is seen the log can be seeded
+ * with them - the mint, and the move that put it where it is now. That is why
+ * an item's history starts at the day the item was made rather than the day
+ * this started running.
+ *
+ * What cannot be recovered is the middle: if a copy was traded five times
+ * before we ever looked, Wanwood only remembers the last one, and the players
+ * on the far side of those trades are gone for good. Those entries say
+ * "someone" rather than inventing a name, and everything observed live
+ * afterwards names both sides.
  */
 'use strict';
 
@@ -63,8 +70,13 @@ const EMPTY = {
   scans: 0,
   /* uaid -> the user id that held it when we last looked. */
   owners: {},
-  /* uaid -> { assetId, serial } so an event can name the item without a
-   * second lookup. */
+  /*
+   * uaid -> { assetId, serial, created, updated, firstOwner }
+   *
+   * created/updated/firstOwner are captured the first time a copy is seen and
+   * never touched again: they are the record of what Wanwood knew about it
+   * before we were watching, and live events take over from there.
+   */
   copies: {},
   /* Newest first: { at, uaid, assetId, serial, from, fromName, to, toName } */
   events: [],
@@ -144,29 +156,46 @@ async function scan({ listItems, readOwners }) {
         if (!Number.isSafeInteger(uaid) || uaid <= 0 || !to) return;
 
         const key = String(uaid);
+        const known = Object.prototype.hasOwnProperty.call(data.owners, key);
         const from = Number(data.owners[key]) || 0;
+        const serial = Number.isFinite(Number(row.serialNumber)) ? Number(row.serialNumber) : null;
 
-        data.copies[key] = {
-          assetId,
-          serial: Number.isFinite(Number(row.serialNumber)) ? Number(row.serialNumber) : null,
-        };
+        if (!known) {
+          /*
+           * First sighting. Not a transfer - but Wanwood's own timestamps say
+           * when this copy was minted and when it last moved, so the history
+           * before we were watching is written down from those rather than
+           * lost. Recorded once and never revised.
+           */
+          data.copies[key] = {
+            assetId,
+            serial,
+            created: Date.parse(row.created) || 0,
+            updated: Date.parse(row.updated) || 0,
+            firstOwner: to,
+          };
+          data.owners[key] = to;
+          return;
+        }
+
+        /* Keep the item and serial fresh without disturbing the history. */
+        if (data.copies[key]) data.copies[key].serial = serial;
+        else data.copies[key] = { assetId, serial, created: 0, updated: 0, firstOwner: to };
 
         if (from === to) return;
         data.owners[key] = to;
-
-        /* The very first sighting of a copy is not a transfer, and neither is
-         * anything at all on the baseline pass. */
-        if (first || !from) return;
+        if (!from) return;
 
         fresh.push({
           at,
           uaid,
           assetId,
-          serial: data.copies[key].serial,
+          serial,
           from,
           fromName: String(data.names?.[String(from)] || ''),
           to,
           toName: String(row.name || ''),
+          observed: true,
         });
       });
 
@@ -216,15 +245,80 @@ function status() {
     scans: data.scans,
     copies: Object.keys(data.owners).length,
     events: data.events.length,
+    /* The oldest thing the log can speak about: the earliest mint date it has
+     * seen. Pages show this rather than the day tracking was switched on,
+     * because the seeded entries genuinely reach back that far. */
+    reachesBackTo: Object.values(data.copies)
+      .map(copy => Number(copy && copy.created) || 0)
+      .filter(Boolean)
+      .reduce((oldest, at) => (oldest === 0 || at < oldest ? at : oldest), 0),
   };
 }
 
-/* Everything that happened to one item's copies, newest first. */
+/*
+ * The entries Wanwood's own timestamps give us for one copy: when it was
+ * minted, and - if it has moved since - when it last changed hands before we
+ * started watching. The player it came from is genuinely unknown, so it is
+ * left at 0 and the pages print "someone" rather than guessing.
+ */
+function seededFor(uaid, copy) {
+  const out = [];
+  if (!copy) return out;
+  const uid = Number(uaid);
+  const moved = copy.updated && copy.created && copy.updated > copy.created + 60000;
+
+  if (copy.created) {
+    out.push({
+      at: copy.created,
+      uaid: uid,
+      assetId: copy.assetId,
+      serial: copy.serial,
+      from: 0,
+      fromName: '',
+      /* If it never moved, whoever holds it now has held it from the start. */
+      to: moved ? 0 : copy.firstOwner,
+      toName: '',
+      kind: 'minted',
+    });
+  }
+  if (moved) {
+    out.push({
+      at: copy.updated,
+      uaid: uid,
+      assetId: copy.assetId,
+      serial: copy.serial,
+      from: 0,
+      fromName: '',
+      to: copy.firstOwner,
+      toName: '',
+      kind: 'moved',
+    });
+  }
+  return out;
+}
+
+const byNewest = (a, b) => b.at - a.at;
+
+/*
+ * Everything that happened to one item's copies, newest first - the transfers
+ * seen live, plus the mint and last-move dates Wanwood remembers for every
+ * copy, so the list runs back to the day the item was made.
+ */
 function itemHistory(assetId, { limit = 100 } = {}) {
   load();
   const id = Number(assetId);
   const cap = Math.min(Math.max(Number(limit) || 100, 1), 500);
-  return data.events.filter(event => event.assetId === id).slice(0, cap);
+
+  const seeded = [];
+  for (const [uaid, copy] of Object.entries(data.copies)) {
+    if (!copy || copy.assetId !== id) continue;
+    seeded.push(...seededFor(uaid, copy));
+  }
+
+  return [
+    ...data.events.filter(event => event.assetId === id).map(e => ({ ...e, kind: e.kind || 'transfer' })),
+    ...seeded,
+  ].sort(byNewest).slice(0, cap);
 }
 
 /*
@@ -237,8 +331,24 @@ function playerHistory(userId, { limit = 100 } = {}) {
   load();
   const id = Number(userId);
   const cap = Math.min(Math.max(Number(limit) || 100, 1), 500);
-  return data.events
-    .filter(event => event.to === id || event.from === id)
+
+  /* Copies this player already held when we first looked: the date they got
+   * them is real, even though who they got them from is not recoverable. */
+  const seeded = [];
+  for (const [uaid, copy] of Object.entries(data.copies)) {
+    if (!copy || copy.firstOwner !== id) continue;
+    seededFor(uaid, copy)
+      .filter(entry => entry.to === id)
+      .forEach(entry => seeded.push(entry));
+  }
+
+  return [
+    ...data.events
+      .filter(event => event.to === id || event.from === id)
+      .map(e => ({ ...e, kind: e.kind || 'transfer' })),
+    ...seeded,
+  ]
+    .sort(byNewest)
     .slice(0, cap)
     .map(event => ({ ...event, direction: event.to === id ? 'gained' : 'lost' }));
 }

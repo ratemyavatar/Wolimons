@@ -750,16 +750,23 @@
     const status = payload.status || {};
 
     if (note) {
-      note.textContent = status.tracking
-        ? `Tracked since ${new Date(status.startedAt).toISOString().slice(0, 10)}. `
-          + 'Trades made before then are not recorded anywhere and cannot be shown.'
-        : 'Ownership tracking has not taken its first reading yet.';
+      if (!status.tracking) {
+        note.textContent = 'Ownership tracking has not taken its first reading yet.';
+      } else {
+        const back = status.reachesBackTo
+          ? new Date(status.reachesBackTo).toISOString().slice(0, 10)
+          : null;
+        note.textContent = (back ? `History from ${back}. ` : '')
+          + 'Mint dates and the last move before tracking began come from Wanwood, '
+          + 'which does not remember who the copy came from - those read "someone". '
+          + 'Everything since is recorded here in full.';
+      }
     }
 
     list.replaceChildren();
     if (!events.length) {
       const empty = el('div', 'small py-2',
-        'No copy of this item has changed hands since tracking began.');
+        'Nothing is recorded for this item yet - the tracker has not read it.');
       empty.style.color = '#7a8288';
       list.appendChild(empty);
       return;
@@ -768,7 +775,29 @@
     events.forEach(event => list.appendChild(transferRow(event)));
   }
 
-  /* One "#12  luke -> Nun" line. */
+  /*
+   * One line of the log.
+   *
+   *   minted    the copy came into existence
+   *   moved     it changed hands before we were watching, so only the date
+   *             and the receiving side are known
+   *   transfer  seen live, both sides named
+   *
+   * A party we genuinely cannot name reads "someone" - never a made-up id.
+   */
+  function party(id, name) {
+    if (!id) {
+      const unknown = el('span', null, 'someone');
+      unknown.style.color = '#7a8288';
+      unknown.style.fontStyle = 'italic';
+      return unknown;
+    }
+    const link = el('a', null, name || `User ${id}`);
+    link.href = `/player/?id=${id}`;
+    link.style.color = '#e9ecef';
+    return link;
+  }
+
   function transferRow(event) {
     const row = el('div', 'trade_ad_picker_row');
 
@@ -780,22 +809,31 @@
     const body = el('div', 'flex-grow-1');
     const line = el('div', 'd-flex align-items-center flex-wrap');
 
-    const from = el('a', null, event.fromName || `User ${event.from}`);
-    from.href = `/player/?id=${event.from}`;
-    from.style.color = '#e9ecef';
-    line.appendChild(from);
-
-    const arrow = el('span', 'mx-2', '\u2192');
-    arrow.style.color = '#7a8288';
-    line.appendChild(arrow);
-
-    const to = el('a', null, event.toName || `User ${event.to}`);
-    to.href = `/player/?id=${event.to}`;
-    to.style.color = '#81c784';
-    line.appendChild(to);
+    if (event.kind === 'minted') {
+      const minted = el('span', 'mr-2', 'Minted');
+      minted.style.color = '#7ab8f5';
+      minted.style.fontWeight = '600';
+      line.appendChild(minted);
+      if (event.to) {
+        const label = el('span', 'mr-2', 'to');
+        label.style.color = '#7a8288';
+        line.append(label, party(event.to, event.toName));
+      }
+    } else {
+      line.appendChild(party(event.from, event.fromName));
+      const arrow = el('span', 'mx-2', '\u2192');
+      arrow.style.color = '#7a8288';
+      line.appendChild(arrow);
+      const to = party(event.to, event.toName);
+      to.style.color = '#81c784';
+      line.appendChild(to);
+    }
 
     body.appendChild(line);
-    const when = el('div', 'small', utcStamp(event.at));
+
+    const when = el('div', 'small', event.kind === 'moved'
+      ? `${utcStamp(event.at)} \u00b7 last move before tracking began`
+      : utcStamp(event.at));
     when.style.color = '#7a8288';
     body.appendChild(when);
     row.appendChild(body);
@@ -816,7 +854,12 @@
     const container = document.getElementById(spec.div);
     if (!container) return;
     charts.drawn.add(pane);
-    CHART.render(container, spec.rows(charts.data), spec.names, spec.empty);
+    CHART.render(
+      container,
+      spec.rows(charts.data),
+      { ...(spec.names || {}), since: charts.data.since || 0 },
+      spec.empty,
+    );
   }
 
   function initCharts(data) {
@@ -1339,7 +1382,16 @@
     paintHeadshots();
 
     /* Charts -------------------------------------------------------- */
-    initCharts({ id, resale, listings, owners, changes, value: VALUES.get(id) });
+    initCharts({
+      id,
+      resale,
+      listings,
+      owners,
+      changes,
+      value: VALUES.get(id),
+      /* Every tab's x-axis starts the day the item was made. */
+      since: Number.isFinite(created) ? created : 0,
+    });
 
     /* About --------------------------------------------------------- */
     const kind = [

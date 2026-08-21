@@ -40,7 +40,9 @@
  *   range inputs   silver text, #505053 border, #333 background
  *
  * The range selector offers 1w, 1m, 3m, 6m, 1y and All, and opens on All so
- * the chart shows the entire recorded history by default. The old
+ * the chart shows the entire recorded history by default. "All" reaches back
+ * to the item's creation date or the player's join date, which the caller
+ * passes as `since`. The old
  * hand-rolled RANGES array and the #chart_range_buttons strip it filled are
  * gone - the buttons live inside the chart now.
  *
@@ -60,13 +62,6 @@
  */
 (() => {
   'use strict';
-
-  /* How far back every chart reaches, however little history it has. */
-  function fourMonthsAgo() {
-    const when = new Date();
-    when.setMonth(when.getMonth() - 4);
-    return when.getTime();
-  }
 
   /* Read off the captured SVG - see the table in the header comment. */
   const BACKGROUND = '#32383e';
@@ -155,18 +150,20 @@
     const rapSeries = rows.map(row => [row.time, row.rap]);
 
     /*
-     * Every chart reaches back four months, whatever the data does.
+     * Every chart reaches back to the beginning of the thing it is about: the
+     * day an item was created, or the day a player joined. `since` carries
+     * that; a caller with nothing to say leaves it out and the chart is just
+     * its data.
      *
      * A limited that first sold three weeks ago used to draw a three-week
-     * chart, which reads as though that is the whole story and makes two
-     * items impossible to compare side by side. So the window is fixed: if
-     * the earliest point is more recent than four months ago, both series get
-     * a null point at the four-month mark. Null draws nothing - the axis
-     * stretches back and the line still starts where the data really does,
-     * rather than inventing a flat run of figures nobody recorded.
+     * chart, which reads as though that is the whole story. Now the axis
+     * starts where the item does. Both series get a null point at that mark -
+     * null draws nothing, so the axis stretches back while the line still
+     * begins where real data begins, rather than inventing a flat run of
+     * figures nobody recorded.
      */
-    const floor = fourMonthsAgo();
-    if (rows.length && rows[0].time > floor) {
+    const floor = Number(names.since) || 0;
+    if (floor && rows.length && rows[0].time > floor) {
       valueSeries.unshift([floor, null]);
       rapSeries.unshift([floor, null]);
     }

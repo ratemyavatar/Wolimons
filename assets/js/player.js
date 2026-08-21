@@ -261,8 +261,11 @@
 
     const status = itemHistory.status || {};
     if (note) {
+      const back = status.reachesBackTo
+        ? new Date(status.reachesBackTo).toISOString().slice(0, 10)
+        : null;
       note.textContent = status.tracking
-        ? `Tracked since ${new Date(status.startedAt).toISOString().slice(0, 10)}`
+        ? (back ? `History from ${back}` : 'History from the first reading')
         : 'Tracking has not taken its first reading yet';
     }
 
@@ -273,8 +276,8 @@
     list.replaceChildren();
     if (!rows.length) {
       const empty = text('div', 'small py-2', itemHistory.events.length
-        ? `Nothing ${itemHistory.filter} since tracking began.`
-        : 'This player has not gained or lost a copy since tracking began.');
+        ? `Nothing ${itemHistory.filter} in the recorded history.`
+        : 'Nothing is recorded for this player yet.');
       empty.style.color = '#7a8288';
       list.appendChild(empty);
       return;
@@ -316,10 +319,18 @@
     const other = gained
       ? { id: event.from, name: event.fromName }
       : { id: event.to, name: event.toName };
-    const sub = text('div', 'small');
+    const stamp = `${new Date(event.at).toISOString().replace('T', ' ').slice(0, 16)} UTC`;
+
+    /* Where the copy came from, when that is knowable. A mint has no other
+     * side at all, and a move that predates tracking has one Wanwood does
+     * not remember - both say so rather than naming nobody as somebody. */
+    let detail;
+    if (event.kind === 'minted') detail = `minted \u00b7 ${stamp}`;
+    else if (!other.id) detail = `${gained ? 'from' : 'to'} someone \u00b7 ${stamp}`;
+    else detail = `${gained ? 'from' : 'to'} ${other.name || `User ${other.id}`} \u00b7 ${stamp}`;
+
+    const sub = text('div', 'small', detail);
     sub.style.color = '#7a8288';
-    sub.textContent = `${gained ? 'from' : 'to'} ${other.name || `User ${other.id}`}`
-      + ` \u00b7 ${new Date(event.at).toISOString().replace('T', ' ').slice(0, 16)} UTC`;
     body.appendChild(sub);
     row.appendChild(body);
 
@@ -517,6 +528,7 @@
      * handed to notable people. */
     siteVerified: false,
     luckyCat: false,
+    joinedAt: 0,
     /* Null until the roster has been ranked. Null means "no trophy" and no
      * number, never a guessed rank. */
     rank: null,
@@ -651,7 +663,7 @@
       chartBox.appendChild(failed);
       return;
     }
-    CHART.render(chartBox, rows);
+    CHART.render(chartBox, rows, { since: state.joinedAt || 0 });
   }
 
 
@@ -808,6 +820,8 @@
     if (statusIcon) statusIcon.setAttribute('fill', online ? '#00b06f' : '#7a8288');
 
     if (profile && profile.created) {
+      /* The chart's x-axis starts the day this player joined. */
+      state.joinedAt = Date.parse(profile.created) || 0;
       const created = new Date(profile.created);
       setText('player_created', Number.isFinite(created.getTime())
         ? created.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })

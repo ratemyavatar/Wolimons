@@ -552,6 +552,12 @@ async function assetOwners(assetId, { maxPages = 6 } = {}) {
         serialNumber: Number.isFinite(Number(row?.serialNumber)) ? Number(row.serialNumber) : null,
         userId: Number.isSafeInteger(userId) && userId > 0 ? userId : 0,
         name: String(row?.owner?.username ?? row?.owner?.name ?? '').trim(),
+        /* When this copy was minted, and when it last changed hands. The
+         * ownership log seeds itself from these, so an item's history starts
+         * the day it was made rather than the day tracking was switched on -
+         * dropping them here is what left that history empty. */
+        created: typeof row?.created === 'string' ? row.created : null,
+        updated: typeof row?.updated === 'string' ? row.updated : null,
       });
     });
     const next = Number(result?.nextPageCursor);

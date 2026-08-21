@@ -473,6 +473,125 @@ const ROLE_LABELS = { website_owner: 'Website Owner', owner: 'Site Owner', value
 const VAULT_PASSWORD = String(process.env.VAULT_PASSWORD || 'ilovegod123');
 
 /* ---------------------------------------------------------------------- */
+/* Lucky Cat                                                               */
+/* ---------------------------------------------------------------------- */
+
+/*
+ * The draw moved here from the browser.
+ *
+ * It used to be worked out per browser, which meant two people could be shown
+ * two different winners, and - worse - a profile had no way to know whether
+ * the player it was drawing held the blessed copy, so the badge was never
+ * awarded to anybody. One answer for the whole site fixes both.
+ *
+ * The draw is deterministic: the day number seeds a shuffle of the eligible
+ * catalogue, the first item with a visible owner list wins, and the same seed
+ * picks one copy out of it. Same day, same answer, for everyone.
+ */
+const LUCKY_PERIOD_MS = 24 * 60 * 60 * 1000;
+const LUCKY_MAX_VALUE = 50000;
+const luckyCache = { period: -1, choice: null, at: 0 };
+
+function luckyPeriod() {
+  return Math.floor(Date.now() / LUCKY_PERIOD_MS);
+}
+
+/* The same string hash the page used, so the ordering is familiar. */
+function luckyHash(text) {
+  let value = 2166136261;
+  for (let i = 0; i < text.length; i += 1) {
+    value ^= text.charCodeAt(i);
+    value = Math.imul(value, 16777619);
+  }
+  return value >>> 0;
+}
+
+function luckyOrder(list, seed, key) {
+  return [...list].sort((a, b) => {
+    const left = luckyHash(`${seed}:${key(a)}`);
+    const right = luckyHash(`${seed}:${key(b)}`);
+    return left - right || String(key(a)).localeCompare(String(key(b)));
+  });
+}
+
+/* Every copy of one item, with its owner. */
+async function assetOwners(assetId, { maxPages = 6 } = {}) {
+  const owners = [];
+  let cursor = 0;
+  for (let page = 0; page < maxPages; page += 1) {
+    const query = `limit=100&cursor=${cursor}&sortOrder=asc`;
+    const result = await fetchUpstreamJson(`/apisite/inventory/v2/assets/${assetId}/owners?${query}`);
+    const rows = Array.isArray(result?.data) ? result.data : [];
+    rows.forEach(row => {
+      const userId = Number(row?.owner?.userId ?? row?.owner?.id);
+      const uaid = Number(row?.id ?? row?.userAssetId);
+      if (!Number.isSafeInteger(uaid) || uaid <= 0) return;
+      owners.push({
+        userAssetId: uaid,
+        serialNumber: Number.isFinite(Number(row?.serialNumber)) ? Number(row.serialNumber) : null,
+        userId: Number.isSafeInteger(userId) && userId > 0 ? userId : 0,
+        name: String(row?.owner?.username ?? row?.owner?.name ?? '').trim(),
+      });
+    });
+    const next = Number(result?.nextPageCursor);
+    if (!rows.length || !result?.nextPageCursor || !Number.isFinite(next) || next <= cursor) break;
+    cursor = next;
+  }
+  return owners;
+}
+
+async function luckyDraw() {
+  const period = luckyPeriod();
+  if (luckyCache.period === period && luckyCache.choice) return luckyCache.choice;
+
+  const seed = `luckycat:${period}`;
+  const snapshot = await store.snapshot();
+  const values = snapshot.values || {};
+
+  /* Projected items are a manipulated price rather than a valuation, and
+   * anything above the ceiling would park the badge on the most expensive
+   * limited forever. An unpriced item is still fair game - 0 means nobody
+   * has valued it, not that it is worthless. */
+  const eligible = (await listCatalogIds()).filter(id => {
+    const row = values[String(id)];
+    if (!row) return true;
+    if (Array.isArray(row.categories) && row.categories.includes('projected')) return false;
+    const value = Number(row.value) || 0;
+    return value === 0 || value <= LUCKY_MAX_VALUE;
+  });
+  if (!eligible.length) return null;
+
+  /* Walk the shuffled catalogue until an item has an owner we can name. */
+  for (const assetId of luckyOrder(eligible, seed, id => id).slice(0, 12)) {
+    const owners = (await assetOwners(assetId).catch(() => [])).filter(row => row.userId);
+    if (!owners.length) continue;
+
+    const copy = luckyOrder(owners, seed, row => row.userAssetId)[0];
+    const product = await fetchUpstreamJson(`/apisite/api/marketplace/productinfo?assetId=${assetId}`)
+      .catch(() => null);
+
+    const choice = {
+      period,
+      endsAt: (period + 1) * LUCKY_PERIOD_MS,
+      itemId: assetId,
+      itemName: String(product?.Name || product?.name || `Item ${assetId}`),
+      userAssetId: copy.userAssetId,
+      serialNumber: copy.serialNumber,
+      ownerId: copy.userId,
+      ownerName: copy.name,
+      ownerCopies: owners.filter(row => row.userId === copy.userId).length,
+      totalCopies: owners.length,
+    };
+    luckyCache.period = period;
+    luckyCache.choice = choice;
+    luckyCache.at = Date.now();
+    return choice;
+  }
+
+  return null;
+}
+
+/* ---------------------------------------------------------------------- */
 /* The vault's Wanwood session                                             */
 /* ---------------------------------------------------------------------- */
 
@@ -809,6 +928,7 @@ async function publicPlayerInfo(userId) {
     role: role || null,
     roleLabel: role ? (ROLE_LABELS[role] || role) : null,
     badges: await store.badgesOf(name),
+    verified: await store.isVerified({ userId, name }),
   }, 60 * 1000);
 }
 
@@ -1106,18 +1226,27 @@ async function handle(req, res, url, readBody) {
         send(res, auth.status, { ok: false, error: auth.error });
         return true;
       }
-      if (String(payload.password || '') !== VAULT_PASSWORD) {
+      /* The website owner is let straight through - they have already proved
+       * who they are with an identity token, which is a stronger claim than
+       * a shared password. */
+      if (auth.rank < 4 && String(payload.password || '') !== VAULT_PASSWORD) {
         send(res, 403, { ok: false, error: 'Wrong password.' });
         return true;
       }
-      send(res, 200, { ok: true, name: auth.name });
+      send(res, 200, { ok: true, name: auth.name, role: auth.role });
       return true;
     }
 
-    /* A vault call is website-owner rank plus the password, every time. */
+    /*
+     * A vault call needs the website owner rank. The password is a second
+     * lock for anyone else who might ever hold that rank - the website owner
+     * themselves is already the strongest proof the site has, so they are
+     * not asked for it twice.
+     */
     const vaultGuard = async () => {
       const auth = await authorize(req, {}, { need: 'website' });
       if (!auth.ok) return { ok: false, status: auth.status, error: auth.error };
+      if (auth.rank >= 4) return auth;
       if (String(req.headers['x-vault-password'] || '') !== VAULT_PASSWORD) {
         return { ok: false, status: 403, error: 'Wrong password.' };
       }
@@ -1324,13 +1453,9 @@ async function handle(req, res, url, readBody) {
     }
 
     if (req.method === 'GET' && route === '/api/vault/feed') {
-      const auth = await authorize(req, {}, { need: 'website' });
-      if (!auth.ok) {
-        send(res, auth.status, { ok: false, error: auth.error });
-        return true;
-      }
-      if (String(req.headers['x-vault-password'] || '') !== VAULT_PASSWORD) {
-        send(res, 403, { ok: false, error: 'Wrong password.' });
+      const guard = await vaultGuard();
+      if (!guard.ok) {
+        send(res, guard.status, { ok: false, error: guard.error });
         return true;
       }
 
@@ -1359,6 +1484,26 @@ async function handle(req, res, url, readBody) {
       } catch (error) {
         send(res, 502, { ok: false, error: 'Wanwood could not be reached for the catalogue.' });
       }
+      return true;
+    }
+
+    /* Whether a player has verified on this site. Public: it is a badge on a
+     * public profile, and it says nothing a visitor cannot already see. */
+    /* Today's Lucky Cat, the same answer for every visitor. */
+    if (req.method === 'GET' && route === '/api/luckycat') {
+      try {
+        const choice = await luckyDraw();
+        send(res, 200, { ok: true, choice });
+      } catch (error) {
+        send(res, 502, { ok: false, error: 'The draw could not be made right now.' });
+      }
+      return true;
+    }
+
+    if (req.method === 'GET' && route === '/api/verified') {
+      const userId = Number(url.searchParams.get('id')) || 0;
+      const name = String(url.searchParams.get('name') || '').trim();
+      send(res, 200, { ok: true, verified: await store.isVerified({ userId, name }) });
       return true;
     }
 
@@ -1594,11 +1739,18 @@ async function handle(req, res, url, readBody) {
         return true;
       }
 
+      /* The proof just succeeded, so the site now knows this account is
+       * genuinely theirs. Recorded server-side, because the Verified badge
+       * has to show on their profile to everybody, not only in the browser
+       * that did the verifying. A write failure must not block the login. */
+      const verifiedName = String(profile.name || '').trim();
+      await store.setVerified(userId, verifiedName).catch(() => null);
+
       const expiresAt = Date.now() + IDENTITY_TTL_MS;
       send(res, 200, {
         ok: true,
         userId,
-        name: String(profile.name || '').trim(),
+        name: verifiedName,
         token: signIdentity(userId, expiresAt),
         expiresAt,
       });

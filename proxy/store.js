@@ -194,6 +194,11 @@ const EMPTY = {
   /* userId -> the moment they last opened their inbox. Comments newer than
    * this are the unread ones the navbar badge counts. */
   inboxRead: {},
+  /* userId -> { name, at }, written the moment somebody proves they own an
+   * account through /verify. The Verified badge reads this: verification is
+   * a fact about the player, so it has to live on the server rather than in
+   * the one browser that happened to do it. */
+  verified: {},
 };
 
 let data = structuredClone(EMPTY);
@@ -321,6 +326,17 @@ function normalize(raw) {
 
   out.version = Number(raw.version) || 1;
   out.updatedAt = Number(raw.updatedAt) || 0;
+
+  if (raw.verified && typeof raw.verified === 'object') {
+    for (const [id, entry] of Object.entries(raw.verified)) {
+      const userId = Number(id);
+      if (!Number.isSafeInteger(userId) || userId <= 0) continue;
+      out.verified[String(userId)] = {
+        name: String(entry?.name || ''),
+        at: Number(entry?.at) || 0,
+      };
+    }
+  }
 
   if (raw.roles && typeof raw.roles === 'object') {
     for (const [name, entry] of Object.entries(raw.roles)) {
@@ -937,6 +953,49 @@ async function setValue({ id, value, demand, trend, categories, rare, method, no
 }
 
 /* ---------------------------------------------------------------------- */
+/* Verified accounts                                                       */
+/* ---------------------------------------------------------------------- */
+
+/*
+ * Remember that this player proved they own their account. Called from
+ * /api/identity, which has just read the phrase out of their Wanwood profile,
+ * so by the time this runs the proof already happened.
+ *
+ * Re-verifying only refreshes the name, so somebody who renames keeps the
+ * badge and the roster shows what they are called now.
+ */
+async function setVerified(userId, name) {
+  const id = Number(userId);
+  if (!Number.isSafeInteger(id) || id <= 0) return null;
+  await load();
+
+  const existing = (data.verified || {})[String(id)];
+  const clean = String(name || '').trim();
+  /* Nothing to write if we already know, under the same name. */
+  if (existing && existing.name === clean) return existing;
+
+  return mutate(`Record ${clean || id} as verified on Wolimons`, current => {
+    if (!current.verified) current.verified = {};
+    current.verified[String(id)] = {
+      name: clean,
+      at: existing?.at || Date.now(),
+    };
+  });
+}
+
+/* Has this player verified? Answers for an id or a name. */
+async function isVerified({ userId = 0, name = '' } = {}) {
+  await load();
+  const table = data.verified || {};
+  const id = Number(userId);
+  if (Number.isSafeInteger(id) && id > 0 && table[String(id)]) return true;
+
+  const wanted = String(name || '').trim().toLowerCase();
+  if (!wanted) return false;
+  return Object.values(table).some(entry => String(entry.name || '').toLowerCase() === wanted);
+}
+
+/* ---------------------------------------------------------------------- */
 /* Trade ads                                                               */
 /* ---------------------------------------------------------------------- */
 
@@ -1169,6 +1228,8 @@ module.exports = {
   VALUATION_METHODS,
   ROLES,
   RANK,
+  setVerified,
+  isVerified,
   GRANTABLE_BADGES,
   load,
   snapshot,

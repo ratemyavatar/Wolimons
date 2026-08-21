@@ -383,6 +383,44 @@
    * holds an eligible limited, then picks one copy out of it with the same
    * seed. Returns null when nobody qualifies.
    */
+  /*
+   * Today's draw as the server made it. Returns null - rather than throwing -
+   * whenever the backend cannot answer, so the page falls back to drawing for
+   * itself instead of showing an error.
+   */
+  async function serverDraw() {
+    const base = (window.WOLIMONS_CONFIG && window.WOLIMONS_CONFIG.apiBase) || '';
+    let payload = null;
+    try {
+      const response = await fetch(`${base}/api/luckycat`);
+      payload = await response.json();
+    } catch (error) {
+      return null;
+    }
+    const choice = payload && payload.choice;
+    if (!choice || !choice.itemId) return null;
+
+    /* The server names the copy and its owner; the pictures are the browser's
+     * job, the same as everywhere else on the site. */
+    const itemId = Number(choice.itemId);
+    const [thumbs, avatar] = await Promise.all([
+      API.fetchThumbnails([itemId]).catch(() => new Map()),
+      choice.ownerId ? API.fetchUserAvatar(choice.ownerId, { size: 420 }).catch(() => null) : null,
+    ]);
+
+    return {
+      itemId,
+      itemName: choice.itemName || `Item ${itemId}`,
+      thumbnail: thumbs.get(itemId) || API.thumbnailUrl(itemId),
+      userAssetId: Number(choice.userAssetId),
+      serialNumber: Number.isFinite(Number(choice.serialNumber)) ? Number(choice.serialNumber) : null,
+      ownerId: Number(choice.ownerId) || 0,
+      ownerName: choice.ownerName || '',
+      ownerAvatar: avatar || '',
+      ownerItems: Number.isFinite(Number(choice.ownerCopies)) ? Number(choice.ownerCopies) : null,
+    };
+  }
+
   async function draw(index) {
     const seed = `luckycat:${index}`;
 
@@ -479,7 +517,11 @@
 
     let choice = null;
     try {
-      choice = await draw(index);
+      /* The server draws now, so every visitor is shown the same copy and a
+       * profile can tell whether its player is holding it. The old in-page
+       * draw stays below as a fallback for a backend that cannot answer. */
+      choice = await serverDraw();
+      if (!choice) choice = await draw(index);
     } catch (error) {
       setMessage(itemBox, 'Could not reach Wanwood to find today\u2019s Lucky Cat player. Try again shortly.');
       setMessage(ownerBox, '');

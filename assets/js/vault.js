@@ -177,39 +177,58 @@
     dom.who.textContent = `Linked as ${account.name}.`;
   }
 
-  async function unlock() {
-    const password = (dom.password ? dom.password.value : '').trim();
-    if (!password) {
-      note('Enter the password.');
-      return;
-    }
+  /*
+   * Try to get in. The website owner needs no password - the identity token
+   * already proves who they are - so on load we simply ask, and only fall
+   * back to showing the password box if the server says no.
+   */
+  async function unlock(password) {
     if (!token()) {
       note('Link the website owner account on /verify first.');
-      return;
+      return false;
     }
-
     note('Checking\u2026');
     try {
       const response = await fetch(`${API_BASE}/api/vault/unlock`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ password: password || '' }),
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || payload.ok === false) {
         note(payload.error || `Refused (${response.status}).`);
-        return;
+        return false;
       }
-      state.password = password;
+      state.password = password || '';
       if (dom.password) dom.password.value = '';
       dom.gate.classList.add('d-none');
       dom.main.classList.remove('d-none');
       log(`Unlocked by ${payload.name}.`, 'good');
       loadSession();
       check(true);
+      return true;
     } catch (error) {
       note('The server could not be reached.');
+      return false;
     }
+  }
+
+  /* Called once on load: the owner walks straight in, anyone else is left
+   * looking at the password box with nothing given away. */
+  async function tryOwnerUnlock() {
+    if (!token()) return;
+    note('');
+    const opened = await unlock('');
+    if (!opened) note('');
+  }
+
+  function unlockFromForm() {
+    const password = (dom.password ? dom.password.value : '').trim();
+    if (!password) {
+      note('Enter the password.');
+      return;
+    }
+    unlock(password);
   }
 
   function note(message) {
@@ -384,11 +403,12 @@
     dom.sessionNotice = document.getElementById('vault_session_notice');
 
     showWho();
-    dom.unlock?.addEventListener('click', unlock);
+    tryOwnerUnlock();
+    dom.unlock?.addEventListener('click', unlockFromForm);
     dom.password?.addEventListener('keydown', event => {
       if (event.key === 'Enter') {
         event.preventDefault();
-        unlock();
+        unlockFromForm();
       }
     });
     dom.watch?.addEventListener('click', () => setWatching(!state.watching));

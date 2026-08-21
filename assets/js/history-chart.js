@@ -61,6 +61,13 @@
 (() => {
   'use strict';
 
+  /* How far back every chart reaches, however little history it has. */
+  function fourMonthsAgo() {
+    const when = new Date();
+    when.setMonth(when.getMonth() - 4);
+    return when.getTime();
+  }
+
   /* Read off the captured SVG - see the table in the header comment. */
   const BACKGROUND = '#32383e';
   const PLOT_BAND = '#2a2f35';
@@ -146,6 +153,23 @@
     const axisTitle = names.axis === undefined ? 'R$' : names.axis;
     const valueSeries = rows.map(row => [row.time, row.value]);
     const rapSeries = rows.map(row => [row.time, row.rap]);
+
+    /*
+     * Every chart reaches back four months, whatever the data does.
+     *
+     * A limited that first sold three weeks ago used to draw a three-week
+     * chart, which reads as though that is the whole story and makes two
+     * items impossible to compare side by side. So the window is fixed: if
+     * the earliest point is more recent than four months ago, both series get
+     * a null point at the four-month mark. Null draws nothing - the axis
+     * stretches back and the line still starts where the data really does,
+     * rather than inventing a flat run of figures nobody recorded.
+     */
+    const floor = fourMonthsAgo();
+    if (rows.length && rows[0].time > floor) {
+      valueSeries.unshift([floor, null]);
+      rapSeries.unshift([floor, null]);
+    }
 
     return {
       chart: {

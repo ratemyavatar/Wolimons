@@ -180,6 +180,43 @@
     return Boolean(linked && Number(linked.id) === Number(userId));
   }
 
+  /*
+   * Has this player verified on Wolimons? Verification is recorded on the
+   * server the moment somebody proves ownership through /verify, so it is a
+   * fact about the player rather than something only their own browser
+   * knows - which is why the badge used to be invisible to everyone else.
+   */
+  async function loadSiteVerified(userId) {
+    const base = (window.WOLIMONS_CONFIG && window.WOLIMONS_CONFIG.apiBase) || '';
+    try {
+      const response = await fetch(`${base}/api/verified?id=${encodeURIComponent(userId)}`);
+      const payload = await response.json();
+      if (!payload || payload.ok === false) return;
+      if (payload.verified === state.siteVerified) return;
+      state.siteVerified = payload.verified === true;
+      renderNameBadges();
+      refreshBadges();
+    } catch (error) {
+      /* Keep whatever the local link said. */
+    }
+  }
+
+  /* Does this player hold the copy the Lucky Cat picked today? */
+  async function loadLuckyCat(userId) {
+    const base = (window.WOLIMONS_CONFIG && window.WOLIMONS_CONFIG.apiBase) || '';
+    try {
+      const response = await fetch(`${base}/api/luckycat`);
+      const payload = await response.json();
+      const choice = payload && payload.choice;
+      const won = Boolean(choice && Number(choice.ownerId) === Number(userId));
+      if (won === state.luckyCat) return;
+      state.luckyCat = won;
+      refreshBadges();
+    } catch (error) {
+      /* No draw, no badge - nothing else changes. */
+    }
+  }
+
   /* Re-scores the current inventory and redraws the row. Safe to call more
    * than once - the profile does, because the item supply figures only
    * arrive with resale-data, after the inventory has already rendered. */
@@ -192,7 +229,14 @@
       /* The badges the owner awarded this player, if the table has arrived.
        * Read fresh each time rather than stored: it lands a moment after the
        * page does, and the subscription below re-runs this when it lands. */
-      granted: GRANTED ? GRANTED.of(state.name) : [],
+      granted: [
+        ...(GRANTED ? GRANTED.of(state.name) : []),
+        /* Holding the copy the Lucky Cat picked today earns the badge for as
+         * long as they hold it. Which copy that is comes from the server, so
+         * every visitor agrees and the profile does not have to redo the
+         * draw itself. */
+        ...(state.luckyCat ? ['lucky-cat'] : []),
+      ],
     }));
   }
 
@@ -363,6 +407,7 @@
      * "Verified" WoliBadge, which is separate from the Verified Checkmark
      * handed to notable people. */
     siteVerified: false,
+    luckyCat: false,
     /* Null until the roster has been ranked. Null means "no trophy" and no
      * number, never a guessed rank. */
     rank: null,
@@ -633,8 +678,13 @@
     /* Fed to the badge rules once the inventory is in. Verified is strictly
      * what the API reports - nothing here is granted for existing. */
     state.verified = Boolean(profile && profile.isVerified === true);
+    /* Local link first so the badge is instant for whoever is signed in,
+     * then the server's record, which is what makes it show to everybody
+     * else too. */
     state.siteVerified = isLinkedAccount(userId);
     renderNameBadges();
+    loadSiteVerified(userId);
+    loadLuckyCat(userId);
 
     if (avatarImage) {
       const url = avatars && avatars.get ? avatars.get(userId) : null;

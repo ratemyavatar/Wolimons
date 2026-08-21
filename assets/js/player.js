@@ -222,6 +222,46 @@
     }
   }
 
+  /* ------------------------------------------------------------------ */
+  /* Presence                                                            */
+  /* ------------------------------------------------------------------ */
+
+  const PRESENCE_POLL_MS = 45000;
+  let presenceTimer = 0;
+
+  function renderPresence(online) {
+    const label = online === true ? 'Online' : online === false ? 'Offline' : 'Unknown';
+    /* Green for online, grey for offline, and a dimmer grey for unknown, so
+     * "we could not ask" never looks like "they are not here". */
+    const colour = online === true ? '#00b06f' : online === false ? '#7a8288' : '#5a6066';
+
+    setText('player_online_status', label);
+    const text = el('player_online_status');
+    if (text) text.title = online === null
+      ? 'Wanwood did not answer, so this is not known right now.'
+      : '';
+
+    const icon = document.querySelector('.online_status_icon_path');
+    if (icon) icon.setAttribute('fill', colour);
+  }
+
+  function startPresencePolling(userId) {
+    window.clearInterval(presenceTimer);
+    presenceTimer = window.setInterval(async () => {
+      try {
+        /* The proxy caches GETs for a minute and so does the browser; a
+         * changing parameter is what makes this an actual re-read rather
+         * than the same answer handed back again. */
+        const fresh = await API.fetchJson(
+          `${API.API_BASE}/apisite/api/users/${userId}?_=${Date.now()}`,
+        );
+        renderPresence(fresh && !Array.isArray(fresh.errors) ? fresh.IsOnline === true : null);
+      } catch (error) {
+        renderPresence(null);
+      }
+    }, PRESENCE_POLL_MS);
+  }
+
   /* Re-scores the current inventory and redraws the row. Safe to call more
    * than once - the profile does, because the item supply figures only
    * arrive with resale-data, after the inventory has already rendered. */
@@ -562,6 +602,65 @@
     return series;
   }
 
+  /*
+   * The real history, as this site recorded it.
+   *
+   * Wanwood publishes no per-player history and almost no per-item history
+   * either, so the line used to be reconstructed from whatever sale prices
+   * happened to exist - which meant a player who remembered a peak of 1000
+   * could look at a chart that never went near it. The backend now writes
+   * down each player's totals once a day, and this draws those.
+   */
+  async function loadHistory(userId) {
+    const base = (window.WOLIMONS_CONFIG && window.WOLIMONS_CONFIG.apiBase) || '';
+    let payload;
+    try {
+      const response = await fetch(`${base}/api/playerstats?id=${encodeURIComponent(userId)}`);
+      payload = await response.json();
+      if (!payload || payload.ok === false) return;
+    } catch (error) {
+      return;   /* Keep whatever the reconstruction drew. */
+    }
+
+    const recorded = Array.isArray(payload.history) ? payload.history : [];
+
+    /*
+     * One reading is a dot, not a history. Until there are two the
+     * reconstruction stays on screen, and the note says the real one is still
+     * being collected - better than a chart that looks authoritative and is
+     * one day long.
+     */
+    if (recorded.length < 2) {
+      setStatus(el('player_history_note'),
+        'Value and RAP history starts from the first time this profile is opened. '
+        + 'Wanwood does not publish it, so there is nothing to show from before then.');
+      return;
+    }
+
+    const rows = recorded.map(row => ({
+      time: Number(row.at),
+      rap: Number(row.rap) || 0,
+      value: Number(row.value) || 0,
+    }));
+
+    /* Today, from the reading just taken, so the end of the line matches the
+     * figures printed at the top of the page. */
+    if (payload.live) {
+      const today = Math.floor(Date.now() / DAY_MS) * DAY_MS;
+      const last = rows[rows.length - 1];
+      const live = {
+        time: Math.max(today, last.time),
+        rap: Number(payload.live.rap) || 0,
+        value: Number(payload.live.value) || 0,
+      };
+      if (Math.floor(last.time / DAY_MS) === Math.floor(live.time / DAY_MS)) rows[rows.length - 1] = live;
+      else rows.push(live);
+    }
+
+    setStatus(el('player_history_note'), '');
+    renderChart(rows);
+  }
+
   function renderChart(rows) {
     if (!chartBox) return;
     if (!CHART) {
@@ -722,10 +821,20 @@
       avatarImage.alt = `${name} avatar`;
     }
 
-    const online = legacy && legacy.IsOnline === true;
-    setText('player_online_status', online ? 'Online' : 'Offline');
-    const statusIcon = document.querySelector('.online_status_icon_path');
-    if (statusIcon) statusIcon.setAttribute('fill', online ? '#00b06f' : '#7a8288');
+    /*
+     * Online, offline, or genuinely not known.
+     *
+     * The flag lives on api/users/{id} and nowhere else - Wanwood has no
+     * presence endpoint. When that call fails the answer is unknown, and it
+     * used to be printed as "Offline", which is a claim rather than a fact.
+     * A reader has no way to tell a quiet friend from a failed request, so
+     * the three states are now three states.
+     */
+    renderPresence(legacy ? legacy.IsOnline === true : null);
+
+    /* Presence goes stale the moment it is drawn, so it is re-read on a timer
+     * for as long as the profile is open. */
+    startPresencePolling(userId);
 
     if (profile && profile.created) {
       /* The chart's x-axis starts the day this player joined. */
@@ -883,9 +992,20 @@
       if (!data) return;
       item.history = Array.isArray(data.priceDataPoints) ? data.priceDataPoints : [];
       if (Number.isFinite(data.sales)) sales += data.sales;
-      /* resale-data is authoritative for RAP; the inventory row can lag. */
-      if (Number.isFinite(data.recentAveragePrice) && data.recentAveragePrice !== null) {
-        item.rap = data.recentAveragePrice;
+      /*
+       * resale-data is preferred for RAP, because the inventory row can lag -
+       * but only when it actually has a figure.
+       *
+       * Wanwood answers resale-data with recentAveragePrice: 0 for items the
+       * inventory prices at 345, 225, 150. Taking that zero at face value
+       * wiped every real number and reported a player's whole collection as
+       * worth nothing, which is why a 720 RAP profile could show 0 and why
+       * the chart had no peak to draw. A zero here means "not reported",
+       * never "worthless": the inventory's own figure stands.
+       */
+      const reportedRap = Number(data.recentAveragePrice);
+      if (Number.isFinite(reportedRap) && reportedRap > 0) {
+        item.rap = reportedRap;
       }
       /* assetStock is how many copies of the item exist, which is what the
        * rarity and percentage-of-copies badges are measured against. */
@@ -907,7 +1027,11 @@
       .then(payload => (payload && payload.ok ? payload.changes : []))
       .catch(() => []);
 
+    /* The chart is drawn from the recorded history, not from Wanwood - see
+     * loadHistory. The reconstruction is kept only as something to show
+     * before the first readings exist. */
     renderChart(buildSeries(state.items, changes));
+    loadHistory(userId);
     renderInventory();
 
     /* Re-run now that supply figures are real. */

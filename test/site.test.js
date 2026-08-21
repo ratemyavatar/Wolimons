@@ -92,7 +92,7 @@ test('every backend module is valid and loads without side effects', () => {
   /* server.js binds a port the moment it is required, so it is syntax-checked
    * in a child rather than loaded here - a test run must not start a server. */
   const { execFileSync } = require('node:child_process');
-  ['api.js', 'store.js', 'server.js', 'embed.js'].forEach(name => {
+  ['api.js', 'store.js', 'server.js', 'embed.js', 'playerstats.js'].forEach(name => {
     assert.doesNotThrow(
       () => execFileSync(process.execPath, ['--check', path.join(ROOT, 'proxy', name)]),
       `proxy/${name} does not parse`,
@@ -100,7 +100,7 @@ test('every backend module is valid and loads without side effects', () => {
   });
 
   /* The rest are safe to load, and loading them proves their requires resolve. */
-  ['api.js', 'store.js', 'embed.js'].forEach(name => {
+  ['api.js', 'store.js', 'embed.js', 'playerstats.js'].forEach(name => {
     assert.doesNotThrow(() => require(path.join(ROOT, 'proxy', name)), `proxy/${name}`);
   });
 });
@@ -180,6 +180,30 @@ test('the stored game session is written owner-only and never returned', () => {
 /* ---------------------------------------------------------------- */
 /* Charts                                                            */
 /* ---------------------------------------------------------------- */
+
+test('presence has three states, so a failed call is not printed as Offline', () => {
+  const player = read('assets/js/player.js');
+  assert.match(player, /function renderPresence\(online\)/);
+  assert.match(player, /online === true \? 'Online' : online === false \? 'Offline' : 'Unknown'/);
+  assert.match(player, /renderPresence\(legacy \? legacy\.IsOnline === true : null\)/,
+    'a missing response means unknown, not offline');
+  assert.match(player, /startPresencePolling/, 'presence must be re-read while the page is open');
+  assert.match(player, /\?_=\$\{Date\.now\(\)\}/, 'and must defeat the one-minute GET cache');
+});
+
+test('a zero RAP from resale-data cannot wipe a real one', () => {
+  /* Wanwood answers 0 for items the inventory prices at 345. Taking that
+   * literally reported whole collections as worthless. */
+  assert.match(read('assets/js/player.js'), /Number\.isFinite\(reportedRap\) && reportedRap > 0/);
+});
+
+test('the profile chart is drawn from recorded history, not a reconstruction', () => {
+  const player = read('assets/js/player.js');
+  assert.match(player, /\/api\/playerstats\?id=/);
+  assert.match(player, /if \(recorded\.length < 2\)/, 'one reading is a dot, not a history');
+  assert.match(player, /player_history_note/, 'and it must say so rather than fake a line');
+  assert.ok(read('player/index.html').includes('id="player_history_note"'));
+});
 
 test('charts start at zero on day one, with no gap in front of the line', () => {
   /* An item has no RAP the day it is made and a player owns nothing the day

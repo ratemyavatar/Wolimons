@@ -59,6 +59,7 @@ const path = require('path');
 const fs = require('fs');
 const fsp = require('fs/promises');
 const store = require('./store');
+const playerstats = require('./playerstats.js');
 
 /*
  * Which folder the pages are being served out of. Worked out the same way
@@ -471,6 +472,31 @@ const ROLE_LABELS = { website_owner: 'Website Owner', owner: 'Site Owner', value
  * the repository; the default is the one that was asked for.
  */
 const VAULT_PASSWORD = String(process.env.VAULT_PASSWORD || 'ilovegod123');
+
+/*
+ * Every collectible a player holds, one row per copy. Paged, because a big
+ * inventory runs past the 100-row limit.
+ */
+async function fetchCollectibles(userId, { maxPages = 20 } = {}) {
+  const rows = [];
+  let cursor = '';
+  for (let page = 0; page < maxPages; page += 1) {
+    const query = new URLSearchParams({ limit: '100', sortOrder: 'Asc' });
+    if (cursor) query.set('cursor', cursor);
+    const result = await fetchUpstreamJson(
+      `/apisite/inventory/v1/users/${userId}/assets/collectibles?${query}`,
+    );
+    if (!result || !Array.isArray(result.data)) {
+      /* Nothing readable on the first page means we do not know, which is
+       * different from an empty inventory. */
+      return page === 0 ? null : rows;
+    }
+    rows.push(...result.data);
+    cursor = result.nextPageCursor || '';
+    if (!cursor) break;
+  }
+  return rows;
+}
 
 /* ---------------------------------------------------------------------- */
 /* The Discord widget                                                      */
@@ -1578,6 +1604,50 @@ async function handle(req, res, url, readBody) {
 
     /* Whether a player has verified on this site. Public: it is a badge on a
      * public profile, and it says nothing a visitor cannot already see. */
+    /*
+     * A player's value and RAP over time.
+     *
+     * Wanwood keeps no such history, so this is ours: the figures are worked
+     * out here from the inventory endpoint and the site's value table, one
+     * reading a day, and handed back with today's included. Computed on the
+     * server rather than accepted from the page - a number a browser could
+     * post is a number anyone could invent.
+     */
+    if (req.method === 'GET' && route === '/api/playerstats') {
+      const userId = Number(url.searchParams.get('id')) || 0;
+      if (!userId) {
+        send(res, 400, { ok: false, error: 'A user id is required.' });
+        return true;
+      }
+
+      let rows = null;
+      try {
+        rows = await fetchCollectibles(userId);
+      } catch (error) {
+        rows = null;
+      }
+
+      /* A failed read must not be written down as "they own nothing". */
+      if (!Array.isArray(rows)) {
+        send(res, 200, {
+          ok: true,
+          live: null,
+          history: playerstats.history(userId),
+          note: 'Wanwood could not be reached, so today has not been recorded.',
+        });
+        return true;
+      }
+
+      const snapshot = await store.snapshot();
+      const values = snapshot.values || {};
+      const valueOf = assetId => Number(values[String(assetId)]?.value) || 0;
+
+      const totals = playerstats.totalsFrom(rows, valueOf);
+      const history = await playerstats.record(userId, totals);
+      send(res, 200, { ok: true, live: totals, history });
+      return true;
+    }
+
     /* Who is in the Discord right now, for the front page panel. */
     if (req.method === 'GET' && route === '/api/discord') {
       send(res, 200, await discordPresence());

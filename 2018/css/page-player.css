@@ -1,0 +1,37 @@
+@charset "utf-8";
+
+.playerpg_item_grid_container { text-align: justify; font-size: 0.1px; }
+
+.playerpg_item_grid_container::after { content: ""; display: inline-block; width: 100%; }
+
+.playerpg_item_cell, .playerpg_gap { display: inline-block; vertical-align: top; }
+
+.playerpg_item_cell { position: relative; font-size: 15px; }
+
+.playerpg_item_cell::before { display: inline-block; }
+
+.playerpg_item_cell:hover { box-shadow: rgb(17, 17, 17) 0px 0px 16px; }
+
+.playerpg_item_cell a:hover { text-decoration: none; color: white; }
+
+.playerpg_item_cell, .playerpg_gap { width: calc(100%); }
+
+@media screen and (min-width: 390px) {
+  .playerpg_item_cell, .playerpg_gap { width: calc(50% - 0.5rem); }
+}
+
+@media screen and (min-width: 550px) {
+  .playerpg_item_cell, .playerpg_gap { width: calc(33.3333% - 0.666667rem); }
+}
+
+@media screen and (min-width: 768px) {
+  .playerpg_item_cell, .playerpg_gap { width: calc(25% - 0.75rem); }
+}
+
+@media screen and (min-width: 992px) {
+  .playerpg_item_cell, .playerpg_gap { width: calc(20% - 0.8rem); }
+}
+
+@media screen and (min-width: 1200px) {
+  .playerpg_item_cell, .playerpg_gap { width: calc(16.6667% - 0.833333rem); }
+}

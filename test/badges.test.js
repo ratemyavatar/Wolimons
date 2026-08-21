@@ -11,11 +11,13 @@
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { loadBrowserScript, extractDeclaration, read } = require('./helpers.js');
+const { loadBrowserScript, read } = require('./helpers.js');
 
 const BADGES = loadBrowserScript('assets/js/badges.js').WolimonsBadges;
 const ROLE_ICONS = loadBrowserScript('assets/js/role-icons.js').WolimonsRoleIcons;
-const ACRONYMS = extractDeclaration('assets/js/item.js', 'ACRONYMS');
+/* The list moved out of item.js so the 2018 item page reads the same one. */
+const ACRONYM_MODULE = loadBrowserScript('assets/js/acronyms.js').WolimonsAcronyms;
+const ACRONYMS = ACRONYM_MODULE.TABLE;
 
 const inventory = { items: [{ id: 1, name: 'Hat', value: 10, rap: 10, copies: 1, serials: [] }] };
 const has = (result, id) => result.some(badge => badge.id === id);
@@ -111,8 +113,16 @@ const EXPECTED = {
   C: 'Cth',
 };
 
+test('both item pages read one acronym list, not a copy each', () => {
+  assert.match(read('assets/js/item.js'), /window\.WolimonsAcronyms/);
+  assert.match(read('assets/js/site2018.js'), /window\.WolimonsAcronyms/);
+  assert.ok(!read('assets/js/item.js').includes('BHFBSP'), 'item.js still carries its own copy');
+});
+
 test('the acronym list is exactly the one that was asked for', () => {
-  assert.deepStrictEqual(ACRONYMS, EXPECTED);
+  /* Through JSON because the module is loaded in its own realm, where an
+   * object literal is not reference-equal to one built out here. */
+  assert.deepStrictEqual(JSON.parse(JSON.stringify(ACRONYMS)), EXPECTED);
 });
 
 test('acronyms are written with one capital, not shouted', () => {
@@ -126,5 +136,8 @@ test('nothing outside the list gets an acronym', () => {
   /* Derived initials are gone - an item not on the list shows nothing. */
   assert.ok(!Object.prototype.hasOwnProperty.call(ACRONYMS, 'HEADROW'));
   assert.ok(!Object.prototype.hasOwnProperty.call(ACRONYMS, '+'));
-  assert.match(read('assets/js/item.js'), /ACRONYMS\[deriveAcronym\(value\)\] \|\| ''/);
+  assert.strictEqual(ACRONYM_MODULE.for('Headrow'), '');
+  assert.strictEqual(ACRONYM_MODULE.for('+'), '');
+  /* And a listed one still resolves through its initials. */
+  assert.strictEqual(ACRONYM_MODULE.for('Beautiful Hair for Beautiful Space People'), 'Space hair');
 });

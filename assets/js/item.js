@@ -122,44 +122,15 @@
     .replace(/[^a-zA-Z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '') || 'unnamed';
 
-  /* The nicknames people actually use, keyed by the item's initials. Items
-   * that aren't listed here just don't show one. */
-  const ACRONYMS = {
-    BHFBSP: 'Space hair',
-    TBB: 'Bbh',
-    BIBOUP: 'Bib',
-    PI: 'Indy',
-    P: 'Prank',
-    RSTH: 'Rbad',
-    TVS: 'Void',
-    TCRF: 'Cf',
-    U: 'Umad',
-    SFC: 'Supa',
-    FTVKC: 'Kawaii',
-    PLBH: 'Legit',
-    DP: 'Prae',
-    FHOTN: 'Fiery',
-    RBOSI: 'Sql',
-    SDFC: 'Dupa',
-    EL: 'Euro',
-    DROTU: 'Deth',
-    SGBES: 'Gamma',
-    TDVOX: 'Xmax',
-    TTOED: 'Epic duck',
-    VH: 'Valk',
-    C: 'Cth',
-  };
-
-  const deriveAcronym = value => String(value || '')
-    .replace(/\([^)]*\)/g, ' ')
-    .split(/[^A-Za-z0-9']+/)
-    .map(word => word.replace(/^'+|'+$/g, '').charAt(0))
-    .filter(Boolean)
-    .join('')
-    .toUpperCase();
-
-  /* The acronym an item shows: its listed nickname, or nothing at all. */
-  const acronymFor = value => ACRONYMS[deriveAcronym(value)] || '';
+  /*
+   * The acronym an item shows: its listed nickname, or nothing at all.
+   *
+   * The list itself lives in assets/js/acronyms.js, because the 2018 item
+   * page prints the same figure and two copies of it would drift apart.
+   */
+  const acronymFor = value => (window.WolimonsAcronyms
+    ? window.WolimonsAcronyms.for(value)
+    : '');
 
   const fields = name => [...document.querySelectorAll(`[data-item-field="${name}"]`)];
   const field = name => document.querySelector(`[data-item-field="${name}"]`);

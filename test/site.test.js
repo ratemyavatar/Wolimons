@@ -109,8 +109,11 @@ test('every backend module is valid and loads without side effects', () => {
 /* Branding                                                          */
 /* ---------------------------------------------------------------- */
 
-test('nothing on the site mentions the sites it was modelled on', () => {
-  const banned = /rolimon|koromon|coromon|colimon/i;
+test('nothing on the site mentions the sites or the game it was modelled on', () => {
+  /* Roblox is in here too: the footers used to disclaim a company that has
+   * nothing to do with this site, which read as leftovers from the copy the
+   * pages were built from - because that is what it was. */
+  const banned = /rolimon|koromon|coromon|colimon|roblox/i;
   pages.forEach(([name, html]) => assert.ok(!banned.test(html), `${name} mentions another site`));
   scripts.forEach(name => {
     assert.ok(!banned.test(read(`assets/js/${name}`)), `assets/js/${name} mentions another site`);
@@ -118,14 +121,17 @@ test('nothing on the site mentions the sites it was modelled on', () => {
   ['wolimons.css', 'sitecombined2.css', 'snapshot.css', 'tradeads.css'].forEach(name => {
     assert.ok(!banned.test(read(`css/${name}`)), `css/${name} mentions another site`);
   });
+  ['api.js', 'server.js', 'store.js'].forEach(name => {
+    assert.ok(!banned.test(read(`proxy/${name}`)), `proxy/${name} mentions another site`);
+  });
 });
 
-test('the footer says Wolimons is Wanwood\'s, and disclaims only Roblox', () => {
+test('the footer says whose site this is, and disclaims nobody else', () => {
   pages
     .filter(([name]) => name !== 'admin/index.html' && read(name).includes('<footer'))
     .forEach(([name, html]) => {
       assert.ok(html.includes('official values and trading site for Wanwood'), `${name}`);
-      assert.ok(!/not affiliated with Roblox Corporation or Wanwood/i.test(html), `${name}`);
+      assert.ok(!/not affiliated/i.test(html), `${name} still disclaims somebody`);
     });
 });
 

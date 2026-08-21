@@ -464,17 +464,32 @@ async function serveStatic(req, res, url) {
    * duplicated into a second set of routes. A request that explicitly asks
    * for /2018/... still gets it, which is what makes the pages testable.
    */
-  if (wants2018(req)) {
+  if (!path.relative(SITE_ROOT, resolved).startsWith('2018')) {
     const alternative = path.join(SITE_ROOT, '2018', path.relative(SITE_ROOT, resolved));
-    if (!path.relative(SITE_ROOT, resolved).startsWith('2018')) {
-      const candidate = alternative.endsWith('.html')
-        ? alternative
-        : path.join(alternative, 'index.html');
-      /* stat throws for "no such file", which is the normal answer for a
-       * page 2018 never had - the admin panel, the trade board. Anything
-       * else would be a real fault and is left to surface. */
-      const alt = await fsp.stat(candidate).catch(() => null);
-      if (alt && alt.isFile()) resolved = candidate;
+    const candidate = alternative.endsWith('.html')
+      ? alternative
+      : path.join(alternative, 'index.html');
+
+    /* stat throws for "no such file", which is the normal answer for a page
+     * 2018 never had - the admin panel, the trade board. Anything else would
+     * be a real fault and is left to surface. */
+    const has2018 = await fsp.stat(candidate).catch(() => null);
+
+    if (has2018 && has2018.isFile()) {
+      if (wants2018(req)) {
+        resolved = candidate;
+      } else {
+        /*
+         * The other direction: /itemtable only exists in 2018, so a reader on
+         * the modern site following a shared link to it would otherwise fall
+         * through to the upstream proxy and get somebody else's 404. A page
+         * this site has is better than an error, whichever version asked.
+         */
+        const modern = await fsp.stat(resolved.endsWith('.html')
+          ? resolved
+          : path.join(resolved, 'index.html')).catch(() => null);
+        if (!modern) resolved = candidate;
+      }
     }
   }
 

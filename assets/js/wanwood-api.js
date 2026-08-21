@@ -1,13 +1,10 @@
 /*
  * Shared Wanwood API client.
  *
- * Wanwood runs the BubbaBlox v2 source, which is a fork of the
- * "economy-simulator" Roblox revival codebase. That backend mounts every
- * Roblox-style service under a single origin using an /apisite/<service>/v1
- * path prefix, e.g.
+ * Wanwood runs the BubbaBlox v2 source. That backend mounts every service
+ * under a single origin behind an /apisite/<service>/v1 path prefix, e.g.
  *
- *     Roblox : https://catalog.roblox.com/v1/search/items
- *     Wanwood: https://wanwoo.xyz/apisite/catalog/v1/search/items
+ *     https://wanwoo.xyz/apisite/catalog/v1/search/items
  *
  * Two things about that backend drive the design of this file:
  *
@@ -130,7 +127,7 @@
     const id = Number(raw.id ?? raw.assetId ?? raw.AssetId ?? raw.TargetId);
 
     /* Whatever the payload happens to carry. Wanwood reports the two
-     * booleans; the Roblox-shaped array is accepted for completeness. Both
+     * booleans; the array shape is accepted for completeness too. Both
      * are provisional - getItemDetails overwrites them with the answer from
      * api/v1/items/restrictions, which is the authoritative source. */
     const restrictions = Array.isArray(raw.itemRestrictions) ? raw.itemRestrictions.slice() : [];
@@ -243,7 +240,7 @@
   }
 
   /* Stamp the flags onto a detail record, in both shapes: the booleans the
-   * backend actually reports, and the Roblox-style itemRestrictions array. */
+   * backend actually reports, and the itemRestrictions array. */
   function applyRestrictions(detail, flags) {
     if (!detail || !flags) return detail;
     detail.isLimited = flags.isLimited;

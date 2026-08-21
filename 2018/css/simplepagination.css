@@ -1,0 +1,47 @@
+@charset "utf-8";
+
+.compact-theme span, span.ellipse.clickable { cursor: pointer; }
+
+ul.simple-pagination { list-style: none; }
+
+.simple-pagination { display: block; overflow: hidden; padding: 0px 5px 5px 0px; margin: 0px; }
+
+.simple-pagination li, .simple-pagination ul { list-style: none; padding: 0px; margin: 0px; }
+
+.simple-pagination li { float: left; }
+
+.ellipse input { width: 3em; }
+
+.compact-theme a, .compact-theme span { float: left; color: rgb(51, 51, 51); font-size: 14px; line-height: 24px; font-weight: 400; text-align: center; border-top: 1px solid rgb(170, 170, 170); border-right: 1px solid rgb(170, 170, 170); border-bottom: 1px solid rgb(170, 170, 170); border-image: initial; border-left: none; min-width: 14px; padding: 0px 7px; box-shadow: rgba(0, 0, 0, 0.2) 2px 2px 2px; background: -webkit-linear-gradient(top, rgb(255, 255, 255) 0px, rgb(239, 239, 239) 100%); }
+
+.compact-theme a:hover, .compact-theme li:not(.disabled):not(.active) span:hover { text-decoration: none; background: -webkit-linear-gradient(top, rgb(239, 239, 239) 0px, rgb(187, 187, 187) 100%); }
+
+.compact-theme li:first-child a, .compact-theme li:first-child span { border-left: 1px solid rgb(170, 170, 170); border-radius: 3px 0px 0px 3px; }
+
+.compact-theme li:last-child a, .compact-theme li:last-child span { border-radius: 0px 3px 3px 0px; }
+
+.compact-theme .current { background: -webkit-linear-gradient(top, rgb(187, 187, 187) 0px, rgb(239, 239, 239) 100%); cursor: default; }
+
+.compact-theme .ellipse { background: rgb(234, 234, 234); padding: 0px 10px; cursor: default; }
+
+.dark-theme a, .dark-theme span, .light-theme a, .light-theme span { float: left; font-size: 14px; line-height: 24px; text-align: center; min-width: 14px; padding: 0px 7px; margin: 0px 5px 0px 0px; }
+
+.light-theme span { cursor: pointer; }
+
+.light-theme a, .light-theme span { color: rgb(102, 102, 102); font-weight: 400; border: 1px solid rgb(187, 187, 187); border-radius: 3px; box-shadow: rgba(0, 0, 0, 0.2) 0px 1px 2px; background: -webkit-linear-gradient(top, rgb(255, 255, 255) 0px, rgb(239, 239, 239) 100%); }
+
+.light-theme a:hover, .light-theme li:not(.disabled):not(.active) span:hover { text-decoration: none; background: rgb(252, 252, 252); }
+
+.light-theme .current { background: rgb(102, 102, 102); color: rgb(255, 255, 255); border-color: rgb(68, 68, 68); box-shadow: rgb(255, 255, 255) 0px 1px 0px, rgba(0, 0, 0, 0.3) 0px 0px 2px inset; cursor: default; }
+
+.light-theme .ellipse { background: 0px 0px; border: none; border-radius: 0px; box-shadow: none; font-weight: 700; cursor: default; }
+
+.dark-theme span { cursor: pointer; }
+
+.dark-theme a, .dark-theme span { color: rgb(204, 204, 204); font-weight: 400; border: 1px solid rgb(34, 34, 34); border-radius: 3px; box-shadow: rgba(0, 0, 0, 0.2) 0px 1px 2px; background: -webkit-linear-gradient(top, rgb(85, 85, 85) 0px, rgb(51, 51, 51) 100%); }
+
+.dark-theme a:hover, .dark-theme li:not(.disabled):not(.active) span:hover { text-decoration: none; background: rgb(68, 68, 68); }
+
+.dark-theme .current { background: rgb(34, 34, 34); color: rgb(255, 255, 255); border-color: rgb(0, 0, 0); box-shadow: rgba(255, 255, 255, 0.2) 0px 1px 0px, rgba(0, 0, 0, 0.1) 0px 0px 1px 1px inset; cursor: default; }
+
+.dark-theme .ellipse { background: 0px 0px; border: none; border-radius: 0px; box-shadow: none; font-weight: 700; cursor: default; }

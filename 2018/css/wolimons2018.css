@@ -1,13 +1,36 @@
 /*
  * Wolimons - the handful of rules the 2018 pages need and 2018 did not have.
  *
- * Kept deliberately short. These pages are the 2018 pages; anything that can
- * be left to their own stylesheet is.
+ * Kept deliberately short, and every rule here has a reason that could not be
+ * solved by keeping the old stylesheet: these pages are the old pages, so
+ * anything that can be left to their own CSS is.
  */
 
-/* The snapshots were taken with ad slots in the layout. Those are gone, so
-   the gap they left goes with them. */
+/* The copies were saved with ad slots in the layout. Those are gone, so the
+   gap they left goes with them. */
 .banner_ad, .mock_banner_ad { display: none !important; }
 
 /* The Discord panel sits in the box the 2018 iframe used to occupy. */
 .wolimons_discord { display: inline-block; width: 100%; max-width: 350px; text-align: left; }
+
+/*
+ * The item table is ten columns wide and was scrolled by the DataTables
+ * plugin, which is not here. Without the plugin the table simply overflowed
+ * the page on a phone - the row ran off the side with no way to reach it.
+ * One rule gives it back the sideways scroll the plugin used to provide.
+ */
+.dataTables_wrapper { overflow-x: auto; }
+#itemtable_table { min-width: 720px; }
+
+/*
+ * The owner lists on the item page are built the same way, into boxes the
+ * plugin used to size.
+ */
+#bc_owners_table_container, #hoards_table_container { overflow-x: auto; }
+
+/*
+ * The lookup suggestions are positioned against the search box by script, so
+ * they need somewhere to sit above the page. 2018 gave the container its
+ * z-index inline; this is only the row it never had a class for on its own.
+ */
+.autocomplete-suggestion { cursor: pointer; }

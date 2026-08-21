@@ -422,7 +422,7 @@ body.page-tradead .ad_component_item_name_link { color: rgb(221, 221, 221); font
 body.page-tradead .ad_component_item_name_link_container { width: 100%; }
 body.page-tradead .ad_component_entry_flags { font-size: 12px; font-weight: 400; color: rgb(122, 130, 136); }
 body.page-tradead .ad_component_image { width: 54px; height: 54px; margin: 1px 7px 0px 8px; }
-body.page-tradead .ad_component_roblox_page_link { margin-right: 6px; }
+body.page-tradead .ad_component_wanwood_page_link { margin-right: 6px; }
 @media (min-width: 350px) {
   body.page-tradead .ad_component_image { margin-left: 10px; }
 }

@@ -54,8 +54,8 @@
 
   /*
    * Accessorized wants a limited of every wearable asset type. These are the
-   * Roblox asset type ids that can be limited; assetTypeId comes straight off
-   * the collectibles rows.
+   * Wanwood asset type ids that can be limited; assetTypeId comes straight
+   * off the collectibles rows.
    */
   const ACCESSORY_ASSET_TYPES = [
     8,  /* Hat */

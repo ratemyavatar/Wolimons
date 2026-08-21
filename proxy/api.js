@@ -839,7 +839,7 @@ async function gameFetch(pathname, { method = 'GET', body = null } = {}) {
 }
 
 /*
- * Who the stored cookie actually is. Different Roblox-alike backends expose
+ * Who the stored cookie actually is. Different builds of the backend expose
  * this under different names, so the likely ones are tried in turn and the
  * first that answers with an id wins. A cookie that resolves to nobody is
  * expired, and saying so is far more useful than a purchase failing later.

@@ -13,20 +13,21 @@
 # with CRLF line endings baked in. Git must not touch their line endings, or
 # every checkout rewrites them and the embedded images break. They have no
 # file extension, so they are listed by name.
-"Colimons - Player Profile" -text
-"Colimons - Trade Calculator" -text
-"Dominus Empyreus - Roblox Limited Item - Rolimon's" -text
-"KoroBadges - Koromon's" -text
-"Koromon's" -text
-"Koromon's Account Verification" -text
-"Koromon's Item Catalog" -text
-"Leaderboard - Colimons" -text
-"Richest Players Leaderboard - Koromon's" -text
-"Roblox Trade Calculator - Rolimon's" -text
-"Roblox - Roblox Player Profile - Rolimon's" -text
-"Site Preferences - Koromon's" -text
-"Tradeads.mhtml.roblox trade ads _ rolimon's" -text
-"Tradeadsdetailpage.roblox trade ad 91569542 - rolimon's" -text
+"snapshots/Original - Account Verification" -text
+"snapshots/Original - Badges" -text
+"snapshots/Original - Domino Crown" -text
+"snapshots/Original - Dominus Empyreus" -text
+"snapshots/Original - Homepage" -text
+"snapshots/Original - Item Catalog" -text
+"snapshots/Original - Leaderboard" -text
+"snapshots/Original - Player Profile" -text
+"snapshots/Original - Player Profile 2" -text
+"snapshots/Original - Richest Players" -text
+"snapshots/Original - Site Preferences" -text
+"snapshots/Original - Trade Ad Detail" -text
+"snapshots/Original - Trade Ads" -text
+"snapshots/Original - Trade Calculator" -text
+"snapshots/Original - Trade Calculator 2" -text
 *.mhtml -text
 
 # Images and the vendored library are binary.

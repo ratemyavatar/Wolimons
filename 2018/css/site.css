@@ -245,3 +245,90 @@
 .marketviewpg_gap, .marketviewpg_item_cell { display: inline-block; width: 100%; margin: 0px; }
 
 .marketviewpg_item_cell { display: inline-block; background-color: rgb(255, 255, 255); }
+
+/* Rules the 2019 stylesheet added, for the pages saved that year. */
+@charset "utf-8";
+
+.icon-bc, .icon-default-bc, .icon-obc, .icon-tbc { background-image: url("https://web.archive.org/web/20190607222713im_/https://www.wanwoo.xyz/images/Shared/bc_06282017.svg"); background-repeat: no-repeat; background-size: auto; width: 52px; height: 28px; display: inline-block; vertical-align: middle; }
+
+
+.icon-bc { background-position: -52px 0px; }
+
+
+.icon-tbc { background-position: -52px -28px; }
+
+
+.icon-obc { background-position: -52px -56px; }
+
+
+.icon-limited-u { background-image: url("https://web.archive.org/web/20190607222713im_/https://www.wanwoo.xyz/images/AssetIcons/itemlabel_10182018.svg"); background-repeat: no-repeat; background-size: auto; width: 72px; height: 16px; display: inline-block; vertical-align: middle; background-position: 0px -126px; }
+
+
+.icon-limited, .icon-released, .icon-released-limited { background-repeat: no-repeat; background-size: auto; width: 144px; height: 14px; display: inline-block; vertical-align: middle; }
+
+
+.icon-released-limited { background-image: url("/web/20190607222713im_/https://www.wolimons/images/limited-released.png"); }
+
+
+.icon-released { background-image: url("/web/20190607222713im_/https://www.wolimons/images/released.png"); }
+
+
+.icon-limited { background-image: url("/web/20190607222713im_/https://www.wolimons/images/limited.png"); }
+
+
+.carousel-item { width: 100%; height: 300px; }
+
+
+.carousel-item img { width: 100%; height: 100%; object-fit: cover; }
+
+
+.carousel-caption { text-align: left; }
+
+
+.trade-ad-item { max-width: calc(20%); background-color: rgb(43, 47, 51); max-height: 82px; }
+
+
+.trade-ad-header { background-color: rgb(28, 30, 34); }
+
+
+.trade-ad-panel { background-color: rgb(36, 38, 42); }
+
+
+.trade-ad-swap-img { position: absolute; top: 50%; left: 50%; transform: translate(-50%, 50%); max-height: 50%; }
+
+
+.trade-ad-timestamp { color: rgb(99, 104, 111); }
+
+  .trade-game-image { max-width: 90px; }
+
+  .trade-game-image { max-width: 160px; }
+
+
+.btn-sharp { border-radius: 3px; }
+
+
+.btn-square { border-radius: 0px; }
+
+
+.card-img-note { position: absolute; top: 10%; left: 10%; background: rgb(26, 188, 156); }
+
+
+.item-serial-number { background-color: rgb(34, 34, 34); color: rgb(238, 238, 238); font-size: 12px; position: absolute; top: 2px; right: 2px; padding: 0px 4px; }
+
+
+.player-item-quantity { background-color: rgb(34, 34, 34); color: rgb(238, 238, 238); font-size: 12px; position: absolute; top: 2px; right: 2px; padding: 0px 4px; }
+
+
+.tooltip { pointer-events: none; }
+
+
+#all_copies_table tbody td, #all_copies_table tbody th { padding: 3px 5px; vertical-align: middle; height: 30px; }
+
+
+.app_gdpr--2k2uB { --cmpBgColor: #dddede; --cmpTextColor: #333333; --cmpBrandColor: #1f5fc9; --cmpHoverColor: #1a4a98; }
+
+
+.banner_ad_responsive { display: block; margin-top: 18px; margin-bottom: 10px; }
+
+
+.mock_banner_ad_responsive { display: block; margin: 18px auto 10px; background-color: rgb(204, 204, 204); max-width: 100%; overflow-x: hidden; height: 90px; }

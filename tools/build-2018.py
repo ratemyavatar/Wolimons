@@ -242,6 +242,17 @@ def path_of(href):
     return without_host.split('#')[0].split('?')[0].rstrip('/') or '/'
 
 
+def fragment_of(href):
+    """The #part of a link, which the tabs on the item page are built on.
+
+    The chart tabs were saved as full URLs with a fragment - the page's own
+    address plus #valuechart - so dropping the fragment along with the rest
+    of the URL left every tab pointing at the page and switching nothing.
+    """
+    at = (href or '').find('#')
+    return (href or '')[at:] if at != -1 else ''
+
+
 def rewrite_links(soup):
     """Point every link at a route this site serves, or take it out.
 
@@ -252,6 +263,7 @@ def rewrite_links(soup):
     for anchor in soup.find_all('a'):
         href = anchor.get('href')
         target = path_of(href)
+        tail = fragment_of(href)
 
         if href and 'discord' in href:
             anchor['href'] = DISCORD_INVITE
@@ -266,11 +278,11 @@ def rewrite_links(soup):
             continue
 
         if target in LINK_MAP:
-            anchor['href'] = LINK_MAP[target]
+            anchor['href'] = LINK_MAP[target] + tail
         elif target.startswith('/item/'):
-            anchor['href'] = '/item/'
+            anchor['href'] = f'/item/{tail}' if not tail else tail
         elif target.startswith('/player/'):
-            anchor['href'] = '/player/'
+            anchor['href'] = f'/player/{tail}' if not tail else tail
         elif target.startswith('/uaid/'):
             # Copy pages: the id is a Wanwood user-asset id, and there is no
             # page here for one. The card keeps its shape, minus the link.

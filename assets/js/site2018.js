@@ -854,11 +854,11 @@
    * loaded, so the archived copy saved two empty boxes. The build tool put a
    * real table from the Item Table page into a template; this fills it in.
    */
-  function buildTable(box, columns, rows) {
+  function buildTable(box, columns, rows, empty) {
     if (!box) return;
     box.textContent = '';
     if (!rows.length) {
-      say(box, 'No copies of this item have a visible owner.');
+      say(box, empty);
       return;
     }
     const table = fromTemplate('table');
@@ -1024,9 +1024,11 @@
           playerLink(owner.userId, owner.name),
           owner.serialNumber === null ? EMPTY : `#${owner.serialNumber}`,
           owner.created ? owner.created.slice(0, 10) : EMPTY,
-        ]));
+        ]),
+      'No copies of this item have a visible owner.');
     buildTable(byId('hoards_table_container'), ['Player', 'Copies'],
-      hoards.map(entry => [playerLink(entry.userId, entry.name), money(entry.copies)]));
+      hoards.map(entry => [playerLink(entry.userId, entry.name), money(entry.copies)]),
+      'Nobody holds more than one copy of this item.');
 
     drawItemCharts({ id, resale, listings, owners: holders, value, changes, created });
   }

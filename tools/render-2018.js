@@ -100,6 +100,19 @@ function router(url) {
   return reply({ data: [] });
 }
 
+/*
+ * Highcharts is loaded on demand by history-chart.js, through a <script> tag
+ * this DOM will not execute. Handing it the library up front is what lets the
+ * chart tabs be checked at all.
+ */
+function withCharts(w) {
+  try {
+    w.eval(fs.readFileSync(R + '/assets/vendor/highstock.js', 'utf8'));
+  } catch (error) {
+    /* Then the charts simply cannot be checked here. */
+  }
+}
+
 function boot(rel, search = '') {
   const html = fs.readFileSync(R + rel, 'utf8');
   const dom = new JSDOM(html, {
@@ -111,6 +124,7 @@ function boot(rel, search = '') {
   w.matchMedia = w.matchMedia || (() => ({ matches: false, addListener() {}, removeListener() {} }));
   const errors = [];
   w.addEventListener('error', e => errors.push(e.message));
+  if (rel.includes('/item/') || rel.includes('/player/')) withCharts(w);
   const scripts = [...w.document.querySelectorAll('script[src]')]
     .map(s => s.getAttribute('src').split('?')[0])
     .filter(src => src.startsWith('/assets/js/'));
@@ -325,6 +339,37 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
     ok('item: offsite link points at Wanwood',
       (w.document.querySelector('[data-2018="offsite"]') || {}).href === 'https://wanwoo.xyz/catalog/1581/Domino-Crown',
       (w.document.querySelector('[data-2018="offsite"]') || {}).href);
+
+    /* The chart tabs. Bootstrap's tab plugin is not here either, so switching
+     * panes is the adapter's job, and each chart is drawn when its tab is
+     * first opened. */
+    const tab = label => [...w.document.querySelectorAll('.nav-tabs .nav-link')]
+      .find(a => a.textContent.trim() === label);
+    const pane = id => w.document.getElementById(id);
+
+    ok('item: the History chart drew, rather than showing the empty state',
+      !!pane('history_chart_container').querySelector('svg, .highcharts-container'),
+      pane('history_chart_container').textContent.trim().slice(0, 80));
+
+    tab('Value').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+    await wait(300);
+    ok('item: the Value tab switches panes', pane('valuechart').classList.contains('active'),
+      pane('valuechart').className);
+    ok('item: the Value chart has the value edit to plot',
+      !/nothing to plot/.test(pane('value_chart_container').textContent),
+      pane('value_chart_container').textContent.trim().slice(0, 60));
+
+    tab('Hoarding').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+    await wait(300);
+    ok('item: the Hoarding chart counts the hoarded copies',
+      !/Nobody holds/.test(pane('hoarding_chart_container').textContent),
+      pane('hoarding_chart_container').textContent.trim().slice(0, 60));
+
+    tab('Hoards').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+    await wait(100);
+    ok('item: the Hoards tab lists the player holding two',
+      /Nun/.test(pane('hoards_table_container').textContent),
+      pane('hoards_table_container').textContent.trim().slice(0, 60));
   }
 
   /* player page */
@@ -339,6 +384,12 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
     ok('player: totals', /9,650|10,150/.test(text), text.slice(0, 200));
     ok('player: trade ads button', (w.document.querySelector('[data-2018="trade-ads"]') || {}).getAttribute('href') === '/playertrades/?id=486');
     ok('player: no inventory history button', !/Inventory History/.test(text));
+    const chart = w.document.querySelector('#playerhistorytab');
+    ok('player: the value/RAP history drew from the recorded readings',
+      !!chart.querySelector('svg, .highcharts-container'),
+      chart.textContent.trim().slice(0, 90));
+    ok('player: the inventory can be re-sorted',
+      !!w.document.querySelector('[data-dropdown="sort_type"]'));
   }
 
   /* trade calculator */

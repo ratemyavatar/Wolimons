@@ -6,9 +6,9 @@
 <title>thuglolboi</title>
 <meta name="robots" content="noindex, nofollow">
 <link rel="icon" type="image/svg+xml" href="/assets/Wolimonslogoo.png">
-<link rel="stylesheet" href="/css/sitecombined2.css?v=15">
-<link rel="stylesheet" href="/css/wolimons.css?v=15">
-<link rel="stylesheet" href="/css/tradeads.css?v=15">
+<link rel="stylesheet" href="/css/sitecombined2.css?v=16">
+<link rel="stylesheet" href="/css/wolimons.css?v=16">
+<link rel="stylesheet" href="/css/tradeads.css?v=16">
 <style>
 body.page-admin { background-color: rgb(39, 43, 48); }
 .vault_wrap { max-width: 940px; margin: 0 auto; padding: 24px 16px 80px; }
@@ -80,17 +80,26 @@ body.page-admin { background-color: rgb(39, 43, 48); }
         <div class="small" id="vault_session_state" style="color:#7a8288;">Checking…</div>
       </div>
       <div class="small mt-2" style="color:#7a8288;">
-        Your browser will not send your Wanwood login to another site, so the
-        purchase is made by the server instead. Paste the cookie from a signed-in
-        Wanwood tab: DevTools &rarr; Application &rarr; Cookies &rarr; wanwoo.xyz,
-        copy the whole value. It is stored on your own machine, never shown again
-        and never sent back to this page.
+        Your browser will not hand your Wanwood login to another site, so the
+        server signs in and buys on your behalf. Your password is used for that
+        one request and is never stored.
       </div>
-      <div class="d-flex flex-wrap align-items-center mt-2" id="vault_session_form">
-        <input class="filter-text-box form-control filter-textbox-small mr-2 mb-2" id="vault_cookie" type="password" placeholder="Paste cookie" autocomplete="off" style="flex:1 1 320px;">
-        <input class="btn btn-flat-light-blue shadow mr-2 mb-2" id="vault_session_save" type="submit" value="Link session">
+
+      <div class="d-flex flex-wrap align-items-center mt-2" id="vault_login_form">
+        <input class="filter-text-box form-control filter-textbox-small mr-2 mb-2" id="vault_username" type="text" placeholder="Wanwood username" autocapitalize="off" autocorrect="off" spellcheck="false" style="flex:1 1 200px;">
+        <input class="filter-text-box form-control filter-textbox-small mr-2 mb-2" id="vault_pw" type="password" placeholder="Wanwood password" autocomplete="off" style="flex:1 1 200px;">
+        <input class="btn btn-flat-light-blue shadow mr-2 mb-2" id="vault_login" type="submit" value="Sign in &amp; link">
         <input class="btn btn-flat-dark-gray shadow mb-2" id="vault_session_clear" type="submit" value="Forget">
       </div>
+
+      <div class="small mb-2">
+        <button type="button" id="vault_paste_toggle" style="background:none;border:0;padding:0;color:#7ab8f5;text-decoration:underline;cursor:pointer;font-size:inherit;">Paste a cookie instead</button>
+      </div>
+      <div class="d-flex flex-wrap align-items-center d-none" id="vault_session_form">
+        <input class="filter-text-box form-control filter-textbox-small mr-2 mb-2" id="vault_cookie" type="password" placeholder="Paste cookie" autocomplete="off" style="flex:1 1 320px;">
+        <input class="btn btn-flat-dark-gray shadow mb-2" id="vault_session_save" type="submit" value="Link cookie">
+      </div>
+
       <div class="small" id="vault_session_notice" style="color:#7a8288;"></div>
     </div>
 
@@ -107,9 +116,9 @@ body.page-admin { background-color: rgb(39, 43, 48); }
 
 </div>
 
-<script src="/assets/js/config.js?v=15"></script>
-<script src="/assets/js/wanwood-api.js?v=15"></script>
-<script src="/assets/js/account.js?v=15"></script>
-<script src="/assets/js/vault.js?v=15"></script>
+<script src="/assets/js/config.js?v=16"></script>
+<script src="/assets/js/wanwood-api.js?v=16"></script>
+<script src="/assets/js/account.js?v=16"></script>
+<script src="/assets/js/vault.js?v=16"></script>
 </body>
 </html>

@@ -510,6 +510,28 @@ pre {
   <summary class="op-head">
     <svg class="chev" width="10" height="10" viewBox="0 0 10 10"><path d="M2 0l6 5-6 5z" fill="currentColor"/></svg>
     <span class="verb">POST</span>
+    <span class="path">/api/vault/login</span>
+    <span class="summary">Sign in and keep the session</span>
+  </summary>
+  <div class="op-body">
+    <h4>Description</h4>
+    <p>Signs in to Wanwood from the server and stores the session cookie it hands back. This exists for phones, which have no developer tools to copy a cookie out of. The password is used for that one request and is never stored, written to disk or logged &mdash; only the resulting cookie is kept. An account with a second factor cannot be signed in this way and is told to paste a cookie instead.</p>
+    <h4>Body</h4>
+    <table>
+      <tr><th>Name</th><th>Type</th><th>Description</th></tr>
+      <tr><td class="pname">username<span class="req">required</span></td><td class="ptype">string</td><td>The Wanwood username.</td></tr>
+      <tr><td class="pname">password<span class="req">required</span></td><td class="ptype">string</td><td>Its password. Used once, never kept.</td></tr>
+    </table>
+    <h4>Example response</h4>
+<pre>{ "ok": true, "linked": true, "hint": "\u2026RET123",
+  "account": { "id": 1, "name": "Nun" }, "balance": 1000 }</pre>
+  </div>
+</details>
+
+<details class="op post">
+  <summary class="op-head">
+    <svg class="chev" width="10" height="10" viewBox="0 0 10 10"><path d="M2 0l6 5-6 5z" fill="currentColor"/></svg>
+    <span class="verb">POST</span>
     <span class="path">/api/vault/session</span>
     <span class="summary">Store a Wanwood session</span>
   </summary>

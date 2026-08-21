@@ -119,6 +119,34 @@
     }
   }
 
+  /*
+   * Sign in from the page. The password goes to our own backend, which uses
+   * it once against Wanwood and keeps only the session cookie that comes
+   * back. It is cleared from the field either way, and never stored here.
+   */
+  async function signIn() {
+    const username = (dom.username ? dom.username.value : '').trim();
+    const password = dom.pw ? dom.pw.value : '';
+    if (!username || !password) {
+      sessionNote('Enter the Wanwood username and password.', 'bad');
+      return;
+    }
+    sessionNote('Signing in\u2026');
+    if (dom.login) dom.login.disabled = true;
+    try {
+      const info = await vaultCall('/api/vault/login', { username, password });
+      showSession(info);
+      sessionNote('', '');
+      log(`Signed in as ${info.account.name}.`, 'good');
+    } catch (error) {
+      sessionNote(error.message, 'bad');
+    } finally {
+      /* However it went, the password does not stay on screen. */
+      if (dom.pw) dom.pw.value = '';
+      if (dom.login) dom.login.disabled = false;
+    }
+  }
+
   async function clearSession() {
     try {
       showSession(await vaultCall('/api/vault/session', { clear: true }));
@@ -329,7 +357,7 @@
   /* Wiring                                                              */
   /* ------------------------------------------------------------------ */
 
-  document.addEventListener('DOMContentLoaded', () => {
+  function init() {
     dom.gate = document.getElementById('vault_gate');
     dom.main = document.getElementById('vault_main');
     dom.who = document.getElementById('vault_who');
@@ -345,6 +373,11 @@
     dom.refresh = document.getElementById('vault_refresh');
     dom.autobuy = document.getElementById('vault_autobuy');
     dom.cookie = document.getElementById('vault_cookie');
+    dom.username = document.getElementById('vault_username');
+    dom.pw = document.getElementById('vault_pw');
+    dom.login = document.getElementById('vault_login');
+    dom.pasteToggle = document.getElementById('vault_paste_toggle');
+    dom.sessionForm = document.getElementById('vault_session_form');
     dom.sessionState = document.getElementById('vault_session_state');
     dom.sessionSave = document.getElementById('vault_session_save');
     dom.sessionClear = document.getElementById('vault_session_clear');
@@ -361,6 +394,23 @@
     dom.watch?.addEventListener('click', () => setWatching(!state.watching));
     dom.refresh?.addEventListener('click', () => check(false));
     dom.sessionSave?.addEventListener('click', saveSession);
+    dom.login?.addEventListener('click', signIn);
+    dom.pw?.addEventListener('keydown', event => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        signIn();
+      }
+    });
+    dom.username?.addEventListener('keydown', event => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        dom.pw?.focus();
+      }
+    });
+    dom.pasteToggle?.addEventListener('click', event => {
+      event.preventDefault();
+      dom.sessionForm?.classList.toggle('d-none');
+    });
     dom.sessionClear?.addEventListener('click', clearSession);
     dom.cookie?.addEventListener('keydown', event => {
       if (event.key === 'Enter') {
@@ -368,5 +418,14 @@
         saveSession();
       }
     });
-  });
+  }
+
+  /* Same guard the panel uses: run now if the document is already parsed,
+   * and only ever once - a second DOMContentLoaded must not wire every
+   * button twice. */
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init, { once: true });
+  } else {
+    init();
+  }
 })();

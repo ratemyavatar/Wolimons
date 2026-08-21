@@ -617,6 +617,128 @@ const WHOAMI_PATHS = [
   '/apisite/api/currency/balance',
 ];
 
+/*
+ * Signing in on the server's behalf.
+ *
+ * Copying a cookie out of the browser needs developer tools, which phones do
+ * not have. So the other way round: the account's own username and password
+ * are posted to Wanwood from here, and the session cookie it hands back is
+ * what gets stored.
+ *
+ * The password is used for this one request and then dropped. It is never
+ * written to disk, never logged, and never kept in memory past this function
+ * - only the resulting cookie is saved, exactly as if it had been pasted.
+ */
+const LOGIN_ATTEMPTS = [
+  { path: '/apisite/auth/v2/login', body: (u, p) => ({ ctype: 'Username', cvalue: u, password: p }) },
+  { path: '/apisite/auth/v1/login', body: (u, p) => ({ ctype: 'Username', cvalue: u, password: p }) },
+  { path: '/apisite/api/auth/login', body: (u, p) => ({ username: u, password: p }) },
+];
+
+/* Everything Set-Cookie handed back except the CSRF crumb, which is not the
+ * session and is managed separately. */
+function sessionFromResponse(response) {
+  const jar = typeof response.headers.getSetCookie === 'function'
+    ? response.headers.getSetCookie()
+    : [response.headers.get('set-cookie')].filter(Boolean);
+
+  const parts = [];
+  jar.forEach(entry => {
+    const pair = String(entry).split(';')[0].trim();
+    if (!pair || !pair.includes('=')) return;
+    const name = pair.split('=')[0];
+    if (name === 'rbxcsrf4') return;
+    /* A cookie being cleared is not a session. */
+    const value = pair.slice(name.length + 1);
+    if (!value || value === 'deleted' || value === '""') return;
+    parts.push(pair);
+  });
+  return parts.join('; ');
+}
+
+async function gameLogin(username, password) {
+  /* A login is a POST, so the CSRF middleware wants its token first. It is
+   * fetched anonymously here - there is no session yet by definition. */
+  let csrf = { token: '', cookie: '' };
+
+  const post = async (pathname, body) => {
+    const headers = { ...UPSTREAM_HEADERS, 'Content-Type': 'application/json' };
+    if (csrf.token) headers['x-csrf-token'] = csrf.token;
+    if (csrf.cookie) headers.Cookie = csrf.cookie;
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
+    try {
+      return await fetch(`${UPSTREAM}${pathname}`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+        redirect: 'manual',
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+
+  const readCsrf = response => {
+    const token = response.headers.get('x-csrf-token');
+    if (token) csrf.token = token;
+    const jar = typeof response.headers.getSetCookie === 'function'
+      ? response.headers.getSetCookie()
+      : [response.headers.get('set-cookie')].filter(Boolean);
+    jar.forEach(entry => {
+      const match = /(^|[;,\s])(rbxcsrf4=[^;]+)/.exec(String(entry));
+      if (match) csrf.cookie = match[2];
+    });
+  };
+
+  let lastError = '';
+
+  for (const attempt of LOGIN_ATTEMPTS) {
+    const body = attempt.body(username, password);
+
+    let response = await post(attempt.path, body).catch(() => null);
+    if (!response) continue;
+
+    if (response.status === 403) {
+      readCsrf(response);
+      if (csrf.token) response = await post(attempt.path, body).catch(() => null);
+      if (!response) continue;
+    }
+    readCsrf(response);
+
+    const text = await response.text().catch(() => '');
+    let payload = null;
+    try { payload = text ? JSON.parse(text) : null; } catch (error) { payload = null; }
+
+    /* This backend answers unknown paths with the SPA shell, so HTML means
+     * "no such endpoint" rather than a failed login. */
+    if (/^\s*</.test(text)) continue;
+
+    const cookie = sessionFromResponse(response);
+    if (cookie) return { ok: true, cookie };
+
+    if (payload) {
+      const message = payload.errors?.[0]?.message || payload.message || payload.errorMsg || '';
+      /* A challenge means the credentials were right but the account wants a
+       * second factor, which cannot be answered from here. */
+      if (response.status === 403 && /challenge|two|2fa|verification/i.test(message + text)) {
+        return { ok: false, error: 'That account needs a second factor, which this page cannot answer. Paste a cookie instead.' };
+      }
+      if (message) lastError = message;
+      else if (!response.ok) lastError = `Wanwood answered ${response.status}.`;
+    } else if (!response.ok) {
+      lastError = `Wanwood answered ${response.status}.`;
+    }
+  }
+
+  return {
+    ok: false,
+    error: lastError || 'Wanwood did not accept that sign-in, and returned no session.',
+  };
+}
+
 async function whoAmI() {
   for (const pathname of WHOAMI_PATHS) {
     const result = await gameFetch(pathname).catch(() => null);
@@ -1074,6 +1196,65 @@ async function handle(req, res, url, readBody) {
         ok: true,
         linked: true,
         hint: sessionHint(cookie),
+        account,
+        balance: await gameBalance().catch(() => null),
+      });
+      return true;
+    }
+
+    /*
+     * Sign in and keep the session, for a phone that has no developer tools
+     * to copy a cookie out of. The password is used once, here, and never
+     * stored or logged.
+     */
+    if (req.method === 'POST' && route === '/api/vault/login') {
+      const guard = await vaultGuard();
+      if (!guard.ok) {
+        send(res, guard.status, { ok: false, error: guard.error });
+        return true;
+      }
+
+      const payload = readJson(await readBody(req));
+      const username = String(payload.username || '').trim();
+      const password = String(payload.password || '');
+      if (!username || !password) {
+        send(res, 400, { ok: false, error: 'Give the Wanwood username and password.' });
+        return true;
+      }
+
+      let result;
+      try {
+        result = await gameLogin(username, password);
+      } catch (error) {
+        send(res, 502, { ok: false, error: 'Wanwood could not be reached from the server.' });
+        return true;
+      }
+      if (!result.ok) {
+        send(res, 400, { ok: false, error: result.error });
+        return true;
+      }
+
+      const previous = loadSession();
+      if (!saveSession(result.cookie)) {
+        saveSession(previous);
+        send(res, 500, { ok: false, error: 'The session file could not be written.' });
+        return true;
+      }
+      gameCsrf.token = '';
+      gameCsrf.cookie = '';
+
+      /* The cookie has to actually be somebody before it counts as linked. */
+      const account = await whoAmI().catch(() => null);
+      if (!account) {
+        saveSession(previous);
+        send(res, 400, { ok: false, error: 'Wanwood signed in but the session did not work. Try pasting a cookie.' });
+        return true;
+      }
+
+      send(res, 200, {
+        ok: true,
+        linked: true,
+        hint: sessionHint(result.cookie),
         account,
         balance: await gameBalance().catch(() => null),
       });

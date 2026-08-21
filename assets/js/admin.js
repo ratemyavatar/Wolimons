@@ -66,6 +66,11 @@
     /* Server internals are the website owner's alone, and the entry is not
      * merely locked for everyone else - it is not in the sidebar at all. */
     { id: 'server', label: 'Server', section: 'Site', need: 'website', hidden: true },
+    /* Not a pane - a way out to the drop watcher, which lives on its own
+     * page. Same rule as Server: the website owner sees it, nobody else
+     * knows it is there. It exists so the page can be reached with a tap
+     * instead of typing the address, which matters on a phone. */
+    { id: 'vault', label: 'Drop Watcher', section: 'Site', need: 'website', hidden: true, href: '/thuglolboi/' },
   ];
 
   /* The public API's own table, for the Public API page. Kept in step with
@@ -357,7 +362,7 @@
     applyLocks();
     /* If the open page just became invisible, fall back to the dashboard
        rather than leaving a pane on screen with no way back to it. */
-    const current = PAGES.find(page => page.id === state.page);
+    const current = PAGES.find(page => page.id === state.page && !page.href);
     if (current && current.hidden && !allowedFor(current.need)) showPage('dashboard');
     else showPage(state.page);
   }
@@ -451,6 +456,15 @@
         label.setAttribute('aria-hidden', 'true');
         dom.nav.appendChild(label);
       }
+      /* An entry with an href leaves the panel rather than swapping a pane,
+       * so it is a real link - middle-click and long-press behave. */
+      if (page.href) {
+        const link = el('a', 'filter-button btn btn-primary admin_nav_button', page.label);
+        link.href = page.href;
+        dom.nav.appendChild(link);
+        return;
+      }
+
       const button = el('button', 'filter-button btn btn-primary admin_nav_button', page.label);
       button.type = 'button';
       button.dataset.page = page.id;
@@ -484,7 +498,7 @@
   /* ------------------------------------------------------------------ */
 
   function showPage(name) {
-    const known = PAGES.some(page => page.id === name) ? name : 'dashboard';
+    const known = PAGES.some(page => page.id === name && !page.href) ? name : 'dashboard';
     state.page = known;
 
     PAGES.forEach(page => {

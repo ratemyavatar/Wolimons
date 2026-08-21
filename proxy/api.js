@@ -465,6 +465,39 @@ async function publicItemDetails() {
  */
 const ROLE_LABELS = { website_owner: 'Website Owner', owner: 'Site Owner', value_manager: 'Value Manager', staff: 'Value Team' };
 
+/*
+ * The vault password. Overridable per-server so it never has to be the one in
+ * the repository; the default is the one that was asked for.
+ */
+const VAULT_PASSWORD = String(process.env.VAULT_PASSWORD || 'ilovegod123');
+
+/* Item ids the vault has already seen. Anything absent from this on a later
+ * poll is a fresh release. */
+const vaultSeen = new Set();
+
+/*
+ * One item, with the fields a purchase actually needs: the product id, the
+ * asking price and who is selling it. productinfo is the only endpoint that
+ * carries them.
+ */
+async function vaultItem(assetId) {
+  const info = await fetchUpstreamJson(`/apisite/api/marketplace/productinfo?assetId=${assetId}`)
+    .catch(() => null);
+  if (!info) return null;
+  const price = Number(info.PriceInRobux ?? info.priceInRobux);
+  return {
+    assetId,
+    name: String(info.Name ?? info.name ?? `Item ${assetId}`),
+    productId: Number(info.ProductId ?? info.productId) || null,
+    price: Number.isFinite(price) ? price : null,
+    sellerId: Number(info.Creator?.Id ?? info.Creator?.CreatorTargetId ?? 1) || 1,
+    forSale: Boolean(info.IsForSale ?? info.isForSale),
+    limited: Boolean(info.IsLimited ?? info.IsLimitedUnique),
+    remaining: Number(info.Remaining ?? info.remaining) || null,
+    created: info.Created || null,
+  };
+}
+
 async function publicPlayerInfo(userId) {
   const cacheKey = `player:${userId}`;
   const cached = cacheRead(cacheKey);
@@ -714,10 +747,12 @@ async function handle(req, res, url, readBody) {
       if (/^\d+$/.test(query)) {
         profile = await fetchProfile(Number(query));
       } else {
+        /* Wanwood has no user search, only this exact get-by-username
+         * lookup - the same one the site's own search box uses. */
         const found = await fetchUpstreamJson(
-          `/apisite/users/v1/usernames/users?username=${encodeURIComponent(query)}`,
+          `/apisite/api/users/get-by-username?username=${encodeURIComponent(query)}`,
         ).catch(() => null);
-        const id = Number(found?.data?.[0]?.id ?? found?.Id ?? found?.id);
+        const id = Number(found?.Id ?? found?.id);
         if (Number.isSafeInteger(id) && id > 0) profile = await fetchProfile(id);
       }
 
@@ -759,6 +794,70 @@ async function handle(req, res, url, readBody) {
           .slice(0, 25),
         viewer: { name: auth.name, ...auth.can },
       });
+      return true;
+    }
+
+    /* ------------------------------------------------------------------ */
+    /* The vault - new item watch                                          */
+    /* ------------------------------------------------------------------ */
+
+    /*
+     * A private page, gated twice: the caller must hold an identity token for
+     * an account with the website owner rank, AND send the vault password.
+     * The password is checked here rather than in the page so it is never in
+     * anything a browser can view-source.
+     */
+    if (req.method === 'POST' && route === '/api/vault/unlock') {
+      const payload = readJson(await readBody(req));
+      const auth = await authorize(req, payload, { need: 'website' });
+      if (!auth.ok) {
+        send(res, auth.status, { ok: false, error: auth.error });
+        return true;
+      }
+      if (String(payload.password || '') !== VAULT_PASSWORD) {
+        send(res, 403, { ok: false, error: 'Wrong password.' });
+        return true;
+      }
+      send(res, 200, { ok: true, name: auth.name });
+      return true;
+    }
+
+    if (req.method === 'GET' && route === '/api/vault/feed') {
+      const auth = await authorize(req, {}, { need: 'website' });
+      if (!auth.ok) {
+        send(res, auth.status, { ok: false, error: auth.error });
+        return true;
+      }
+      if (String(req.headers['x-vault-password'] || '') !== VAULT_PASSWORD) {
+        send(res, 403, { ok: false, error: 'Wrong password.' });
+        return true;
+      }
+
+      try {
+        const ids = await listCatalogIds();
+        const first = vaultSeen.size === 0;
+
+        /* The first call after a restart learns what already exists rather
+         * than announcing the whole catalogue as brand new. */
+        const fresh = first ? [] : ids.filter(id => !vaultSeen.has(id));
+        ids.forEach(id => vaultSeen.add(id));
+
+        /* ?recent=N also returns the newest N items already known, so the
+         * page has something to show while nothing new has dropped. */
+        const recent = Math.min(Math.max(Number(url.searchParams.get('recent')) || 0, 0), 12);
+        const listed = fresh.length ? fresh : ids.slice(0, recent);
+
+        const items = await Promise.all(listed.map(id => vaultItem(id)));
+        send(res, 200, {
+          ok: true,
+          baseline: first,
+          isNew: fresh.length > 0,
+          watching: vaultSeen.size,
+          items: items.filter(Boolean),
+        });
+      } catch (error) {
+        send(res, 502, { ok: false, error: 'Wanwood could not be reached for the catalogue.' });
+      }
       return true;
     }
 

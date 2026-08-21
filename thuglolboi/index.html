@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en-US">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>thuglolboi</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" type="image/svg+xml" href="/assets/Wolimonslogoo.png">
+<link rel="stylesheet" href="/css/sitecombined2.css?v=13">
+<link rel="stylesheet" href="/css/wolimons.css?v=13">
+<link rel="stylesheet" href="/css/tradeads.css?v=13">
+<style>
+body.page-admin { background-color: rgb(39, 43, 48); }
+.vault_wrap { max-width: 940px; margin: 0 auto; padding: 24px 16px 80px; }
+.vault_pane { background-color: #2e3337; border-radius: 4px; }
+.vault_gate { max-width: 380px; margin: 12vh auto 0; }
+.vault_row { display: flex; align-items: center; gap: 12px; padding: 12px; background: #30363c;
+  border-radius: 4px; margin-bottom: 10px; border-left: 3px solid transparent; }
+.vault_row.fresh { border-left-color: #49cc90; background: #2f3a36; }
+.vault_row img { width: 64px; height: 64px; border-radius: 4px; background: #2b2f33; flex: 0 0 auto; }
+.vault_name { color: #e9ecef; font-weight: 600; }
+.vault_meta { color: #7a8288; font-size: 0.85em; }
+.vault_price { color: #49cc90; font-weight: 700; white-space: nowrap; }
+.vault_dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #49cc90;
+  margin-right: 6px; vertical-align: 1px; }
+.vault_dot.off { background: #7a8288; }
+.vault_log { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; color: #adb5bd;
+  background: #24262a; border-radius: 4px; padding: 10px 12px; max-height: 220px; overflow-y: auto; }
+.vault_log div { padding: 1px 0; }
+.vault_log .bad { color: #e57373; }
+.vault_log .good { color: #81c784; }
+</style>
+</head>
+<body class="page-admin">
+
+<div class="vault_wrap">
+
+  <!-- Locked. Nothing below this is fetched until both gates pass. -->
+  <div id="vault_gate" class="vault_gate">
+    <div class="vault_pane shadow px-4 py-4">
+      <h2 class="section_header mb-1">thuglolboi</h2>
+      <div class="small mb-3" style="color:#7a8288;">Restricted.</div>
+      <div id="vault_who" class="small mb-3" style="color:#7a8288;"></div>
+      <input class="filter-text-box form-control filter-textbox-small w-100 mb-2" id="vault_password" type="password" placeholder="Password" autocomplete="off">
+      <input class="btn btn-flat-light-blue shadow w-100" id="vault_unlock" type="submit" value="Unlock">
+      <div class="small mt-2" id="vault_gate_notice" style="color:#7a8288;"></div>
+    </div>
+  </div>
+
+  <!-- Unlocked. -->
+  <div id="vault_main" class="d-none">
+    <div class="d-flex justify-content-between align-items-center flex-wrap mb-3">
+      <h2 class="section_header mb-0">thuglolboi</h2>
+      <a class="btn btn-flat-dark-gray rounded-pill shadow" href="/" role="button">Leave</a>
+    </div>
+
+    <div class="vault_pane shadow px-3 px-sm-4 py-3 mb-3">
+      <div class="d-flex justify-content-between align-items-center flex-wrap">
+        <div>
+          <span id="vault_status_dot" class="vault_dot off"></span>
+          <span id="vault_status" style="color:#e9ecef;">Idle</span>
+          <div class="small mt-1" style="color:#7a8288;" id="vault_watching"></div>
+        </div>
+        <div class="d-flex align-items-center flex-wrap">
+          <label class="switch mt-2 mr-3" style="color:#adb5bd;">Auto-buy new drops<input class="switch-input" id="vault_autobuy" type="checkbox"></label>
+          <input class="btn btn-flat-light-blue-sm rounded-pill shadow mr-2" id="vault_watch" type="submit" value="Start watching">
+          <input class="btn btn-flat-dark-gray rounded-pill shadow" id="vault_refresh" type="submit" value="Check now">
+        </div>
+      </div>
+      <div class="small mt-2" style="color:#7a8288;">
+        Buying goes straight from this browser to Wanwood so your own login is
+        used - it does not pass through the Wolimons server, which has no
+        access to your account.
+      </div>
+    </div>
+
+    <div class="vault_pane shadow px-3 px-sm-4 py-3 mb-3">
+      <h6 class="card-subtitle text-muted stat-header mb-2">Drops</h6>
+      <div id="vault_items"></div>
+    </div>
+
+    <div class="vault_pane shadow px-3 px-sm-4 py-3">
+      <h6 class="card-subtitle text-muted stat-header mb-2">Log</h6>
+      <div class="vault_log" id="vault_log"></div>
+    </div>
+  </div>
+
+</div>
+
+<script src="/assets/js/config.js?v=13"></script>
+<script src="/assets/js/wanwood-api.js?v=13"></script>
+<script src="/assets/js/account.js?v=13"></script>
+<script src="/assets/js/vault.js?v=13"></script>
+</body>
+</html>

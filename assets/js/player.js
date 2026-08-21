@@ -276,12 +276,60 @@
       appendStat(stats, 'Total Value', item.value * item.copies);
       appendStat(stats, 'Total RAP', item.rap * item.copies);
     }
+    appendSerials(stats, item, stacked);
 
     link.appendChild(headingWrap);
     link.appendChild(imageWrap);
     link.appendChild(stats);
     card.appendChild(link);
     return card;
+  }
+
+  /*
+   * Which copies of this item the player actually holds.
+   *
+   * Serial numbers are the interesting part of owning a limited, so they are
+   * always on the card rather than only when hoards are unstacked. One copy
+   * reads "Serial  #12"; a hoard lists them, and says "+3 more" once the row
+   * would get too long to read. An item minted without serials says so
+   * instead of showing a blank.
+   */
+  const SERIALS_SHOWN = 4;
+
+  function appendSerials(target, item, stacked) {
+    const serials = Array.isArray(item.serials) ? item.serials.filter(Boolean) : [];
+
+    /* Unstacked cards are one copy each and carry their own serial. */
+    if (!stacked) {
+      if (item.serialNumber) appendSerialRow(target, 'Serial', `#${formatNumber(item.serialNumber)}`);
+      return;
+    }
+
+    if (!serials.length) {
+      appendSerialRow(target, item.copies > 1 ? 'Serials' : 'Serial', 'None');
+      return;
+    }
+
+    const sorted = serials.slice().sort((a, b) => a - b);
+    const shown = sorted.slice(0, SERIALS_SHOWN).map(n => `#${formatNumber(n)}`).join(', ');
+    const rest = sorted.length - SERIALS_SHOWN;
+    appendSerialRow(
+      target,
+      sorted.length > 1 ? 'Serials' : 'Serial',
+      rest > 0 ? `${shown} +${rest} more` : shown,
+      sorted.map(n => `#${formatNumber(n)}`).join(', '),
+    );
+  }
+
+  function appendSerialRow(target, label, value, title) {
+    const row = text('div', 'd-flex justify-content-between');
+    const left = text('div');
+    left.appendChild(text('small', 'text-muted', label));
+    const right = text('div', 'text-truncate', value);
+    right.style.color = '#c9a227';
+    if (title) right.title = title;
+    row.append(left, right);
+    target.appendChild(row);
   }
 
   function sortItems(items, mode) {

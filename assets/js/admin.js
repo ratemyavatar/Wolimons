@@ -282,6 +282,7 @@
     dom.lookupBadges = document.getElementById('admin_lookup_badges');
     dom.lookupLinks = document.getElementById('admin_lookup_links');
     dom.lookupInventory = document.getElementById('admin_lookup_inventory');
+    dom.lookupItems = document.getElementById('admin_lookup_items');
     dom.lookupDescription = document.getElementById('admin_lookup_description');
     dom.lookupAdCount = document.getElementById('admin_lookup_ad_count');
     dom.lookupAds = document.getElementById('admin_lookup_ads');
@@ -1891,10 +1892,15 @@
     /* Rank, with the same icon the staff page draws. */
     if (dom.lookupRole) {
       dom.lookupRole.replaceChildren();
-      const label = el('span', null, payload.roleLabel || 'No rank');
       const icon = ROLE_ICONS && payload.role ? ROLE_ICONS.iconFor(payload.role) : null;
-      if (icon) dom.lookupRole.appendChild(icon);
-      dom.lookupRole.appendChild(label);
+      if (icon) {
+        /* The badge carries its own hover tooltip with the rank name in it.
+         * Next to a written-out label that reads twice, so the tooltip goes
+         * and the title attribute keeps the hover. */
+        icon.querySelector('.badge-tt')?.remove();
+        dom.lookupRole.appendChild(icon);
+      }
+      dom.lookupRole.appendChild(el('span', null, payload.roleLabel || 'No rank'));
     }
 
     /* Badges the owner has handed this player. */
@@ -2047,8 +2053,67 @@
         statCell('Value', `R$ ${formatNumber(value)}`),
         statCell('RAP', `R$ ${formatNumber(rap)}`),
       );
+      renderLookupItems(rows);
     } catch (error) {
       emptyRow(dom.lookupInventory, 'Wanwood could not be reached for the inventory.');
+    }
+  }
+
+  /*
+   * One row per copy held, newest serial first. The serial is the point of
+   * this list - two players holding "the same" item do not hold the same
+   * thing if one of them has #1.
+   */
+  function renderLookupItems(rows) {
+    if (!dom.lookupItems) return;
+    dom.lookupItems.replaceChildren();
+    if (!rows.length) {
+      emptyRow(dom.lookupItems, 'This player holds no collectibles.');
+      return;
+    }
+
+    const sorted = rows.slice().sort((a, b) => {
+      const sa = Number(a.serialNumber) || Infinity;
+      const sb = Number(b.serialNumber) || Infinity;
+      if (sa !== sb) return sa - sb;
+      return String(a.name || '').localeCompare(String(b.name || ''));
+    });
+
+    sorted.slice(0, 200).forEach(row => {
+      const id = Number(row.assetId ?? row.id);
+      const line = el('div', 'trade_ad_picker_row');
+
+      const img = el('img');
+      img.width = 44;
+      img.height = 44;
+      img.loading = 'lazy';
+      img.alt = '';
+      img.src = API ? API.thumbnailUrl(id) : '';
+      line.appendChild(img);
+
+      const body = el('div', 'flex-grow-1');
+      body.appendChild(el('div', 'text-truncate', row.name || `Item ${id}`));
+      const rap = Number(row.recentAveragePrice) || 0;
+      const value = VALUES && typeof VALUES.get === 'function' ? Number(VALUES.get(id)) || 0 : 0;
+      const sub = el('div', 'small', `Value ${formatNumber(value)} \u00b7 RAP ${formatNumber(rap)}`);
+      sub.style.color = '#7a8288';
+      body.appendChild(sub);
+      line.appendChild(body);
+
+      /* The serial, or an honest dash when the copy was minted without one. */
+      const serial = el('div', 'ml-auto text-nowrap',
+        row.serialNumber ? `#${formatNumber(row.serialNumber)}` : 'No serial');
+      serial.style.color = row.serialNumber ? '#c9a227' : '#7a8288';
+      if (row.userAssetId) serial.title = `UAID ${row.userAssetId}`;
+      line.appendChild(serial);
+
+      dom.lookupItems.appendChild(line);
+    });
+
+    if (sorted.length > 200) {
+      const more = el('div', 'small py-2', `${formatNumber(sorted.length - 200)} more copies not shown.`);
+      more.style.color = '#7a8288';
+      dom.lookupItems.appendChild(more);
     }
   }
 

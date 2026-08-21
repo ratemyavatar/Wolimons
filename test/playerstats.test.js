@@ -26,8 +26,28 @@ test('totals match what the inventory itself reports', () => {
   const totals = stats.totalsFrom(rows, valueOf);
   /* Wanwood's own totalRap for this inventory is 720. */
   assert.strictEqual(totals.rap, 720);
-  assert.strictEqual(totals.value, 650);
+  /*
+   * 400 + 250 for the two valued items, then the RAP of the two nobody has
+   * valued: 150 for the Vampire and 0 for the one with no sales at all.
+   */
+  assert.strictEqual(totals.value, 800);
   assert.strictEqual(totals.copies, 4, 'an item worth nothing is still a copy held');
+});
+
+test('an item nobody has valued counts as its RAP, not as nothing', () => {
+  const unvalued = stats.totalsFrom([{ assetId: 4266, recentAveragePrice: 150 }], () => 0);
+  assert.strictEqual(unvalued.value, 150, 'value falls back to RAP');
+  assert.strictEqual(unvalued.rap, 150);
+
+  /* And a hand-set value still wins, in both directions. */
+  const cheaper = stats.totalsFrom([{ assetId: 4266, recentAveragePrice: 150 }], () => 20);
+  assert.strictEqual(cheaper.value, 20, 'a value below the RAP is still the value');
+  const dearer = stats.totalsFrom([{ assetId: 4266, recentAveragePrice: 150 }], () => 5000);
+  assert.strictEqual(dearer.value, 5000);
+
+  /* Neither figure: 0 is the truth about it. */
+  const nothing = stats.totalsFrom([{ assetId: 4016, recentAveragePrice: 0 }], () => 0);
+  assert.strictEqual(nothing.value, 0);
 });
 
 test('a duplicate copy counts twice', () => {

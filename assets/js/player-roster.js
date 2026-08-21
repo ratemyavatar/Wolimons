@@ -41,9 +41,9 @@
  * VALUE vs RAP
  * ---------------------------------------------------------------------------
  * Value is community-set and lives in values.js - it is never a price and it
- * is never fetched. Every item is 0 until somebody fills that table in, so a
- * player's Value here is the sum of the hand-set values of their collectibles
- * and reads 0 for everyone until values exist.
+ * is never fetched. An item nobody has valued is worth its RAP, so a player's
+ * Value here is the sum of the hand-set values of their collectibles plus the
+ * RAP of the ones still waiting for a figure.
  */
 (() => {
   'use strict';
@@ -194,7 +194,12 @@
       ]);
 
       const assetRap = Number(rap) || 0;
-      const assetValue = Number(VALUES && VALUES.get ? VALUES.get(assetId) : 0) || 0;
+      /* An item nobody has valued is worth its RAP, so a board built while
+       * the value table is still thin is a board of real numbers rather than
+       * a column of zeros. */
+      const assetValue = VALUES && typeof VALUES.valueOf === 'function'
+        ? Number(VALUES.valueOf(assetId, assetRap)) || 0
+        : (Number(VALUES && VALUES.get ? VALUES.get(assetId) : 0) || 0) || assetRap;
 
       owners.forEach(owner => {
         let player = players.get(owner.userId);

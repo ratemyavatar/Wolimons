@@ -19,9 +19,15 @@
   /* Read values.js defensively - a browser holding a stale cached copy, or
    * one that never loaded it at all, must not take the search cards down. */
   const VALUES = {
-    get: id => {
+    /* The figure a card prints: the hand-set value, or the item's RAP until
+     * somebody sets one. */
+    valueOf: (id, rap) => {
       const table = window.WolimonsValues;
-      return table && typeof table.get === 'function' ? Number(table.get(id)) || 0 : 0;
+      if (table && typeof table.valueOf === 'function' && table.valueOf.length >= 2) {
+        return Number(table.valueOf(id, rap)) || 0;
+      }
+      const set = table && typeof table.get === 'function' ? Number(table.get(id)) || 0 : 0;
+      return set || Number(rap) || 0;
     },
   };
 
@@ -54,8 +60,9 @@
       ribbon: isLimitedUnique ? '/img/limitedu.svg' : (isLimited ? '/img/limited.svg' : ''),
       ribbonAlt: isLimitedUnique ? 'Limited U' : 'Limited',
       rap: Number.isFinite(item.rap) ? item.rap : null,
-      /* Community-assigned, never fetched. 0 until set in values.js. */
-      value: VALUES.get(id),
+      /* Ours, never fetched - and until the value team sets one, the item's
+       * own RAP rather than a zero. */
+      value: VALUES.valueOf(id, Number.isFinite(item.rap) ? item.rap : null),
     };
   }
 

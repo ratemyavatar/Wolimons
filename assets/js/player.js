@@ -897,7 +897,11 @@
         id,
         name: typeof row.name === 'string' ? row.name.trim() : `Item ${id}`,
         rap: Number(row.recentAveragePrice) || 0,
-        value: VALUES.get(id),
+        /* Unvalued items are worth their RAP, so an inventory of items the
+         * value team has not reached still totals to something real. */
+        value: typeof VALUES.valueOf === 'function'
+          ? VALUES.valueOf(id, Number(row.recentAveragePrice) || 0)
+          : VALUES.get(id),
         copies,
         serials: row.serialNumber ? [Number(row.serialNumber)] : [],
         /* The collectibles endpoint only returns limited items, so `limited`

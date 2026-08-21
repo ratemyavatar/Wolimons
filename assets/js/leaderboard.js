@@ -14,13 +14,13 @@
  * VALUE vs RAP
  * ---------------------------------------------------------------------------
  * Value is community-set and lives in values.js - it is never a price and it
- * is never fetched. Every item is 0 until somebody fills that table in, so a
- * player's Value here is the sum of the hand-set values of their collectibles
- * and reads 0 for everyone on a fresh checkout.
+ * is never fetched. An item nobody has valued is worth its RAP, so a player's
+ * Value here is the sum of the hand-set values of their collectibles plus the
+ * RAP of the ones still waiting for a figure.
  *
- * A board where every row ties at 0 would be useless, so ordering is by RAP
- * while values are unset. Fill in the values and the board re-sorts itself by
- * Value automatically - see rankKey() below.
+ * That means the board is never a column of zeros, even on a fresh checkout:
+ * it starts out ordered by what the items have been selling for, and moves
+ * towards the value team's own figures as they set them.
  */
 (() => {
   'use strict';

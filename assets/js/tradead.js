@@ -165,7 +165,9 @@
     row.appendChild(links);
 
     const rap = itemRap(slot);
-    const value = VALUES.get(slot.id);
+    const value = typeof VALUES.valueOf === 'function'
+      ? VALUES.valueOf(slot.id, rap)
+      : VALUES.get(slot.id);
     const demand = VALUES.demand(slot.id);
 
     const stats = el('div', 'ad_component_stats_section d-flex justify-content-around');

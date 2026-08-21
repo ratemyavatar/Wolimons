@@ -185,6 +185,12 @@
     if (raw === null || raw === undefined || raw === '') {
       return change.field === 'value' ? 'Unvalued' : 'Unassigned';
     }
+    /*
+     * A value of 0 in the log means the table had no figure for that item -
+     * before the edit, or after it was cleared. An item in that state is
+     * worth its RAP, so printing a flat "0" claims something untrue about it.
+     */
+    if (change.field === 'value' && Number(raw) === 0) return 'Unvalued (RAP)';
     return change.field === 'value' ? formatNumber(raw) : String(raw);
   }
 

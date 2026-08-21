@@ -70,6 +70,12 @@
       : fallback);
     return {
       get: id => Number(call('get', id, 0)) || 0,
+      /* The figure to print: the hand-set value, or the item's RAP until
+       * somebody sets one. A stale cached values.js has no valueOf(), so it
+       * falls back to the old behaviour rather than breaking the grid. */
+      valueOf: (id, rap) => (typeof table.valueOf === 'function' && table.valueOf.length >= 2
+        ? Number(table.valueOf(id, rap)) || 0
+        : Number(call('get', id, 0)) || Number(rap) || 0),
       demand: id => call('demand', id, null),
       trend: id => call('trend', id, null),
       categories: id => {
@@ -115,7 +121,7 @@
       order: index,
       /* Value, demand, trend and categories are community-assigned, never
        * fetched - Wanwood reports none of them. Unset reads 0 / null / []. */
-      value: VALUES.get(item.id),
+      value: VALUES.valueOf(item.id, item.rap),
       demand: VALUES.demand(item.id),
       trend: VALUES.trend(item.id),
       categories: VALUES.categories(item.id),
@@ -457,7 +463,7 @@
       }
       if (!state.items.length) return;
       state.items.forEach(item => {
-        item.value = VALUES.get(item.id);
+        item.value = VALUES.valueOf(item.id, item.rap);
         item.demand = VALUES.demand(item.id);
         item.trend = VALUES.trend(item.id);
         item.categories = VALUES.categories(item.id);

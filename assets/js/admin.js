@@ -33,6 +33,18 @@
   const API = window.WanwoodAPI;
   const ACCOUNT = window.WolimonsAccount;
   const VALUES = window.WolimonsValues;
+
+  /*
+   * What the rest of the site shows as an item's value: the figure the value
+   * team set, or the item's RAP until they set one. The editor below still
+   * reads and writes the raw figure - an unvalued item's box stays empty, so
+   * saving nothing cannot silently freeze today's RAP into a value.
+   */
+  function shownValue(id, rap) {
+    if (VALUES && typeof VALUES.valueOf === 'function') return Number(VALUES.valueOf(id, rap)) || 0;
+    const set = VALUES && typeof VALUES.get === 'function' ? Number(VALUES.get(id)) || 0 : 0;
+    return set || Number(rap) || 0;
+  }
   const ROLE_ICONS = window.WolimonsRoleIcons;
   /* The badge catalog (names, tiers, artwork) and the table of who has been
    * given what. The panel is the only place the second one is written. */
@@ -1403,8 +1415,9 @@
 
     const text = el('div', 'flex-grow-1');
     text.appendChild(el('div', 'text-truncate', item.name));
+    const shown = shownValue(item.id, Number.isFinite(item.rap) ? item.rap : null);
     const stats = el('div', 'small',
-      `Value ${VALUES && VALUES.get(item.id) ? formatNumber(VALUES.get(item.id)) : '-'} `
+      `Value ${shown ? formatNumber(shown) : '-'} `
       + `\u00b7 RAP ${Number.isFinite(item.rap) ? formatNumber(item.rap) : '-'}`);
     stats.style.color = '#7a8288';
     text.appendChild(stats);
@@ -2059,7 +2072,7 @@
         const id = Number(row.assetId ?? row.id);
         unique.add(id);
         rap += Number(row.recentAveragePrice) || 0;
-        value += VALUES && typeof VALUES.get === 'function' ? Number(VALUES.get(id)) || 0 : 0;
+        value += shownValue(id, Number(row.recentAveragePrice) || 0);
       });
       dom.lookupInventory.replaceChildren(
         statCell('Copies Held', formatNumber(rows.length)),
@@ -2108,7 +2121,7 @@
       const body = el('div', 'flex-grow-1');
       body.appendChild(el('div', 'text-truncate', row.name || `Item ${id}`));
       const rap = Number(row.recentAveragePrice) || 0;
-      const value = VALUES && typeof VALUES.get === 'function' ? Number(VALUES.get(id)) || 0 : 0;
+      const value = shownValue(id, rap);
       const sub = el('div', 'small', `Value ${formatNumber(value)} \u00b7 RAP ${formatNumber(rap)}`);
       sub.style.color = '#7a8288';
       body.appendChild(sub);
@@ -2155,7 +2168,7 @@
 
     const text = el('div', 'flex-grow-1');
     text.appendChild(el('div', 'text-truncate', item.name));
-    const value = VALUES ? VALUES.get(item.id) : 0;
+    const value = shownValue(item.id, Number.isFinite(item.rap) ? item.rap : null);
     const stats = el('div', 'small', `Value ${value ? formatNumber(value) : '-'} `
       + `\u00b7 RAP ${Number.isFinite(item.rap) ? formatNumber(item.rap) : '-'}`);
     stats.style.color = '#7a8288';

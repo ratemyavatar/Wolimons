@@ -433,9 +433,22 @@ async function publicItemDetails() {
   ids.forEach((id, index) => {
     const row = snapshot.values[String(id)] || {};
     const extra = enriched[index] || {};
+    /*
+     * An item nobody has valued is worth its RAP.
+     *
+     * `value` is therefore the figure the site shows: the hand-set one where
+     * there is one, and Wanwood's recent average price where there is not.
+     * `valued` says which of the two it is, so a consumer that only wants
+     * the value team's own opinions can still tell them apart, and
+     * `setValue` carries the raw stored figure for the same reason.
+     */
+    const setValue = Number(row.value) || 0;
+    const average = Number(extra.rap) || 0;
     items[String(id)] = {
       name: extra.name ?? null,
-      value: Number(row.value) || 0,
+      value: setValue > 0 ? setValue : average,
+      valued: setValue > 0,
+      setValue,
       demand: row.demand ?? null,
       trend: row.trend ?? null,
       method: row.method ?? null,
@@ -664,9 +677,9 @@ async function luckyDraw() {
   const values = snapshot.values || {};
 
   /* Projected items are a manipulated price rather than a valuation, and
-   * anything above the ceiling would park the badge on the most expensive
-   * limited forever. An unpriced item is still fair game - 0 means nobody
-   * has valued it, not that it is worthless. */
+   * anything worth more than the ceiling would park the badge on the most
+   * expensive limited forever. Items nobody has valued are checked against
+   * their RAP below, because that is what they are worth. */
   const eligible = (await listCatalogIds()).filter(id => {
     const row = values[String(id)];
     if (!row) return true;
@@ -676,8 +689,18 @@ async function luckyDraw() {
   });
   if (!eligible.length) return null;
 
+  /* The worth of an unvalued item, asked for one candidate at a time rather
+   * than for the whole catalogue. */
+  const overCeiling = async assetId => {
+    if ((Number(values[String(assetId)]?.value) || 0) > 0) return false;
+    const resale = await fetchUpstreamJson(`/apisite/economy/v1/assets/${assetId}/resale-data`)
+      .catch(() => null);
+    return (Number(resale?.recentAveragePrice) || 0) > LUCKY_MAX_VALUE;
+  };
+
   /* Walk the shuffled catalogue until an item has an owner we can name. */
   for (const assetId of luckyOrder(eligible, seed, id => id).slice(0, 12)) {
+    if (await overCeiling(assetId)) continue;
     const owners = (await assetOwners(assetId).catch(() => [])).filter(row => row.userId);
     if (!owners.length) continue;
 
@@ -1065,10 +1088,11 @@ function endpointIndex() {
       + 'Everything under /api/v1 is the public API - no key, no registration. '
       + 'Item names, RAP and lowest prices come from Wanwood and are cached for '
       + 'ten minutes; values, demand, trend and categories are set by hand on '
-      + 'this site.',
+      + 'this site. An item nobody has valued is worth its RAP, so `value` '
+      + 'falls back to it and `valued` says which figure you are looking at.',
     endpoints: [
-      { path: `${v1}/itemdetails`, description: 'Every tracked item: name, value, demand, trend, valuation method, categories, RAP, lowest ask.' },
-      { path: `${v1}/values`, description: 'The raw value table this site runs on, keyed by item id.' },
+      { path: `${v1}/itemdetails`, description: 'Every tracked item: name, value (the hand-set figure, or the RAP until one is set), valued, setValue, demand, trend, valuation method, categories, RAP, lowest ask.' },
+      { path: `${v1}/values`, description: 'The raw hand-set value table this site runs on, keyed by item id. Items nobody has valued are simply absent.' },
       { path: `${v1}/valuechanges?limit=&since=`, description: 'The value change log, newest first.' },
       { path: `${v1}/playerinfo/<userId>`, description: 'One Wanwood player: name, staff role, granted badges.' },
       { path: `${v1}/getrecentads?limit=`, description: 'The trade ad board, newest first.' },

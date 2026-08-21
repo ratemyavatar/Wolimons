@@ -97,7 +97,7 @@
    * uses, with the leaderboard's name header, avatar-on-a-gradient and stat
    * rows inside it. Value leads and RAP follows, the same order and the same
    * colours as everywhere else on the site - Value is the community figure
-   * from values.js and is 0 until somebody sets it.
+   * from values.js, or the item's RAP until somebody sets one.
    */
   function playerCard(player) {
     const card = text('div', 'shadow_md_35 shift_up_md pb-2 mb-3 mix_item');

@@ -110,10 +110,12 @@
       name: String(item.name || '').trim(),
       rare: restrictions.includes('LimitedUnique') || item.isLimitedUnique === true,
       rap: Number.isFinite(Number(rap)) ? Number(rap) : null,
-      /* Value is community-assigned and lives in values.js - it is not a
-       * price and it is not RAP. Unset items are worth 0, which is exactly
-       * how they should be totalled in a trade. */
-      value: VALUES.get(id),
+      /* Value is ours and lives in values.js - it is not a price. Until the
+       * value team sets one it is the item's RAP, so a trade involving items
+       * nobody has valued still totals to something a trader can use. */
+      value: typeof VALUES.valueOf === 'function'
+        ? VALUES.valueOf(id, Number.isFinite(Number(rap)) ? Number(rap) : null)
+        : VALUES.get(id),
       thumbnail: item.thumbnail || API.thumbnailUrl(id),
     };
   }

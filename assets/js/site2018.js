@@ -38,6 +38,14 @@
       ready: table.ready && typeof table.ready.then === 'function' ? table.ready : Promise.resolve(),
       all: () => table.all || {},
       get: id => Number(call('get', id, 0)) || 0,
+      /* The figure to print: the value the team set, or the item's RAP until
+       * they set one - the same rule the modern pages follow. */
+      valueOf: (id, rap) => (typeof table.valueOf === 'function' && table.valueOf.length >= 2
+        ? Number(table.valueOf(id, rap)) || 0
+        : (Number(call('get', id, 0)) || 0) || Number(rap) || 0),
+      tracksRap: (id, rap) => (typeof table.tracksRap === 'function'
+        ? Boolean(table.tracksRap(id, rap))
+        : false),
       demand: id => call('demand', id, null),
       trend: id => call('trend', id, null),
       note: id => call('note', id, ''),
@@ -206,7 +214,7 @@
             assetType: detail.assetType,
             rap: number(detail.rap),
             price: number(detail.lowestPrice ?? detail.price),
-            value: VALUES.get(id),
+            value: VALUES.valueOf(id, number(detail.rap)),
             demand: VALUES.demand(id),
             trend: VALUES.trend(id),
             categories,
@@ -599,7 +607,9 @@
       setTitle(node, detail ? detail.name : `Item ${id}`);
       setImage(node, detail?.thumbnail || API.thumbnailUrl(id), 'Item thumbnail');
       setLink(node, `/item/?id=${id}`);
-      setRow(node, 'Old', money(change.old));
+      /* 0 in the log means the table had no figure, and an item in that state
+       * is worth its RAP - so it says so rather than printing a flat zero. */
+      setRow(node, 'Old', Number(change.old) ? money(change.old) : 'Unvalued');
 
       /* The New figure has an arrow glyph beside it: only the number is
        * replaced, and the arrow is turned to point the way this change went. */
@@ -990,7 +1000,7 @@
     const distinctOwners = new Set(holders.map(owner => owner.userId)).size;
     const hoards = hoardRows(holders);
     const hoardedCopies = hoards.reduce((sum, entry) => sum + entry.copies, 0);
-    const value = VALUES.get(id);
+    const value = VALUES.valueOf(id, rap);
 
     document.title = `${name} - Wolimons`;
     if (titleBox) {
@@ -1151,14 +1161,30 @@
    * any day is a fact rather than a guess. An item nobody has re-valued draws
    * a straight line, which is the truth about it.
    */
-  function valuePoints(value, changes, id) {
+  function valuePoints(value, changes, id, resale) {
     const edits = (Array.isArray(changes) ? changes : [])
       .filter(change => change && Number(change.id) === id && change.field === 'value'
         && Number.isFinite(Number(change.at)))
       .sort((a, b) => Number(a.at) - Number(b.at));
-    if (!edits.length) return value ? [[Date.now(), value]] : [];
 
-    const line = [[Number(edits[0].at), Number(edits[0].old) || 0]];
+    /*
+     * An item nobody has valued is worth its RAP, so with no edits to plot
+     * the value line is the RAP line - the same figure the page prints above
+     * it - rather than a flat nothing.
+     */
+    if (!edits.length) return rapPoints(resale).length ? rapPoints(resale) : (value ? [[Date.now(), value]] : []);
+
+    /* Before the first edit the item was worth whatever that edit replaced;
+     * where that is nothing, it was worth its RAP on the day. */
+    const rapLine = rapPoints(resale);
+    const rapAt = when => {
+      let last = 0;
+      rapLine.forEach(([time, rap]) => { if (time <= when) last = rap; });
+      return last;
+    };
+
+    const first = Number(edits[0].at);
+    const line = [[first, Number(edits[0].old) || rapAt(first) || 0]];
     edits.forEach(edit => line.push([Number(edit.at), Number(edit.new) || 0]));
     line.push([Date.now(), Number(edits[edits.length - 1].new) || value || 0]);
     return line;
@@ -1179,7 +1205,7 @@
       },
       value_chart_container: {
         series: () => [
-          { name: 'Value', data: valuePoints(data.value, data.changes, data.id) },
+          { name: 'Value', data: valuePoints(data.value, data.changes, data.id, data.resale) },
           { name: 'RAP', data: rapPoints(data.resale) },
         ],
         empty: 'This item\u2019s value has not been changed yet, so there is nothing to plot.',
@@ -1341,9 +1367,9 @@
       }
     }));
     const totals = rows.reduce((sum, row) => {
-      const value = VALUES.get(Number(row.assetId));
+      const value = VALUES.valueOf(Number(row.assetId), number(row.recentAveragePrice));
       return {
-        value: sum.value + (value || number(row.recentAveragePrice) || 0),
+        value: sum.value + (value || 0),
         rap: sum.rap + (number(row.recentAveragePrice) || 0),
       };
     }, { value: 0, rap: 0 });
@@ -1377,7 +1403,7 @@
           id: assetId,
           order: index,
           name: String(row.name || `Item ${assetId}`),
-          value: VALUES.get(assetId),
+          value: VALUES.valueOf(assetId, number(row.recentAveragePrice)),
           rap: number(row.recentAveragePrice),
           serial: number(row.serialNumber),
           /* The copy's own id, which is what the card's UAID row is for. */

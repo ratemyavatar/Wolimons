@@ -235,7 +235,10 @@ async function buildRoster() {
 
   await mapLimit(assetIds, 4, async assetId => {
     const [owners, rap] = await Promise.all([ownersOf(assetId), rapOf(assetId)]);
-    const value = Number(values[String(assetId)] && values[String(assetId)].value) || 0;
+    /* Unvalued items are worth their RAP - the same rule the site follows, so
+     * the rank in a link preview matches the one on the leaderboard. */
+    const setValue = Number(values[String(assetId)] && values[String(assetId)].value) || 0;
+    const value = setValue > 0 ? setValue : (Number(rap) || 0);
     owners.forEach(userId => {
       const row = totals.get(userId) || { id: userId, rap: 0, value: 0 };
       row.rap += rap;

@@ -91,11 +91,12 @@ const RESELLERS = {
   1581: { data: [{ price: 11000, seller: { id: 99, name: 'goob' } }, { price: 12000, seller: { id: 486, name: 'Nun' } }] },
   4266: { data: [] },
 };
+/* Only the crown is valued; the vampire has to come out at its RAP. */
 const VALUES = {
   success: true, updatedAt: 5,
   values: {
-    1581: { value: 10000, demand: 'High', trend: 'Rising', categories: ['rare'], method: 'proof', note: '' },
-    4266: { value: 200, demand: 'Low', trend: 'Stable', categories: ['projected'] },
+    1581: { value: 10000, demand: 'High', trend: 'Stable', categories: ['rare'], method: 'proof', note: '' },
+    4266: { demand: 'Low', trend: 'Stable', categories: ['projected'] },
   },
 };
 const COLLECTIBLES = {
@@ -607,6 +608,37 @@ let tag_seen = new Set();
     ok('deals (39 items): only the flagged one',
       w.document.querySelectorAll('.projectionspg_item_cell').length === 1,
       w.document.querySelectorAll('.projectionspg_item_cell').length);
+  }
+
+  /* an item nobody has valued is worth its RAP, on these pages too */
+  {
+    const { w } = boot('/2018/catalog/index.html');
+    await wait(1300);
+    const card = [...w.document.querySelectorAll('.catpg_item_cell')]
+      .find(node => /Playful Vampire/.test(node.textContent));
+    ok('2018 catalog: an unvalued item shows its RAP as its value',
+      !!card && /Value\s*150|150/.test(card.textContent),
+      card ? card.textContent.replace(/\s+/g, ' ').slice(0, 90) : 'no card');
+  }
+  {
+    const { w } = boot('/2018/itemtable/index.html');
+    await wait(1300);
+    const row = [...w.document.querySelectorAll('#itemtable_table tbody tr')]
+      .find(node => /Playful Vampire/.test(node.textContent));
+    const cells = row ? [...row.children].map(cell => cell.textContent.trim()) : [];
+    ok('2018 item table: value and RAP are both the RAP for an unvalued item',
+      cells[3] === '150' && cells[4] === '150', cells.join(' | '));
+  }
+  {
+    const { w } = boot('/2018/item/index.html', '?id=4266');
+    await wait(1400);
+    const stat = label => {
+      const row = [...w.document.querySelectorAll('.list-group-item')]
+        .find(r => r.querySelector('small') && r.querySelector('small').textContent.trim() === label);
+      return row ? row.querySelector('p').textContent.trim() : null;
+    };
+    ok('2018 item page: an unvalued item is worth its RAP',
+      stat('Value') === '150' && stat('RAP') === '150', `${stat('Value')} / ${stat('RAP')}`);
   }
 
   /* the Discord panel, which is 2018 furniture */

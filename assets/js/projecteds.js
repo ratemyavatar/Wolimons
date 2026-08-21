@@ -197,8 +197,10 @@
           id,
           name: String(detail.name).trim(),
           thumbnail: detail.thumbnail || API.thumbnailUrl(id),
-          /* Community figures, never fetched. 0 until set by hand. */
-          value: VALUES.get(id),
+          /* Ours, never fetched - and its RAP until somebody sets one. */
+          value: typeof VALUES.valueOf === 'function'
+            ? VALUES.valueOf(id, Number.isFinite(detail.rap) ? detail.rap : null)
+            : VALUES.get(id),
           rap: Number.isFinite(detail.rap) ? detail.rap : null,
           rare: categories.includes('rare'),
           /* Always true here - this is the list of them - but the card reads

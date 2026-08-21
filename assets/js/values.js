@@ -9,8 +9,24 @@
  * Nothing on Wanwood reports any of them, so they can never be fetched from
  * the game API. They come from the value team instead.
  *
- * Every item starts unset: value 0, demand and trend blank, no categories.
- * Nothing is guessed and nothing is filled in automatically.
+ * Every item starts unset: demand and trend blank, no categories, and no
+ * hand-set value. Nothing is guessed and nothing is filled in automatically.
+ *
+ * ---------------------------------------------------------------------------
+ * AN UNVALUED ITEM IS WORTH ITS RAP
+ * ---------------------------------------------------------------------------
+ * Until the value team sets a figure, an item's value is its RAP - what it has
+ * actually been selling for. That is the honest starting point: it is a real
+ * number about that item rather than a zero, and it is what a trader would
+ * reach for anyway.
+ *
+ * The moment somebody sets a value, that value wins and the RAP goes back to
+ * being just the RAP. The two never merge: RAP is always Wanwood's figure and
+ * value is always ours, and every page prints both.
+ *
+ * Use valueOf(id, rap) to get the figure to show. get(id) is still the raw
+ * hand-set value and isSet(id) still says whether there is one - the admin
+ * panel edits those, and the catalog's "valued" filter reads them.
  *
  * ---------------------------------------------------------------------------
  * HOW ITEMS GET SET
@@ -223,9 +239,31 @@
     CATEGORIES,
     METHODS,
 
-    /* Value for an asset id. Always a number; 0 when unset. */
+    /* The raw hand-set value for an asset id. Always a number; 0 when the
+     * value team has not set one. Not what a page should print - see
+     * valueOf() - but what the admin panel edits and what isSet() reads. */
     get(id) {
       return toValue(row(id).value);
+    },
+
+    /*
+     * The value to show for an item: the hand-set one, or its RAP.
+     *
+     * `rap` is Wanwood's recent average price for the same item, which the
+     * caller has already fetched - this file never fetches anything from the
+     * game. An item with neither is 0, which is the truth about it.
+     */
+    valueOf(id, rap) {
+      const set = toValue(row(id).value);
+      if (set > 0) return set;
+      const average = Number(rap);
+      return Number.isFinite(average) && average > 0 ? Math.round(average) : 0;
+    },
+
+    /* True when the figure valueOf() would return is the item's RAP rather
+     * than a value somebody set. Pages say so where it matters. */
+    tracksRap(id, rap) {
+      return toValue(row(id).value) <= 0 && Number(rap) > 0;
     },
 
     /* True only when a real, non-zero value has been set by hand. */

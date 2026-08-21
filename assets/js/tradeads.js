@@ -316,7 +316,9 @@
 
     const text = el('div', 'flex-grow-1');
     text.appendChild(el('div', 'text-truncate', item.name));
-    const value = VALUES.get(item.id);
+    const value = typeof VALUES.valueOf === 'function'
+      ? VALUES.valueOf(item.id, Number.isFinite(item.rap) ? item.rap : null)
+      : VALUES.get(item.id);
     const stats = el('div', 'small', `Value ${value ? formatNumber(value) : '-'} `
       + `\u00b7 RAP ${Number.isFinite(item.rap) ? formatNumber(item.rap) : '-'}`);
     stats.style.color = '#7a8288';

@@ -91,7 +91,10 @@
         id,
         name: typeof row.name === 'string' ? row.name.trim() : `Item ${id}`,
         rap: Number(row.recentAveragePrice) || 0,
-        value: VALUES ? VALUES.get(id) : 0,
+        /* Its RAP until the value team sets a figure of their own. */
+        value: VALUES && typeof VALUES.valueOf === 'function'
+          ? VALUES.valueOf(id, Number(row.recentAveragePrice) || 0)
+          : (VALUES ? VALUES.get(id) : 0),
         copies,
         thumbnail: null,
       });
@@ -144,7 +147,8 @@
 
     try {
       /* The value table lands a moment after the page; wait for it so the
-       * sheet is drawn with real values instead of a column of Unvalued. */
+       * sheet is drawn with the value team's figures rather than falling back
+       * to RAP for items they have in fact valued. */
       if (VALUES && VALUES.ready) {
         try { await VALUES.ready; } catch (error) { /* fall through unset */ }
       }

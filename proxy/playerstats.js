@@ -98,7 +98,10 @@ function history(userId) {
  * totalRap adds up, and it is the one the profile prints - so the chart and
  * the page can never disagree about today.
  *
- * `valueOf` is this site's curated value for an asset id.
+ * `valueOf` is this site's hand-set value for an asset id. Where there is
+ * none, the copy is worth its RAP: that is the site-wide rule, and the totals
+ * here have to follow it or the recorded history would disagree with the
+ * figure printed at the top of the same page.
  */
 function totalsFrom(rows, valueOf) {
   let rap = 0;
@@ -111,9 +114,11 @@ function totalsFrom(rows, valueOf) {
     if (!row || typeof row !== 'object') return;
     const assetId = Number(row.assetId ?? row.id);
     if (!Number.isSafeInteger(assetId) || assetId <= 0) return;
+    const average = Number(row.recentAveragePrice) || 0;
+    const set = Number(valueOf(assetId)) || 0;
     copies += 1;
-    rap += Number(row.recentAveragePrice) || 0;
-    value += Number(valueOf(assetId)) || 0;
+    rap += average;
+    value += set > 0 ? set : average;
   });
 
   return { rap, value, copies };

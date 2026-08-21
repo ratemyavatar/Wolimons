@@ -70,6 +70,14 @@
   const RAW_VALUES = window.WolimonsValues || {};
   const VALUES = {
     get: id => (typeof RAW_VALUES.get === 'function' ? Number(RAW_VALUES.get(id)) || 0 : 0),
+    /* The figure this page prints as Value: the hand-set one, or the item's
+     * RAP until the value team sets one. */
+    valueOf: (id, rap) => (typeof RAW_VALUES.valueOf === 'function' && RAW_VALUES.valueOf.length >= 2
+      ? Number(RAW_VALUES.valueOf(id, rap)) || 0
+      : (typeof RAW_VALUES.get === 'function' ? Number(RAW_VALUES.get(id)) || 0 : 0) || Number(rap) || 0),
+    tracksRap: (id, rap) => (typeof RAW_VALUES.tracksRap === 'function'
+      ? RAW_VALUES.tracksRap(id, rap)
+      : false),
     demand: id => (typeof RAW_VALUES.demand === 'function' ? RAW_VALUES.demand(id) : null),
     trend: id => (typeof RAW_VALUES.trend === 'function' ? RAW_VALUES.trend(id) : null),
     method: id => (typeof RAW_VALUES.method === 'function' ? RAW_VALUES.method(id) : null),
@@ -613,7 +621,8 @@
 
     const valueAt = when => {
       /* Before the first recorded edit the item had whatever that edit
-       * replaced - usually nothing, which is 0. */
+       * replaced - and where that is nothing, its value was its RAP, so the
+       * line follows the RAP back rather than dropping to zero. */
       let current = Number(edits.length ? edits[0].old : value) || 0;
       edits.forEach(edit => {
         if (edit.at <= when) current = Number(edit.new) || 0;
@@ -653,7 +662,12 @@
 
     return [...stamps]
       .sort((a, b) => a - b)
-      .map(time => ({ time, value: valueAt(time), rap: rapFor(time) }));
+      .map(time => {
+        const rap = rapFor(time);
+        /* An unvalued item is worth its RAP, so the value line rides the RAP
+         * line until the day somebody set a figure. */
+        return { time, value: valueAt(time) || rap, rap };
+      });
   }
 
   const CHART_PANES = {
@@ -989,7 +1003,8 @@
    * after the backend's table lands a moment behind the page.
    */
   function renderValuation(id, rap) {
-    const value = VALUES.get(id);
+    const value = VALUES.valueOf(id, rap);
+    const tracking = VALUES.tracksRap(id, rap);
     setNumber('value', value);
     setText('demand', VALUES.demand(id));
     setText('trend', VALUES.trend(id));
@@ -1010,9 +1025,18 @@
 
     const credit = field('valuation-credit');
     if (credit) {
-      credit.textContent = value
-        ? ''
-        : 'This item has not been valued yet. Value stays at 0 until the value team sets it.';
+      if (tracking) {
+        /* Not "unvalued": the figure above is real, it is just Wanwood's
+         * rather than ours, and it moves with the item's sales until
+         * somebody sets a value of their own. */
+        credit.textContent = 'Nobody has set a value for this item yet, so its value '
+          + 'tracks its RAP - what it has actually been selling for.';
+      } else if (!value) {
+        credit.textContent = 'This item has no value yet: nobody has set one, and Wanwood '
+          + 'has recorded no sales to take a RAP from.';
+      } else {
+        credit.textContent = '';
+      }
     }
 
     /* The Rare gem is a category, so it moves with the values too. */
@@ -1030,7 +1054,9 @@
      */
     const target = field('value-vs-rap');
     if (target) {
-      if (!value || !Number.isFinite(rap) || rap <= 0) {
+      /* Comparing the RAP with itself says nothing, so an item whose value is
+       * its RAP shows a dash here rather than a proud 0%. */
+      if (tracking || !value || !Number.isFinite(rap) || rap <= 0) {
         target.textContent = EMPTY;
         target.style.color = '';
       } else {
@@ -1218,7 +1244,7 @@
       listings,
       owners,
       changes,
-      value: VALUES.get(id),
+      value: VALUES.valueOf(id, rap),
       /* Every tab's x-axis starts the day the item was made. */
       since: Number.isFinite(created) ? created : 0,
     });
@@ -1228,7 +1254,7 @@
       isLimitedUnique ? 'limited unique' : (isLimited ? 'limited' : ''),
       (TYPE_NAMES[detail?.assetType] || 'item').toLowerCase(),
     ].filter(Boolean).join(' ');
-    const value = VALUES.get(id);
+    const value = VALUES.valueOf(id, rap);
     const demand = VALUES.demand(id);
     const sentences = [
       `${name} is a Wanwood ${kind}. Wolimons tracks its price, RAP, value, `
@@ -1236,7 +1262,9 @@
     ];
     const facts = [];
     if (Number.isFinite(rap)) facts.push(`a RAP of ${formatNumber(rap)}`);
-    facts.push(value ? `a Value of ${formatNumber(value)}` : 'no Value set yet');
+    facts.push(value
+      ? `a Value of ${formatNumber(value)}${VALUES.tracksRap(id, rap) ? ' (tracking its RAP)' : ''}`
+      : 'no Value yet');
     if (demand) facts.push(`a Demand rating of ${demand}`);
     sentences.push(`It currently has ${facts.join(', ')}.`);
     setText('about-overview', sentences.join(' '));

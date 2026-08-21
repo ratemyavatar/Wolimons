@@ -120,24 +120,44 @@ pre {
   <div class="op-body">
     <h4>Description</h4>
     <p>Name, value, demand, trend, valuation method, categories, RAP and lowest ask for every item the site tracks. This is the one most tools want.</p>
+    <p><strong>Value:</strong> an item nobody has valued is worth its RAP, so <code>value</code> is the figure the site shows &mdash; the hand-set one where there is one, Wanwood&rsquo;s recent average price where there is not. <code>valued</code> says which of the two it is, and <code>setValue</code> is the raw stored figure (0 when nobody has set one).</p>
     <h4>Parameters</h4>
     <p class="meta">None.</p>
     <h4>Example response</h4>
 <pre>{
   "success": true,
   "item_count": 42,
+  "upstream": "wanwoo.xyz",
+  "partial": false,
+  "refreshedAt": 1755648000000,
   "items": {
     "1581": {
       "name": "Domino Crown",
-      "acronym": "",
-      "rap": 9500,
       "value": 10000,
+      "valued": true,
+      "setValue": 10000,
       "demand": "High",
       "trend": "Stable",
-      "projected": false,
-      "hyped": false,
-      "rare": true,
-      "lowest_price": 11000
+      "method": "proof",
+      "categories": ["rare"],
+      "rap": 9500,
+      "lowestPrice": 11000,
+      "updatedAt": 1755648000000,
+      "updatedBy": "goob"
+    },
+    "4266": {
+      "name": "Playful Vampire",
+      "value": 150,
+      "valued": false,
+      "setValue": 0,
+      "demand": null,
+      "trend": null,
+      "method": null,
+      "categories": [],
+      "rap": 150,
+      "lowestPrice": null,
+      "updatedAt": 0,
+      "updatedBy": ""
     }
   }
 }</pre>

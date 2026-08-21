@@ -55,12 +55,16 @@ const COLLECTIBLES = {
   totalRap: 9650,
   nextPageCursor: null,
 };
+/*
+ * Deliberately only one of the two is valued: the other has to come out at
+ * its RAP everywhere, which is the site's rule.
+ */
 const VALUES = {
   success: true,
   updatedAt: 5,
   values: {
     1581: { value: 10000, demand: 'High', trend: 'Stable', categories: ['rare'], method: 'proof', note: '' },
-    4266: { value: 200, demand: 'Low', trend: 'Stable', categories: ['projected'] },
+    4266: { demand: 'Low', trend: 'Stable', categories: ['projected'] },
   },
 };
 /* The shape /api/ads really answers with - see normalizeAd in
@@ -352,6 +356,43 @@ function signIn(w) {
     await wait(1500);
     ok('trade ad: the ad opened', !/could not be found/i.test(w.document.body.textContent),
       w.document.body.textContent.replace(/\s+/g, ' ').slice(0, 160));
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* An item nobody has valued is worth its RAP                         */
+  /* ---------------------------------------------------------------- */
+
+  {
+    const { w } = boot('/catalog/index.html');
+    await wait(1400);
+    const card = [...w.document.querySelectorAll('#catalog_mix_container > *')]
+      .find(node => /Playful Vampire/.test(node.textContent));
+    ok('catalog: an unvalued item shows its RAP as its value',
+      !!card && /150/.test(card.textContent),
+      card ? card.textContent.replace(/\s+/g, ' ').slice(0, 90) : 'no card');
+    const valued = [...w.document.querySelectorAll('#catalog_mix_container > *')]
+      .find(node => /Domino Crown/.test(node.textContent));
+    ok('catalog: a valued item still shows the value that was set',
+      !!valued && /10,000/.test(valued.textContent) && /9,500/.test(valued.textContent),
+      valued ? valued.textContent.replace(/\s+/g, ' ').slice(0, 90) : 'no card');
+  }
+
+  {
+    const { w } = boot('/item/index.html', '?id=4266');
+    await wait(1500);
+    const text = w.document.body.textContent.replace(/\s+/g, ' ');
+    ok('item page: an unvalued item is worth its RAP', /150/.test(text), text.slice(0, 140));
+    ok('item page: and says the figure is the RAP rather than a value',
+      /tracks its RAP/i.test(text), text.slice(0, 400));
+  }
+
+  {
+    const { w } = boot('/player/index.html', '?id=486');
+    await wait(1600);
+    const text = w.document.body.textContent.replace(/\s+/g, ' ');
+    /* 10,000 for the valued crown + 150 RAP for the unvalued vampire. */
+    ok('profile: the total counts the unvalued item at its RAP',
+      /10,150/.test(text), text.slice(0, 220));
   }
 
   console.log(failures ? `\n${failures} FAILURES` : '\nALL PASS');

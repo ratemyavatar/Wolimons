@@ -285,6 +285,17 @@
   const items = new Map();
   const creators = new Map();
 
+  /*
+   * What one slot's item is worth: the value the team set, or its RAP until
+   * they set one. `known` is the resolved item, which is where the RAP is.
+   */
+  function valueOfSlot(id, known) {
+    const rap = known && Number.isFinite(known.rap) ? known.rap : null;
+    if (VALUES && typeof VALUES.valueOf === 'function') return Number(VALUES.valueOf(id, rap)) || 0;
+    return (VALUES && typeof VALUES.get === 'function' ? Number(VALUES.get(id)) || 0 : 0)
+      || Number(rap) || 0;
+  }
+
   /* One details call covers the lot; a failure leaves the ids unresolved
    * rather than fabricating names or numbers. */
   async function resolveItems(ids) {
@@ -357,9 +368,9 @@
    * no numbers and contribute nothing. A side with no items at all shows "-",
    * which is what the snapshot does for a tags-only request side.
    *
-   * Value is the curated figure and is 0 until set, so a side of unvalued
-   * items legitimately totals 0 - that is not a missing number, it is the
-   * honest answer.
+   * Value is ours: the figure the value team set, or the item's RAP until
+   * they set one. A side whose items have neither totals 0, which is the
+   * honest answer rather than a missing number.
    */
   function sideTotals(side) {
     const slots = side.filter(slot => slot && slot.kind === 'item');
@@ -368,8 +379,8 @@
     let rap = 0;
     let sawRap = false;
     slots.forEach(slot => {
-      value += VALUES.get(slot.id);
       const known = items.get(slot.id);
+      value += valueOfSlot(slot.id, known);
       if (known && Number.isFinite(known.rap)) {
         rap += known.rap;
         sawRap = true;
@@ -408,7 +419,7 @@
     }
 
     const name = itemName(slot);
-    const value = VALUES.get(slot.id);
+    const value = valueOfSlot(slot.id, items.get(slot.id));
     const rap = itemRap(slot);
 
     const link = el('a');

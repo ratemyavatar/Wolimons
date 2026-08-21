@@ -47,9 +47,9 @@
  *   - a player whose inventory Wanwood will actually show (a private
  *     inventory returns nothing, so that player is skipped),
  *   - a limited in it that is not flagged projected in the value table,
- *   - value at or below LUCKY_MAX_VALUE where a value has been set. An item
- *     nobody has valued is still eligible - value 0 means "not priced yet",
- *     never "worthless".
+ *   - worth at or below LUCKY_MAX_VALUE, where "worth" is the value the team
+ *     set or, until they set one, the item's own RAP. An item with neither is
+ *     still eligible: 0 there means "nothing recorded", never "worthless".
  *
  * If the API is unreachable, or nobody passes, the page says so rather than
  * showing a placeholder cat item.
@@ -347,9 +347,10 @@
    * Is this row a limited the cat is allowed to bless?
    *
    * Projected items are excluded because their price is a manipulation
-   * rather than a valuation, and anything valued above the ceiling is left
-   * out so the badge stays winnable. An item with no value set yet is still
-   * eligible - 0 means "nobody has priced it", not "worthless".
+   * rather than a valuation, and anything worth more than the ceiling is
+   * left out so the badge stays winnable. "Worth" is the site's rule: the
+   * value the team set, or the item's RAP until they set one - so a pricey
+   * item nobody has valued yet is no longer waved through on a technicality.
    */
   function eligibleItem(row) {
     const id = Number(row && row.assetId);
@@ -360,7 +361,10 @@
     if (!VALUES) return true;
     const categories = VALUES.categories(id) || [];
     if (categories.includes('projected')) return false;
-    const value = Number(VALUES.get(id)) || 0;
+    const rap = Number(row.recentAveragePrice) || 0;
+    const value = typeof VALUES.valueOf === 'function'
+      ? Number(VALUES.valueOf(id, rap)) || 0
+      : (Number(VALUES.get(id)) || 0) || rap;
     return value === 0 || value <= LUCKY_MAX_VALUE;
   }
 

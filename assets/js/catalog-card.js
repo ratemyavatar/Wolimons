@@ -13,10 +13,11 @@
  * WHAT A CARD SHOWS, AND WHAT IT NEVER SHOWS
  * ---------------------------------------------------------------------------
  * Value and RAP, and never a price. Value is the community figure from
- * values.js - assigned by hand, never fetched - and reads 0 until somebody
- * sets it. Price is a shop listing, not a valuation, and does not belong on a
- * card at all; any page that genuinely needs to talk about a sale price must
- * label it as such itself rather than passing it off as value.
+ * values.js - assigned by hand, never fetched - and until somebody sets one
+ * it is the item's own RAP, which is a real number about that item rather
+ * than a zero. Price is a shop listing, not a valuation, and does not belong
+ * on a card at all; any page that genuinely needs to talk about a sale price
+ * must label it as such itself rather than passing it off as value.
  *
  * The Limited / Limited U ribbon comes from the API's own restriction flags,
  * which the API client resolves through api/v1/items/restrictions. It is

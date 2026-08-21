@@ -452,8 +452,21 @@
       changed = true;
     });
 
-    /* Only redraw if the reader is still on the page these belong to. */
-    if (changed && shown.some(change => visible.includes(change))) renderPage();
+    /*
+     * Redraw if any of the cards on screen is one of the items just named.
+     *
+     * This used to ask whether the rows it fetched for were still in
+     * `visible`, by object identity - and `visible` is rebuilt from scratch
+     * whenever the feed is filtered or reloaded, so the answer was usually
+     * no. The names arrived, went into the map, and nothing redrew: every
+     * card sat there reading "Item 1581" until something else happened to
+     * re-render the page. Matching on the id that is written onto each card
+     * cannot go stale that way.
+     */
+    if (!changed) return;
+    const onScreen = new Set([...grid.querySelectorAll('[data-change-id]')]
+      .map(card => Number(String(card.dataset.changeId).split('-')[0])));
+    if (details.some(detail => onScreen.has(Number(detail.id ?? detail.assetId)))) renderPage();
   }
 
   /* ------------------------------------------------------------------ */
